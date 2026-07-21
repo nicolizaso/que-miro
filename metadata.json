@@ -1,0 +1,6 @@
+{
+  "name": "Qué Miro?",
+  "description": "Una webapp responsive de tracking personal de películas y series con sistema de reseñas y motor de selección aleatoria.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
