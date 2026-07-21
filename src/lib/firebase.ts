@@ -1,10 +1,9 @@
+// src/lib/firebase.ts
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-export const isFirebaseConfigured = Boolean(apiKey && apiKey.length > 0);
-
+// Configuración leída estrictamente desde las variables de entorno de Vite/Vercel
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -14,6 +13,12 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Verifica que la API key exista y no esté vacía
+export const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== ''
+);
+
+// Inicialización de servicios
 export const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : ({} as any);
 export const auth = isFirebaseConfigured ? getAuth(app) : ({} as any);
 export const db = isFirebaseConfigured ? getFirestore(app) : ({} as any);

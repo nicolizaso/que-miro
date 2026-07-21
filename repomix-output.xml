@@ -1,0 +1,1901 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+src/
+  components/
+    MediaCard.tsx
+    ReviewDrawer.tsx
+    SearchModal.tsx
+    SyncManager.tsx
+    TitleDetailModal.tsx
+  contexts/
+    AuthContext.tsx
+  hooks/
+    useMediaActions.ts
+  lib/
+    firebase.ts
+    tmdb.ts
+    utils.ts
+  views/
+    ListView.tsx
+    LoginView.tsx
+    ProfileView.tsx
+    SmartPickerView.tsx
+  App.tsx
+  index.css
+  main.tsx
+  store.ts
+  types.ts
+.env.example
+.gitignore
+firebase-applet-config.json
+firebase-blueprint.json
+firestore.rules
+index.html
+metadata.json
+package.json
+tsconfig.json
+vite.config.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/components/TitleDetailModal.tsx">
+import React, { useEffect, useState } from 'react';
+import { getMediaDetail, TMDB_IMAGE_BASE_URL, TMDB_IMAGE_ORIGINAL_URL } from '@/lib/tmdb';
+import { TMDbDetail } from '@/types';
+import { X, Play, Info } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+interface Props {
+  id: number;
+  mediaType: 'movie' | 'tv';
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
+  const [detail, setDetail] = useState<TMDbDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && id) {
+      setLoading(true);
+      getMediaDetail(id, mediaType).then(data => {
+        setDetail(data);
+        setLoading(false);
+      });
+    } else {
+      setDetail(null);
+    }
+  }, [id, mediaType, isOpen]);
+
+  if (!isOpen) return null;
+
+  const trailer = detail?.videos?.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+  const cast = detail?.credits?.cast?.slice(0, 5) || [];
+  const providers = detail?.['watch/providers']?.results?.['ES'] || detail?.['watch/providers']?.results?.['US'];
+  
+  const allProviders = [
+    ...(providers?.flatrate || []),
+    ...(providers?.rent || []),
+    ...(providers?.buy || [])
+  ].filter((v, i, a) => a.findIndex(t => (t.provider_name === v.provider_name)) === i).slice(0, 4);
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-bg-main/90 backdrop-blur-md overflow-y-auto">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="relative w-full max-w-2xl bg-bg-card border border-border-card rounded-3xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
+        >
+          <button 
+            onClick={onClose} 
+            className="absolute top-4 right-4 z-10 p-2 bg-bg-main/50 backdrop-blur-md rounded-full text-white hover:bg-bg-main transition-colors"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="relative aspect-video w-full bg-border-card shrink-0">
+            {detail?.backdrop_path ? (
+              <img 
+                src={`${TMDB_IMAGE_ORIGINAL_URL}${detail.backdrop_path}`} 
+                alt={detail.title || detail.name}
+                className="w-full h-full object-cover"
+              />
+            ) : detail?.poster_path ? (
+              <img 
+                src={`${TMDB_IMAGE_ORIGINAL_URL}${detail.poster_path}`} 
+                alt={detail.title || detail.name}
+                className="w-full h-full object-cover"
+              />
+            ) : null}
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/20 to-transparent" />
+            
+            <div className="absolute bottom-6 left-6 right-6">
+              <h2 className="font-serif italic font-bold text-3xl sm:text-4xl text-white drop-shadow-lg line-clamp-2">
+                {detail?.title || detail?.name}
+              </h2>
+              <div className="flex flex-wrap gap-2 text-sm text-white/80 mt-2">
+                <span>{(detail?.release_date || detail?.first_air_date || '').split('-')[0]}</span>
+                {detail?.genres?.slice(0,3).map(g => (
+                  <span key={g.id}>• {g.name}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8 custom-scrollbar">
+            {loading ? (
+              <div className="flex justify-center py-10 text-accent animate-pulse"><Info /></div>
+            ) : (
+              <>
+                {trailer && (
+                  <a 
+                    href={`https://www.youtube.com/watch?v=${trailer.key}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-4 bg-accent text-white rounded-xl font-medium hover:bg-accent/90 transition-colors shrink-0"
+                  >
+                    <Play size={20} className="fill-white" />
+                    Ver Tráiler
+                  </a>
+                )}
+
+                {detail?.overview && (
+                  <div>
+                    <h3 className="text-lg font-bold mb-2">Sinopsis</h3>
+                    <p className="text-text-main/70 text-sm leading-relaxed">
+                      {detail.overview}
+                    </p>
+                  </div>
+                )}
+
+                {cast.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-bold mb-3">Reparto Principal</h3>
+                    <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                      {cast.map(c => (
+                        <div key={c.id} className="flex flex-col gap-2 w-20 shrink-0">
+                          <div className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0">
+                            {c.profile_path && (
+                              <img src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`} alt={c.name} className="w-full h-full object-cover" />
+                            )}
+                          </div>
+                          <span className="text-xs text-center font-medium leading-tight truncate">{c.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {allProviders.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-bold mb-3">Dónde Ver</h3>
+                    <div className="flex gap-3">
+                      {allProviders.map(p => (
+                        <div key={p.provider_name} className="w-12 h-12 rounded-xl bg-border-card overflow-hidden shrink-0" title={p.provider_name}>
+                          <img src={`${TMDB_IMAGE_BASE_URL}${p.logo_path}`} alt={p.provider_name} className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
+</file>
+
+<file path="src/lib/tmdb.ts">
+export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
+export const TMDB_IMAGE_ORIGINAL_URL = 'https://image.tmdb.org/t/p/original';
+
+const GENRE_MAP: Record<number, string> = {
+  28: "Action",
+  12: "Adventure",
+  16: "Animation",
+  35: "Comedy",
+  80: "Crime",
+  99: "Documentary",
+  18: "Drama",
+  10751: "Family",
+  14: "Fantasy",
+  36: "History",
+  27: "Horror",
+  10402: "Music",
+  9648: "Mystery",
+  10749: "Romance",
+  878: "Science Fiction",
+  10770: "TV Movie",
+  53: "Thriller",
+  10752: "War",
+  37: "Western",
+  10759: "Action & Adventure",
+  10762: "Kids",
+  10763: "News",
+  10764: "Reality",
+  10765: "Sci-Fi & Fantasy",
+  10766: "Soap",
+  10767: "Talk",
+  10768: "War & Politics"
+};
+
+export function getGenreNames(genreIds: number[]): string[] {
+  return genreIds.map(id => GENRE_MAP[id]).filter(Boolean);
+}
+
+async function fetchTMDB(endpoint: string, params: Record<string, string> = {}) {
+  const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+  
+  if (!apiKey) {
+    console.warn("TMDB API key is missing. Mock data will be used if possible.");
+    throw new Error("TMDB API key missing");
+  }
+
+  const url = new URL(`https://api.themoviedb.org/3${endpoint}`);
+  url.searchParams.append('api_key', apiKey);
+  url.searchParams.append('language', 'es-ES');
+  
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.append(key, value);
+  });
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`TMDB API Error: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function searchMulti(query: string) {
+  try {
+    const data = await fetchTMDB('/search/multi', { query });
+    return data.results.filter((r: any) => r.media_type === 'movie' || r.media_type === 'tv');
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+}
+
+export async function getMediaDetail(id: number, mediaType: 'movie' | 'tv') {
+  try {
+    const data = await fetchTMDB(`/${mediaType}/${id}`, {
+      append_to_response: 'videos,credits,watch/providers'
+    });
+    return data;
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+</file>
+
+<file path="src/lib/utils.ts">
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+</file>
+
+<file path="src/views/ListView.tsx">
+import React, { useState } from 'react';
+import { useMediaStore } from '@/store';
+import { MediaCard } from '@/components/MediaCard';
+import { MediaStatus } from '@/types';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
+
+const TABS: { id: MediaStatus; label: string }[] = [
+  { id: 'por_ver', label: 'Por Ver' },
+  { id: 'viendo', label: 'Viendo' },
+  { id: 'completada', label: 'Completadas' },
+];
+
+export function ListView() {
+  const [activeTab, setActiveTab] = useState<MediaStatus>('por_ver');
+  const { mediaList } = useMediaStore();
+
+  const filteredList = mediaList.filter(m => m.status === activeTab);
+
+  return (
+    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto px-4 pt-6 pb-24">
+      <div className="flex bg-bg-card p-1 rounded-xl border border-border-card">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex-1 py-3 text-sm font-medium rounded-lg transition-colors relative",
+              activeTab === tab.id ? "text-text-main" : "text-text-main/50 hover:text-text-main/80"
+            )}
+          >
+            {activeTab === tab.id && (
+              <motion.div
+                layoutId="activeTab"
+                className="absolute inset-0 bg-border-card rounded-lg"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+              />
+            )}
+            <span className="relative z-10">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="popLayout">
+        {filteredList.length === 0 ? (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col items-center justify-center py-20 text-text-main/50 text-center"
+          >
+            <p>No tienes títulos en esta lista.</p>
+            <p className="text-sm mt-2">Usa el buscador para agregar contenido.</p>
+          </motion.div>
+        ) : (
+          <motion.div 
+            layout
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+          >
+            {filteredList.map(media => (
+              <motion.div
+                key={media.tmdbId}
+                layout
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2 }}
+              >
+                <MediaCard media={media} />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+</file>
+
+<file path="src/views/SmartPickerView.tsx">
+import React, { useState, useMemo } from 'react';
+import { useMediaStore } from '@/store';
+import { Shuffle } from 'lucide-react';
+import { MediaCard } from '@/components/MediaCard';
+import { SavedMedia } from '@/types';
+import { cn } from '@/lib/utils';
+
+export function SmartPickerView() {
+  const { mediaList } = useMediaStore();
+  const porVerList = mediaList.filter(m => m.status === 'por_ver');
+  
+  const allGenres = useMemo(() => {
+    const genres = new Set<string>();
+    porVerList.forEach(m => m.genres.forEach(g => genres.add(g)));
+    return Array.from(genres).sort();
+  }, [porVerList]);
+
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [pickedMedia, setPickedMedia] = useState<SavedMedia | null>(null);
+  const [isPicking, setIsPicking] = useState(false);
+
+  const handlePick = () => {
+    setIsPicking(true);
+    setPickedMedia(null);
+    
+    setTimeout(() => {
+      const listToPick = selectedGenre 
+        ? porVerList.filter(m => m.genres.includes(selectedGenre))
+        : porVerList;
+        
+      if (listToPick.length > 0) {
+        const randomIndex = Math.floor(Math.random() * listToPick.length);
+        setPickedMedia(listToPick[randomIndex]);
+      }
+      setIsPicking(false);
+    }, 600); // Fake delay for animation
+  };
+
+  if (porVerList.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center h-full max-w-lg mx-auto pb-24">
+        <Shuffle className="text-border-card w-16 h-16 mb-6" />
+        <h2 className="font-serif italic font-bold text-2xl mb-2">Smart Picker</h2>
+        <p className="text-text-main/50">Agrega títulos a tu lista "Por Ver" para usar el selector aleatorio.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center w-full max-w-3xl mx-auto px-4 pt-10 pb-24 min-h-[calc(100vh-80px)]">
+      <h2 className="font-serif italic font-bold text-4xl mb-2">Qué Ver Hoy</h2>
+      <p className="text-text-main/50 mb-10 text-center">Deja que el destino elija tu próxima historia.</p>
+      
+      <div className="flex flex-wrap justify-center gap-2 mb-12">
+        <button
+          onClick={() => setSelectedGenre(null)}
+          className={cn(
+            "px-4 py-2 rounded-full border text-sm transition-colors",
+            selectedGenre === null 
+              ? "bg-text-main text-bg-main border-text-main" 
+              : "bg-transparent border-border-card text-text-main/70 hover:border-text-main/30"
+          )}
+        >
+          Todos
+        </button>
+        {allGenres.map(genre => (
+          <button
+            key={genre}
+            onClick={() => setSelectedGenre(genre)}
+            className={cn(
+              "px-4 py-2 rounded-full border text-sm transition-colors",
+              selectedGenre === genre 
+                ? "bg-text-main text-bg-main border-text-main" 
+                : "bg-transparent border-border-card text-text-main/70 hover:border-text-main/30"
+            )}
+          >
+            {genre}
+          </button>
+        ))}
+      </div>
+
+      {!pickedMedia ? (
+        <button
+          onClick={handlePick}
+          disabled={isPicking}
+          className="group relative w-48 h-48 rounded-full bg-bg-card border-2 border-accent flex items-center justify-center hover:bg-accent/10 transition-colors disabled:opacity-50"
+        >
+          <div className={cn("flex flex-col items-center gap-2", isPicking && "animate-pulse")}>
+            <Shuffle className="text-accent group-hover:scale-110 transition-transform" size={40} />
+            <span className="font-bold text-accent font-serif italic text-xl">Elegir</span>
+          </div>
+        </button>
+      ) : (
+        <div className="flex flex-col items-center w-full max-w-sm animate-in fade-in zoom-in duration-500">
+          <div className="w-full mb-6">
+            <MediaCard media={pickedMedia} />
+          </div>
+          <button
+            onClick={handlePick}
+            className="text-sm text-text-main/50 hover:text-text-main underline underline-offset-4"
+          >
+            Probar otra vez
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="src/index.css">
+@import "tailwindcss";
+
+@theme {
+  --color-bg-main: #0B0D0E;
+  --color-bg-card: #14171A;
+  --color-border-card: #26292E;
+  --color-accent: #E63946;
+  --color-text-main: #F4F5F6;
+  
+  --color-status-viendo: #2A9D8F;
+  --color-status-por-ver: #E9C46A;
+  --color-status-completada: #9D4EDD;
+
+  --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+@layer base {
+  body {
+    @apply bg-bg-main text-text-main font-sans antialiased;
+  }
+}
+</file>
+
+<file path="src/main.tsx">
+import {StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+</file>
+
+<file path="src/types.ts">
+export type MediaType = 'movie' | 'tv';
+export type MediaStatus = 'por_ver' | 'viendo' | 'completada';
+
+export interface Review {
+  rating: number; // 0.5 a 5.0
+  text?: string;
+  seasonRatings?: Record<number, number>; // season number -> rating
+  completedAt: string; // ISO
+}
+
+export interface SavedMedia {
+  tmdbId: number;
+  mediaType: MediaType;
+  title: string;
+  posterPath: string | null;
+  backdropPath: string | null;
+  releaseYear: string;
+  genres: string[];
+  status: MediaStatus;
+  updatedAt: string; // ISO
+  review?: Review;
+}
+
+export interface TMDbResult {
+  id: number;
+  media_type: MediaType;
+  title?: string;
+  name?: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  release_date?: string;
+  first_air_date?: string;
+  genre_ids: number[];
+  overview: string;
+}
+
+export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
+  genres: { id: number; name: string }[];
+  videos?: {
+    results: {
+      type: string;
+      key: string;
+      site: string;
+    }[];
+  };
+  credits?: {
+    cast: {
+      id: number;
+      name: string;
+      character: string;
+      profile_path: string | null;
+    }[];
+  };
+  seasons?: {
+    season_number: number;
+    name: string;
+    episode_count: number;
+  }[];
+  'watch/providers'?: {
+    results: Record<string, {
+      flatrate?: { provider_name: string; logo_path: string }[];
+      rent?: { provider_name: string; logo_path: string }[];
+      buy?: { provider_name: string; logo_path: string }[];
+    }>;
+  };
+}
+</file>
+
+<file path=".gitignore">
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+</file>
+
+<file path="firebase-applet-config.json">
+{
+  "projectId": "gen-lang-client-0187988895",
+  "appId": "1:200155183832:web:60916db4b42d5e5ef8f5ad",
+  "apiKey": "AIzaSyA3t6dKg1Oh48_cj7Y96fTHNox5D7waaL0",
+  "authDomain": "gen-lang-client-0187988895.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-qumiro-de9d83ba-06f4-4518-86b9-7cbc9ca0141c",
+  "storageBucket": "gen-lang-client-0187988895.firebasestorage.app",
+  "messagingSenderId": "200155183832",
+  "measurementId": "",
+  "oAuthClientId": "200155183832-1q4m060ki1h82mlltj5n4gi00eutiblu.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
+}
+</file>
+
+<file path="firebase-blueprint.json">
+{
+  "rules": [
+    {
+      "collection": "users",
+      "path": "/users/{userId}",
+      "description": "User profiles",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      }
+    },
+    {
+      "collection": "saved_media",
+      "path": "/users/{userId}/saved_media/{tmdbId}",
+      "description": "Saved movies and TV shows for a user",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "tmdbId", "type": "number", "required": true },
+          { "name": "mediaType", "type": "string", "required": true },
+          { "name": "title", "type": "string", "required": true },
+          { "name": "posterPath", "type": "string", "required": false },
+          { "name": "backdropPath", "type": "string", "required": false },
+          { "name": "releaseYear", "type": "string", "required": false },
+          { "name": "genres", "type": "list", "required": false },
+          { "name": "status", "type": "string", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true },
+          { "name": "review", "type": "map", "required": false }
+        ]
+      }
+    }
+  ]
+}
+</file>
+
+<file path="firestore.rules">
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      match /saved_media/{tmdbId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="metadata.json">
+{
+  "name": "Qué Miro?",
+  "description": "Una webapp responsive de tracking personal de películas y series con sistema de reseñas y motor de selección aleatoria.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["vite/client"]
+  }
+}
+</file>
+
+<file path="vite.config.ts">
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: 3000,
+    host: true, // Para poder probarlo en el celu o red local
+  },
+});
+</file>
+
+<file path="src/components/MediaCard.tsx">
+import React, { useState } from 'react';
+import { useMediaActions } from '@/hooks/useMediaActions';
+import { SavedMedia, MediaStatus } from '@/types';
+import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
+import { Check, Tv, Film } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { ReviewDrawer } from './ReviewDrawer';
+import { TitleDetailModal } from './TitleDetailModal';
+
+export function MediaCard({ media, onClick }: { media: SavedMedia; onClick?: () => void }) {
+  const { updateStatus } = useMediaActions();
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  const statusColors = {
+    por_ver: 'text-status-por-ver bg-status-por-ver/10 border-status-por-ver/20',
+    viendo: 'text-status-viendo bg-status-viendo/10 border-status-viendo/20',
+    completada: 'text-status-completada bg-status-completada/10 border-status-completada/20'
+  };
+
+  const statusLabels = {
+    por_ver: 'Por Ver',
+    viendo: 'Viendo',
+    completada: 'Completada'
+  };
+
+  const handleStatusChange = (e: React.MouseEvent, newStatus: MediaStatus) => {
+    e.stopPropagation();
+    if (newStatus === 'completada' && media.status !== 'completada') {
+      setIsReviewOpen(true);
+    } else {
+      updateStatus(media.tmdbId, newStatus);
+    }
+  };
+
+  const handleClick = () => {
+    setIsDetailOpen(true);
+    if (onClick) onClick();
+  };
+
+  return (
+    <>
+      <div 
+        onClick={handleClick}
+        className="group relative bg-bg-card border border-border-card rounded-2xl overflow-hidden cursor-pointer hover:border-gray-500 transition-colors flex flex-col h-full"
+      >
+        <div className="relative aspect-[2/3] w-full bg-border-card overflow-hidden">
+          {media.posterPath ? (
+            <img src={`${TMDB_IMAGE_BASE_URL}${media.posterPath}`} alt={media.title} className="w-full h-full object-cover" loading="lazy" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-500">
+              {media.mediaType === 'movie' ? <Film size={48} /> : <Tv size={48} />}
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-bg-card to-transparent" />
+          
+          <div className="absolute bottom-3 left-3 right-3 flex flex-col gap-1">
+            <h3 className="font-serif italic font-bold text-lg leading-tight line-clamp-2">{media.title}</h3>
+            <div className="flex flex-wrap gap-2 text-xs text-gray-300">
+              <span>{media.releaseYear}</span>
+              {media.genres.length > 0 && (
+                <>
+                  <span>•</span>
+                  <span className="truncate">{media.genres[0]}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="p-3 flex items-center justify-between gap-2 border-t border-border-card mt-auto shrink-0">
+          <span className={cn("text-[10px] sm:text-xs px-2 py-1 rounded-md border truncate", statusColors[media.status])}>
+            {statusLabels[media.status]}
+          </span>
+          
+          <div className="flex items-center gap-1 shrink-0">
+            {media.status !== 'viendo' && media.status !== 'completada' && (
+              <button 
+                onClick={(e) => handleStatusChange(e, 'viendo')}
+                className="w-10 h-10 rounded-xl bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-gray-400"
+                title="Mover a Viendo"
+              >
+                <Tv size={16} />
+              </button>
+            )}
+            {media.status !== 'completada' && (
+              <button 
+                onClick={(e) => handleStatusChange(e, 'completada')}
+                className="w-10 h-10 rounded-xl bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-status-completada"
+                title="Marcar Completada"
+              >
+                <Check size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <ReviewDrawer 
+        media={media} 
+        isOpen={isReviewOpen} 
+        onClose={() => setIsReviewOpen(false)} 
+      />
+      
+      <TitleDetailModal
+        id={media.tmdbId}
+        mediaType={media.mediaType}
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+      />
+    </>
+  );
+}
+</file>
+
+<file path="src/components/ReviewDrawer.tsx">
+import React, { useState } from 'react';
+import { SavedMedia } from '@/types';
+import { useMediaActions } from '@/hooks/useMediaActions';
+import { Star, StarHalf, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
+
+export function ReviewDrawer({ media, isOpen, onClose }: { media: SavedMedia; isOpen: boolean; onClose: () => void }) {
+  const [rating, setRating] = useState<number>(0);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [reviewText, setReviewText] = useState('');
+  const { addReview } = useMediaActions();
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (rating === 0) return;
+    addReview(media.tmdbId, {
+      rating,
+      text: reviewText,
+      completedAt: new Date().toISOString()
+    });
+    onClose();
+  };
+
+  const renderStars = () => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      const isHalf = (hoverRating || rating) + 0.5 === i;
+      const isFull = (hoverRating || rating) >= i;
+      
+      stars.push(
+        <div 
+          key={i} 
+          className="relative cursor-pointer"
+          onMouseLeave={() => setHoverRating(0)}
+        >
+          <div 
+            className="absolute left-0 w-1/2 h-full z-10" 
+            onMouseEnter={() => setHoverRating(i - 0.5)}
+            onClick={() => setRating(i - 0.5)}
+          />
+          <div 
+            className="absolute right-0 w-1/2 h-full z-10" 
+            onMouseEnter={() => setHoverRating(i)}
+            onClick={() => setRating(i)}
+          />
+          {isFull ? (
+            <Star className="text-accent fill-accent" size={40} strokeWidth={1} />
+          ) : isHalf ? (
+            <div className="relative">
+              <Star className="text-border-card" size={40} strokeWidth={1} />
+              <div className="absolute inset-0 overflow-hidden w-1/2">
+                <Star className="text-accent fill-accent" size={40} strokeWidth={1} />
+              </div>
+            </div>
+          ) : (
+            <Star className="text-border-card" size={40} strokeWidth={1} />
+          )}
+        </div>
+      );
+    }
+    return stars;
+  };
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4 bg-bg-main/80 backdrop-blur-sm">
+        <motion.div 
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          className="bg-bg-card border border-border-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 flex flex-col gap-6"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="font-serif italic font-bold text-2xl mb-1">Has completado</h2>
+              <p className="text-text-main/70">{media.title}</p>
+            </div>
+            <button onClick={onClose} className="p-2 bg-border-card rounded-full text-text-main/70 hover:text-text-main">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="flex flex-col items-center gap-4 py-4">
+            <span className="text-sm text-text-main/50 font-medium">TU CALIFICACIÓN</span>
+            <div className="flex gap-2">
+              {renderStars()}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <textarea 
+              placeholder="Escribe un comentario breve (opcional)..."
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+              className="w-full h-32 bg-bg-main border border-border-card rounded-xl p-4 text-text-main focus:outline-none focus:border-accent resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-4 rounded-xl border border-border-card font-medium text-text-main/70 hover:bg-border-card transition-colors"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={handleSave}
+              disabled={rating === 0}
+              className="flex-1 py-4 rounded-xl bg-accent text-white font-medium disabled:opacity-50 transition-colors"
+            >
+              Guardar Reseña
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
+</file>
+
+<file path="src/components/SearchModal.tsx">
+import React, { useState } from 'react';
+import { useMediaStore } from '@/store';
+import { useMediaActions } from '@/hooks/useMediaActions';
+import { Search, Plus, Check, Tv, Film } from 'lucide-react';
+import { searchMulti, getGenreNames, TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
+import { TMDbResult } from '@/types';
+import { cn } from '@/lib/utils';
+
+export function SearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<TMDbResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const { mediaList } = useMediaStore();
+  const { addMedia } = useMediaActions();
+
+  React.useEffect(() => {
+    if (!query) {
+      setResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      const res = await searchMulti(query);
+      setResults(res);
+      setIsSearching(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-bg-main/90 backdrop-blur-sm p-4 flex flex-col pt-16">
+      <div className="relative max-w-2xl w-full mx-auto flex flex-col gap-4 h-full">
+        <button onClick={onClose} className="absolute -top-12 right-0 text-text-main p-2">Cerrar</button>
+        
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            autoFocus
+            placeholder="Buscar películas o series..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full bg-bg-card border border-border-card rounded-2xl py-4 pl-12 pr-4 text-text-main focus:outline-none focus:border-accent"
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto flex flex-col gap-3 pb-20">
+          {isSearching && <div className="text-center text-sm text-gray-400 mt-4">Buscando...</div>}
+          {!isSearching && results.map(result => {
+            const isAdded = mediaList.some(m => m.tmdbId === result.id);
+            const title = result.title || result.name || '';
+            const date = result.release_date || result.first_air_date || '';
+            const year = date ? date.split('-')[0] : '';
+            
+            return (
+              <div key={result.id} className="flex gap-4 p-3 bg-bg-card border border-border-card rounded-2xl items-center">
+                <div className="w-16 h-24 bg-border-card rounded-lg flex-shrink-0 overflow-hidden">
+                  {result.poster_path ? (
+                    <img src={`${TMDB_IMAGE_BASE_URL}${result.poster_path}`} alt={title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-500">
+                      {result.media_type === 'movie' ? <Film /> : <Tv />}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-text-main truncate">{title}</h4>
+                  <div className="text-sm text-gray-400 flex items-center gap-2">
+                    <span>{year}</span>
+                    <span>•</span>
+                    <span>{result.media_type === 'movie' ? 'Película' : 'Serie'}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {isAdded ? (
+                    <span className="p-3 bg-border-card rounded-xl text-gray-400 flex items-center justify-center">
+                      <Check size={20} />
+                    </span>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          addMedia({
+                            tmdbId: result.id,
+                            mediaType: result.media_type as 'movie' | 'tv',
+                            title,
+                            posterPath: result.poster_path,
+                            backdropPath: result.backdrop_path,
+                            releaseYear: year,
+                            genres: getGenreNames(result.genre_ids),
+                            status: 'por_ver'
+                          });
+                          onClose();
+                        }}
+                        className="p-3 bg-bg-main border border-border-card rounded-xl text-status-por-ver hover:bg-border-card transition-colors flex items-center justify-center"
+                        title="Por Ver"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/SyncManager.tsx">
+import React, { useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMediaStore } from '@/store';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { collection, onSnapshot, doc, setDoc, writeBatch, deleteDoc } from 'firebase/firestore';
+import { SavedMedia } from '@/types';
+
+export function SyncManager() {
+  const { user, authState } = useAuth();
+  const { mediaList, setMediaList } = useMediaStore();
+  const initialized = useRef(false);
+
+  // Sync logic when user logs in
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+
+    if (authState === 'authenticated' && user) {
+      const savedMediaRef = collection(db, `users/${user.uid}/saved_media`);
+      
+      // 1. Initial Migration (Local to Firebase)
+      if (!initialized.current) {
+        const migrateLocalToFirebase = async () => {
+          if (mediaList.length > 0) {
+            const batch = writeBatch(db);
+            let added = false;
+            
+            // We shouldn't blindly overwrite Firebase with local, but for migration:
+            // Let's just push local items to Firebase if they aren't already there.
+            // A safer approach: listen to Firebase first, then merge.
+          }
+        };
+        // We will handle merging below inside the snapshot to be safe.
+      }
+
+      // 2. Real-time Listener
+      const unsubscribe = onSnapshot(savedMediaRef, async (snapshot) => {
+        const firebaseData = snapshot.docs.map(d => d.data() as SavedMedia);
+        
+        // Merge logic on first load
+        if (!initialized.current) {
+          initialized.current = true;
+          
+          const firebaseIds = new Set(firebaseData.map(m => m.tmdbId));
+          const localOnly = mediaList.filter(m => !firebaseIds.has(m.tmdbId));
+          
+          if (localOnly.length > 0) {
+            // Migrate local-only items to Firebase
+            const batch = writeBatch(db);
+            localOnly.forEach(media => {
+              const docRef = doc(db, `users/${user.uid}/saved_media/${media.tmdbId}`);
+              batch.set(docRef, media);
+            });
+            await batch.commit();
+            // The snapshot will trigger again with the merged data
+            return;
+          }
+        }
+        
+        // Update local state with Firebase data (Firebase is the source of truth)
+        // Sort by updatedAt descending
+        const sorted = firebaseData.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        
+        // Only update if different to avoid infinite loops
+        // In a real app we'd do a deep comparison, but for now we'll just set it
+        // The store methods shouldn't trigger Firebase writes if they are from the listener.
+        // Wait! If the user clicks "Viendo", the store updates, triggers a re-render.
+        // We need to write to Firebase when the user performs an action.
+        setMediaList(sorted);
+      });
+
+      return () => unsubscribe();
+    } else if (authState === 'unauthenticated') {
+      // Clear local storage if logged out
+      setMediaList([]);
+      initialized.current = false;
+    }
+  }, [user, authState]); // Intentionally not including mediaList to avoid re-triggering listener setup
+
+  return null;
+}
+</file>
+
+<file path="src/contexts/AuthContext.tsx">
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { User, onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
+
+type AuthState = 'loading' | 'authenticated' | 'guest' | 'unauthenticated';
+
+interface AuthContextType {
+  user: User | null;
+  authState: AuthState;
+  signInWithGoogle: () => Promise<void>;
+  continueAsGuest: () => void;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [authState, setAuthState] = useState<AuthState>('loading');
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      console.warn("Firebase no está configurado. Activando modo invitado por defecto.");
+      setAuthState('guest');
+      return;
+    }
+
+    const isGuest = localStorage.getItem('que-miro-guest') === 'true';
+    
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        setAuthState('authenticated');
+        localStorage.removeItem('que-miro-guest');
+      } else if (isGuest) {
+        setAuthState('guest');
+      } else {
+        setAuthState('unauthenticated');
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const signInWithGoogle = async () => {
+    if (!isFirebaseConfigured) {
+      console.error('Firebase no está configurado');
+      return;
+    }
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error('Error signing in with Google', error);
+      throw error;
+    }
+  };
+
+  const continueAsGuest = () => {
+    localStorage.setItem('que-miro-guest', 'true');
+    setAuthState('guest');
+  };
+
+  const logout = async () => {
+    try {
+      if (isFirebaseConfigured) {
+        await signOut(auth);
+      }
+      setAuthState('unauthenticated');
+      localStorage.removeItem('que-miro-guest');
+    } catch (error) {
+      console.error('Error signing out', error);
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, authState, signInWithGoogle, continueAsGuest, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
+</file>
+
+<file path="src/hooks/useMediaActions.ts">
+import { useMediaStore } from '@/store';
+import { useAuth } from '@/contexts/AuthContext';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { SavedMedia, MediaStatus, Review } from '@/types';
+
+export function useMediaActions() {
+  const { addMedia: localAdd, updateStatus: localUpdate, addReview: localReview, removeMedia: localRemove, mediaList } = useMediaStore();
+  const { user, authState } = useAuth();
+
+  const isAuth = isFirebaseConfigured && authState === 'authenticated' && user;
+
+  const addMedia = async (media: Omit<SavedMedia, 'updatedAt'>) => {
+    const fullMedia = { ...media, updatedAt: new Date().toISOString() };
+    if (isAuth) {
+      await setDoc(doc(db, `users/${user.uid}/saved_media/${media.tmdbId}`), fullMedia);
+    } else {
+      localAdd(media);
+    }
+  };
+
+  const updateStatus = async (tmdbId: number, status: MediaStatus) => {
+    if (isAuth) {
+      const media = mediaList.find(m => m.tmdbId === tmdbId);
+      if (media) {
+        await setDoc(doc(db, `users/${user.uid}/saved_media/${tmdbId}`), { ...media, status, updatedAt: new Date().toISOString() });
+      }
+    } else {
+      localUpdate(tmdbId, status);
+    }
+  };
+
+  const addReview = async (tmdbId: number, review: Review) => {
+    if (isAuth) {
+      const media = mediaList.find(m => m.tmdbId === tmdbId);
+      if (media) {
+        await setDoc(doc(db, `users/${user.uid}/saved_media/${tmdbId}`), { ...media, review, status: 'completada', updatedAt: new Date().toISOString() });
+      }
+    } else {
+      localReview(tmdbId, review);
+    }
+  };
+
+  const removeMedia = async (tmdbId: number) => {
+    if (isAuth) {
+      await deleteDoc(doc(db, `users/${user.uid}/saved_media/${tmdbId}`));
+    } else {
+      localRemove(tmdbId);
+    }
+  };
+
+  return { addMedia, updateStatus, addReview, removeMedia };
+}
+</file>
+
+<file path="src/views/LoginView.tsx">
+import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Film } from 'lucide-react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '@/lib/firebase';
+
+export function LoginView() {
+  const { signInWithGoogle, continueAsGuest } = useAuth();
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isFirebaseConfigured) {
+      setError('Firebase no está configurado. Por favor, continúa como invitado.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error de autenticación');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-bg-main flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-sm flex flex-col items-center">
+        <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(230,57,70,0.3)]">
+          <Film size={32} className="text-bg-main" />
+        </div>
+        
+        <h1 className="font-serif italic font-bold text-4xl mb-2 text-center">Qué Miro?</h1>
+        <p className="text-text-main/50 text-center mb-8">Tu biblioteca personal de películas y series.</p>
+
+        <div className="w-full bg-bg-card border border-border-card rounded-3xl p-6">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <h2 className="text-xl font-bold mb-2">{isLogin ? 'Iniciar Sesión' : 'Registrarse'}</h2>
+            
+            {error && (
+              <div className="p-3 bg-accent/10 border border-accent/20 rounded-xl text-accent text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-text-main/70 ml-1">Email</label>
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="bg-bg-main border border-border-card rounded-xl px-4 py-3 focus:outline-none focus:border-accent transition-colors"
+                placeholder="tu@email.com"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1 mb-2">
+              <label className="text-xs font-medium text-text-main/70 ml-1">Contraseña</label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="bg-bg-main border border-border-card rounded-xl px-4 py-3 focus:outline-none focus:border-accent transition-colors"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-accent text-white font-medium py-3 rounded-xl hover:bg-accent/90 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Cargando...' : (isLogin ? 'Ingresar' : 'Crear Cuenta')}
+            </button>
+            
+            <button 
+              type="button" 
+              onClick={() => { setIsLogin(!isLogin); setError(''); }}
+              className="text-sm text-text-main/50 hover:text-text-main underline underline-offset-4 mb-2"
+            >
+              {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
+            </button>
+
+            <div className="relative flex items-center py-2">
+              <div className="flex-grow border-t border-border-card"></div>
+              <span className="flex-shrink-0 mx-4 text-text-main/40 text-xs">O</span>
+              <div className="flex-grow border-t border-border-card"></div>
+            </div>
+
+            <button 
+              type="button"
+              onClick={signInWithGoogle}
+              className="w-full bg-white text-black font-medium py-3 rounded-xl hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              Continuar con Google
+            </button>
+
+            <button 
+              type="button"
+              onClick={continueAsGuest}
+              className="w-full border border-border-card text-text-main/70 font-medium py-3 rounded-xl hover:bg-border-card transition-colors mt-2"
+            >
+              Continuar como Invitado
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/views/ProfileView.tsx">
+import React from 'react';
+import { useMediaStore } from '@/store';
+import { useAuth } from '@/contexts/AuthContext';
+import { Star, LogOut, LogIn } from 'lucide-react';
+
+export function ProfileView() {
+  const { mediaList } = useMediaStore();
+  const { user, authState, logout } = useAuth();
+  
+  const completedList = mediaList
+    .filter(m => m.status === 'completada' && m.review)
+    .sort((a, b) => new Date(b.review!.completedAt).getTime() - new Date(a.review!.completedAt).getTime());
+
+  const totalWatched = completedList.length;
+  const avgRating = totalWatched > 0 
+    ? (completedList.reduce((acc, curr) => acc + (curr.review?.rating || 0), 0) / totalWatched).toFixed(1)
+    : '0.0';
+
+  return (
+    <div className="flex flex-col gap-8 w-full max-w-3xl mx-auto px-4 pt-10 pb-24">
+      {authState === 'guest' && (
+        <div className="bg-accent/10 border border-accent rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <h3 className="font-bold text-accent mb-1">¡Sincroniza tus dispositivos!</h3>
+            <p className="text-sm text-text-main/70">Inicia sesión o regístrate para sincronizar tu biblioteca entre tu celular y tu PC.</p>
+          </div>
+          <button 
+            onClick={() => logout()} // logging out of guest brings them back to login
+            className="flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-accent/90 whitespace-nowrap"
+          >
+            <LogIn size={16} /> Ingresar
+          </button>
+        </div>
+      )}
+
+      {authState === 'authenticated' && user && (
+        <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-text-main mb-1 truncate">
+              {user.displayName || 'Mi Cuenta'}
+            </h3>
+            <p className="text-sm text-text-main/50 truncate">
+              Conectado como {user.email}
+            </p>
+          </div>
+          <button 
+            onClick={() => logout()}
+            className="flex items-center gap-2 border border-border-card text-text-main/70 px-4 py-2 rounded-xl text-sm font-medium hover:bg-border-card hover:text-text-main whitespace-nowrap"
+          >
+            <LogOut size={16} /> Salir
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-col items-center text-center">
+        <h2 className="font-serif italic font-bold text-4xl mb-6">Mis Estadísticas</h2>
+        
+        <div className="grid grid-cols-2 gap-4 w-full">
+          <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
+            <span className="text-5xl font-serif italic font-bold text-accent mb-2">{totalWatched}</span>
+            <span className="text-sm text-text-main/50 uppercase tracking-wider">Vistas</span>
+          </div>
+          <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
+            <span className="text-5xl font-serif italic font-bold text-accent mb-2 flex items-baseline gap-1">
+              {avgRating} <Star size={20} className="fill-accent text-accent" />
+            </span>
+            <span className="text-sm text-text-main/50 uppercase tracking-wider">Promedio</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 mt-8">
+        <h3 className="font-bold text-lg mb-2">Historial Reciente</h3>
+        
+        {completedList.length === 0 ? (
+          <div className="text-center text-text-main/50 py-10">
+            Aún no has calificado ningún título.
+          </div>
+        ) : (
+          completedList.map(media => (
+
+            <div key={media.tmdbId} className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-serif italic font-bold text-xl">{media.title}</h4>
+                  <span className="text-xs text-text-main/40">
+                    {new Date(media.review!.completedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 bg-bg-main px-3 py-1 rounded-lg border border-border-card">
+                  <span className="font-bold">{media.review?.rating}</span>
+                  <Star size={14} className="fill-accent text-accent" />
+                </div>
+              </div>
+              
+              {media.review?.text && (
+                <div className="relative pt-4">
+                  <span className="absolute -top-2 left-0 text-4xl text-accent font-serif opacity-30">"</span>
+                  <p className="text-text-main/80 italic pl-4 text-sm leading-relaxed relative z-10">
+                    {media.review.text}
+                  </p>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/App.tsx">
+import React, { useState, useEffect } from 'react';
+import { Search, Film, Tv, User, LayoutGrid, Shuffle } from 'lucide-react';
+import { ListView } from '@/views/ListView';
+import { SmartPickerView } from '@/views/SmartPickerView';
+import { ProfileView } from '@/views/ProfileView';
+import { SearchModal } from '@/components/SearchModal';
+import { cn } from '@/lib/utils';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { LoginView } from '@/views/LoginView';
+import { SyncManager } from '@/components/SyncManager';
+
+type TabId = 'list' | 'picker' | 'profile';
+
+function MainApp() {
+  const [activeTab, setActiveTab] = useState<TabId>('list');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { authState, user } = useAuth();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  if (authState === 'loading') {
+    return (
+      <div className="min-h-screen bg-bg-main flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-accent animate-pulse flex items-center justify-center">
+          <Film size={24} className="text-bg-main" />
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === 'unauthenticated') {
+    return <LoginView />;
+  }
+
+  return (
+    <div className="min-h-screen bg-bg-main text-text-main font-sans selection:bg-accent/30 flex flex-col">
+      <SyncManager />
+      {/* Top Header */}
+
+      <header className="sticky top-0 z-40 bg-bg-main/80 backdrop-blur-md border-b border-border-card h-16 flex items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+            <Film size={20} className="text-bg-main" />
+          </div>
+          <h1 className="font-serif italic font-bold text-xl tracking-tight">Qué Miro?</h1>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setIsSearchOpen(true)}
+            className="hidden sm:flex items-center gap-2 bg-bg-card border border-border-card px-4 py-2 rounded-xl text-text-main/50 hover:bg-border-card transition-colors"
+          >
+            <Search size={16} />
+            <span className="text-sm">Buscar...</span>
+            <kbd className="hidden md:inline-flex items-center gap-1 bg-bg-main px-1.5 py-0.5 rounded border border-border-card text-[10px] font-medium uppercase ml-4">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          </button>
+
+          <button 
+            onClick={() => setIsSearchOpen(true)}
+            className="sm:hidden p-2 text-text-main hover:bg-border-card rounded-full"
+          >
+            <Search size={24} />
+          </button>
+
+          {authState === 'guest' ? (
+            <div className="hidden sm:flex items-center justify-center bg-border-card rounded-full px-3 py-1 text-xs font-medium text-text-main/70">
+              Modo Invitado
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-border-card border border-gray-600 flex items-center justify-center overflow-hidden">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-bold uppercase">{user?.email?.[0] || 'U'}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-x-hidden">
+        {activeTab === 'list' && <ListView />}
+        {activeTab === 'picker' && <SmartPickerView />}
+        {activeTab === 'profile' && <ProfileView />}
+      </main>
+
+      {/* Bottom Navigation (Mobile mostly, but we'll keep it for desktop for simplicity of SPA) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-bg-main/90 backdrop-blur-lg border-t border-border-card pb-safe h-20 sm:h-24">
+        <div className="max-w-lg mx-auto h-full flex items-center justify-around px-4">
+          <button 
+            onClick={() => setActiveTab('list')}
+            className={cn("flex flex-col items-center gap-1 p-2 transition-colors", activeTab === 'list' ? 'text-accent' : 'text-text-main/50')}
+          >
+            <LayoutGrid size={24} />
+            <span className="text-[10px] font-medium">Mis Listas</span>
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('picker')}
+            className="flex flex-col items-center gap-1 p-2 -mt-6 group"
+          >
+            <div className={cn("w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-lg", activeTab === 'picker' ? 'bg-accent text-white scale-110' : 'bg-bg-card border border-border-card text-text-main group-hover:scale-105')}>
+              <Shuffle size={24} />
+            </div>
+            <span className={cn("text-[10px] font-medium", activeTab === 'picker' ? 'text-accent' : 'text-text-main/50')}>Picker</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className={cn("flex flex-col items-center gap-1 p-2 transition-colors", activeTab === 'profile' ? 'text-accent' : 'text-text-main/50')}
+          >
+            <User size={24} />
+            <span className="text-[10px] font-medium">Perfil</span>
+          </button>
+        </div>
+      </nav>
+
+      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
+  );
+}
+</file>
+
+<file path="src/store.ts">
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { SavedMedia, MediaStatus, Review } from './types';
+
+interface MediaState {
+  mediaList: SavedMedia[];
+  addMedia: (media: Omit<SavedMedia, 'updatedAt'>) => void;
+  updateStatus: (tmdbId: number, status: MediaStatus) => void;
+  addReview: (tmdbId: number, review: Review) => void;
+  removeMedia: (tmdbId: number) => void;
+  setMediaList: (list: SavedMedia[]) => void;
+}
+
+export const useMediaStore = create<MediaState>()(
+  persist(
+    (set) => ({
+      mediaList: [],
+      setMediaList: (list) => set({ mediaList: list }),
+      addMedia: (media) => set((state) => {
+        if (state.mediaList.some(m => m.tmdbId === media.tmdbId)) {
+          return state;
+        }
+        return {
+          mediaList: [{ ...media, updatedAt: new Date().toISOString() }, ...state.mediaList]
+        };
+      }),
+      updateStatus: (tmdbId, status) => set((state) => ({
+        mediaList: state.mediaList.map(m => 
+          m.tmdbId === tmdbId ? { ...m, status, updatedAt: new Date().toISOString() } : m
+        )
+      })),
+      addReview: (tmdbId, review) => set((state) => ({
+        mediaList: state.mediaList.map(m =>
+          m.tmdbId === tmdbId ? { ...m, review, updatedAt: new Date().toISOString(), status: 'completada' } : m
+        )
+      })),
+      removeMedia: (tmdbId) => set((state) => ({
+        mediaList: state.mediaList.filter(m => m.tmdbId !== tmdbId)
+      }))
+    }),
+    {
+      name: 'que-miro-storage',
+    }
+  )
+);
+</file>
+
+<file path=".env.example">
+# GEMINI_API_KEY: Required for Gemini AI API calls.
+# AI Studio automatically injects this at runtime from user secrets.
+# Users configure this via the Secrets panel in the AI Studio UI.
+GEMINI_API_KEY="MY_GEMINI_API_KEY"
+
+# APP_URL: The URL where this applet is hosted.
+# AI Studio automatically injects this at runtime with the Cloud Run service URL.
+# Used for self-referential links, OAuth callbacks, and API endpoints.
+APP_URL="MY_APP_URL"
+
+# TMDB_API_KEY: Required for The Movie Database API calls.
+VITE_TMDB_API_KEY=""
+
+# Firebase configuration
+VITE_FIREBASE_API_KEY=""
+VITE_FIREBASE_AUTH_DOMAIN=""
+VITE_FIREBASE_PROJECT_ID=""
+VITE_FIREBASE_STORAGE_BUCKET=""
+VITE_FIREBASE_MESSAGING_SENDER_ID=""
+VITE_FIREBASE_APP_ID=""
+</file>
+
+<file path="package.json">
+{
+  "name": "react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "clean": "rm -rf dist server.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "firebase": "^12.16.0",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "react-router-dom": "^7.18.1",
+    "tailwind-merge": "^3.6.0",
+    "vite": "^6.2.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "@types/express": "^4.17.21"
+  }
+}
+</file>
+
+<file path="src/lib/firebase.ts">
+// src/lib/firebase.ts
+import { initializeApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+
+// Configuración leída estrictamente desde las variables de entorno de Vite/Vercel
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+// Verifica que la API key exista y no esté vacía
+export const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== ''
+);
+
+// Inicialización de servicios
+export const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : ({} as any);
+export const auth = isFirebaseConfigured ? getAuth(app) : ({} as any);
+export const db = isFirebaseConfigured ? getFirestore(app) : ({} as any);
+export const googleProvider = isFirebaseConfigured ? new GoogleAuthProvider() : ({} as any);
+</file>
+
+</files>
