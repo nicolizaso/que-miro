@@ -8,12 +8,14 @@ interface MediaState {
   updateStatus: (tmdbId: number, status: MediaStatus) => void;
   addReview: (tmdbId: number, review: Review) => void;
   removeMedia: (tmdbId: number) => void;
+  setMediaList: (list: SavedMedia[]) => void;
 }
 
 export const useMediaStore = create<MediaState>()(
   persist(
     (set) => ({
       mediaList: [],
+      setMediaList: (list) => set({ mediaList: list }),
       addMedia: (media) => set((state) => {
         if (state.mediaList.some(m => m.tmdbId === media.tmdbId)) {
           return state;

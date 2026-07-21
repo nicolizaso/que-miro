@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMediaStore } from '@/store';
+import { useMediaActions } from '@/hooks/useMediaActions';
 import { Search, Plus, Check, Tv, Film } from 'lucide-react';
 import { searchMulti, getGenreNames, TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { TMDbResult } from '@/types';
@@ -9,7 +10,8 @@ export function SearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<TMDbResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const { addMedia, mediaList } = useMediaStore();
+  const { mediaList } = useMediaStore();
+  const { addMedia } = useMediaActions();
 
   React.useEffect(() => {
     if (!query) {

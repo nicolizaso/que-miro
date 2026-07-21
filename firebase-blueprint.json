@@ -1,0 +1,36 @@
+{
+  "rules": [
+    {
+      "collection": "users",
+      "path": "/users/{userId}",
+      "description": "User profiles",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      }
+    },
+    {
+      "collection": "saved_media",
+      "path": "/users/{userId}/saved_media/{tmdbId}",
+      "description": "Saved movies and TV shows for a user",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "tmdbId", "type": "number", "required": true },
+          { "name": "mediaType", "type": "string", "required": true },
+          { "name": "title", "type": "string", "required": true },
+          { "name": "posterPath", "type": "string", "required": false },
+          { "name": "backdropPath", "type": "string", "required": false },
+          { "name": "releaseYear", "type": "string", "required": false },
+          { "name": "genres", "type": "list", "required": false },
+          { "name": "status", "type": "string", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true },
+          { "name": "review", "type": "map", "required": false }
+        ]
+      }
+    }
+  ]
+}

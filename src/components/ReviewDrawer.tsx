@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SavedMedia } from '@/types';
-import { useMediaStore } from '@/store';
+import { useMediaActions } from '@/hooks/useMediaActions';
 import { Star, StarHalf, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -9,7 +9,7 @@ export function ReviewDrawer({ media, isOpen, onClose }: { media: SavedMedia; is
   const [rating, setRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [reviewText, setReviewText] = useState('');
-  const { addReview } = useMediaStore();
+  const { addReview } = useMediaActions();
 
   if (!isOpen) return null;
 

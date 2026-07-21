@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useMediaStore } from '@/store';
+import { useMediaActions } from '@/hooks/useMediaActions';
 import { SavedMedia, MediaStatus } from '@/types';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { Check, Tv, Film } from 'lucide-react';
@@ -8,7 +8,7 @@ import { ReviewDrawer } from './ReviewDrawer';
 import { TitleDetailModal } from './TitleDetailModal';
 
 export function MediaCard({ media, onClick }: { media: SavedMedia; onClick?: () => void }) {
-  const { updateStatus } = useMediaStore();
+  const { updateStatus } = useMediaActions();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 

@@ -5,12 +5,16 @@ import { SmartPickerView } from '@/views/SmartPickerView';
 import { ProfileView } from '@/views/ProfileView';
 import { SearchModal } from '@/components/SearchModal';
 import { cn } from '@/lib/utils';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { LoginView } from '@/views/LoginView';
+import { SyncManager } from '@/components/SyncManager';
 
 type TabId = 'list' | 'picker' | 'profile';
 
-export default function App() {
+function MainApp() {
   const [activeTab, setActiveTab] = useState<TabId>('list');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { authState, user } = useAuth();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -23,9 +27,25 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  if (authState === 'loading') {
+    return (
+      <div className="min-h-screen bg-bg-main flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-accent animate-pulse flex items-center justify-center">
+          <Film size={24} className="text-bg-main" />
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === 'unauthenticated') {
+    return <LoginView />;
+  }
+
   return (
     <div className="min-h-screen bg-bg-main text-text-main font-sans selection:bg-accent/30 flex flex-col">
+      <SyncManager />
       {/* Top Header */}
+
       <header className="sticky top-0 z-40 bg-bg-main/80 backdrop-blur-md border-b border-border-card h-16 flex items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
@@ -34,23 +54,39 @@ export default function App() {
           <h1 className="font-serif italic font-bold text-xl tracking-tight">Qué Miro?</h1>
         </div>
         
-        <button 
-          onClick={() => setIsSearchOpen(true)}
-          className="hidden sm:flex items-center gap-2 bg-bg-card border border-border-card px-4 py-2 rounded-xl text-text-main/50 hover:bg-border-card transition-colors"
-        >
-          <Search size={16} />
-          <span className="text-sm">Buscar...</span>
-          <kbd className="hidden md:inline-flex items-center gap-1 bg-bg-main px-1.5 py-0.5 rounded border border-border-card text-[10px] font-medium uppercase ml-4">
-            <span className="text-xs">⌘</span>K
-          </kbd>
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setIsSearchOpen(true)}
+            className="hidden sm:flex items-center gap-2 bg-bg-card border border-border-card px-4 py-2 rounded-xl text-text-main/50 hover:bg-border-card transition-colors"
+          >
+            <Search size={16} />
+            <span className="text-sm">Buscar...</span>
+            <kbd className="hidden md:inline-flex items-center gap-1 bg-bg-main px-1.5 py-0.5 rounded border border-border-card text-[10px] font-medium uppercase ml-4">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          </button>
 
-        <button 
-          onClick={() => setIsSearchOpen(true)}
-          className="sm:hidden p-2 text-text-main hover:bg-border-card rounded-full"
-        >
-          <Search size={24} />
-        </button>
+          <button 
+            onClick={() => setIsSearchOpen(true)}
+            className="sm:hidden p-2 text-text-main hover:bg-border-card rounded-full"
+          >
+            <Search size={24} />
+          </button>
+
+          {authState === 'guest' ? (
+            <div className="hidden sm:flex items-center justify-center bg-border-card rounded-full px-3 py-1 text-xs font-medium text-text-main/70">
+              Modo Invitado
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-border-card border border-gray-600 flex items-center justify-center overflow-hidden">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-bold uppercase">{user?.email?.[0] || 'U'}</span>
+              )}
+            </div>
+          )}
+        </div>
       </header>
 
       {/* Main Content Area */}
@@ -95,3 +131,12 @@ export default function App() {
     </div>
   );
 }
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
+  );
+}
+

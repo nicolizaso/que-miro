@@ -1,9 +1,11 @@
 import React from 'react';
 import { useMediaStore } from '@/store';
-import { Star } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Star, LogOut, LogIn } from 'lucide-react';
 
 export function ProfileView() {
   const { mediaList } = useMediaStore();
+  const { user, authState, logout } = useAuth();
   
   const completedList = mediaList
     .filter(m => m.status === 'completada' && m.review)
@@ -16,8 +18,42 @@ export function ProfileView() {
 
   return (
     <div className="flex flex-col gap-8 w-full max-w-3xl mx-auto px-4 pt-10 pb-24">
+      {authState === 'guest' && (
+        <div className="bg-accent/10 border border-accent rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <h3 className="font-bold text-accent mb-1">¡Sincroniza tus dispositivos!</h3>
+            <p className="text-sm text-text-main/70">Inicia sesión o regístrate para sincronizar tu biblioteca entre tu celular y tu PC.</p>
+          </div>
+          <button 
+            onClick={() => logout()} // logging out of guest brings them back to login
+            className="flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-accent/90 whitespace-nowrap"
+          >
+            <LogIn size={16} /> Ingresar
+          </button>
+        </div>
+      )}
+
+      {authState === 'authenticated' && user && (
+        <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-text-main mb-1 truncate">
+              {user.displayName || 'Mi Cuenta'}
+            </h3>
+            <p className="text-sm text-text-main/50 truncate">
+              Conectado como {user.email}
+            </p>
+          </div>
+          <button 
+            onClick={() => logout()}
+            className="flex items-center gap-2 border border-border-card text-text-main/70 px-4 py-2 rounded-xl text-sm font-medium hover:bg-border-card hover:text-text-main whitespace-nowrap"
+          >
+            <LogOut size={16} /> Salir
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col items-center text-center">
-        <h2 className="font-serif italic font-bold text-4xl mb-6">Mi Perfil</h2>
+        <h2 className="font-serif italic font-bold text-4xl mb-6">Mis Estadísticas</h2>
         
         <div className="grid grid-cols-2 gap-4 w-full">
           <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
@@ -42,6 +78,7 @@ export function ProfileView() {
           </div>
         ) : (
           completedList.map(media => (
+
             <div key={media.tmdbId} className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col gap-4">
               <div className="flex justify-between items-start">
                 <div>
