@@ -2,8 +2,11 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+export const isFirebaseConfigured = Boolean(apiKey && apiKey.length > 0);
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
@@ -11,7 +14,7 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const googleProvider = new GoogleAuthProvider();
+export const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : ({} as any);
+export const auth = isFirebaseConfigured ? getAuth(app) : ({} as any);
+export const db = isFirebaseConfigured ? getFirestore(app) : ({} as any);
+export const googleProvider = isFirebaseConfigured ? new GoogleAuthProvider() : ({} as any);

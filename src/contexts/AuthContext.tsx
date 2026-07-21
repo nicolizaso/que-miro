@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth, googleProvider } from '@/lib/firebase';
+import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
 
 type AuthState = 'loading' | 'authenticated' | 'guest' | 'unauthenticated';
 
@@ -19,6 +19,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>('loading');
 
   useEffect(() => {
+    if (!isFirebaseConfigured) {
+      console.warn("Firebase no está configurado. Activando modo invitado por defecto.");
+      setAuthState('guest');
+      return;
+    }
+
     const isGuest = localStorage.getItem('que-miro-guest') === 'true';
     
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -37,6 +43,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
+    if (!isFirebaseConfigured) {
+      console.error('Firebase no está configurado');
+      return;
+    }
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
@@ -52,7 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      if (isFirebaseConfigured) {
+        await signOut(auth);
+      }
       setAuthState('unauthenticated');
       localStorage.removeItem('que-miro-guest');
     } catch (error) {

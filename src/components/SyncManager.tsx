@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaStore } from '@/store';
-import { db } from '@/lib/firebase';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, onSnapshot, doc, setDoc, writeBatch, deleteDoc } from 'firebase/firestore';
 import { SavedMedia } from '@/types';
 
@@ -12,6 +12,8 @@ export function SyncManager() {
 
   // Sync logic when user logs in
   useEffect(() => {
+    if (!isFirebaseConfigured) return;
+
     if (authState === 'authenticated' && user) {
       const savedMediaRef = collection(db, `users/${user.uid}/saved_media`);
       

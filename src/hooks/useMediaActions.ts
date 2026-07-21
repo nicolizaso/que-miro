@@ -1,6 +1,6 @@
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { SavedMedia, MediaStatus, Review } from '@/types';
 
@@ -8,7 +8,7 @@ export function useMediaActions() {
   const { addMedia: localAdd, updateStatus: localUpdate, addReview: localReview, removeMedia: localRemove, mediaList } = useMediaStore();
   const { user, authState } = useAuth();
 
-  const isAuth = authState === 'authenticated' && user;
+  const isAuth = isFirebaseConfigured && authState === 'authenticated' && user;
 
   const addMedia = async (media: Omit<SavedMedia, 'updatedAt'>) => {
     const fullMedia = { ...media, updatedAt: new Date().toISOString() };

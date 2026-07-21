@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Film } from 'lucide-react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, isFirebaseConfigured } from '@/lib/firebase';
 
 export function LoginView() {
   const { signInWithGoogle, continueAsGuest } = useAuth();
@@ -14,6 +14,10 @@ export function LoginView() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isFirebaseConfigured) {
+      setError('Firebase no está configurado. Por favor, continúa como invitado.');
+      return;
+    }
     setError('');
     setLoading(true);
 
