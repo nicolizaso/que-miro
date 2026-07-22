@@ -1,5 +1,11 @@
+// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { 
+  User, 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  signOut 
+} from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
 
 type AuthState = 'loading' | 'authenticated' | 'guest' | 'unauthenticated';
@@ -20,13 +26,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
-      console.warn("Firebase no está configurado. Activando modo invitado por defecto.");
+      console.warn("Firebase no está configurado. Activando modo invitado.");
       setAuthState('guest');
       return;
     }
 
     const isGuest = localStorage.getItem('que-miro-guest') === 'true';
     
+    // Suscripción al observador de estado de autenticación
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -39,18 +46,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
 
+  /**
+   * Maneja el inicio de sesión vía Google OAuth con Popup
+   */
   const signInWithGoogle = async () => {
     if (!isFirebaseConfigured) {
-      console.error('Firebase no está configurado');
-      return;
+      throw new Error('Firebase no está configurado correctamente.');
     }
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error('Error signing in with Google', error);
+    } catch (error: any) {
+      // Manejo controlado de dominios no autorizados u otros errores OAuth
+      if (error?.code === 'auth/unauthorized-domain') {
+        console.error(
+          '[Auth Error]: Dominio no autorizado en Firebase Console. Verifica los Dominios Autorizados.',
+          window.location.hostname
+        );
+      }
       throw error;
     }
   };
@@ -68,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthState('unauthenticated');
       localStorage.removeItem('que-miro-guest');
     } catch (error) {
-      console.error('Error signing out', error);
+      console.error('Error al cerrar sesión:', error);
     }
   };
 
@@ -82,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth debe ser utilizado dentro de un AuthProvider');
   }
   return context;
 }
