@@ -72,7 +72,6 @@ src/
 .env.example
 .env.local
 .gitignore
-firebase-applet-config.json
 firebase-blueprint.json
 firestore.rules
 index.html
@@ -81,6 +80,7 @@ package.json
 README.md
 server.ts
 tsconfig.json
+vercel.json
 vite.config.ts
 </directory_structure>
 
@@ -96,21 +96,6 @@ VITE_FIREBASE_PROJECT_ID=que-miro
 VITE_FIREBASE_STORAGE_BUCKET=que-miro.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=809684609237
 VITE_FIREBASE_APP_ID=1:809684609237:web:4b0da89cd2b6842ed61a5c
-</file>
-
-<file path="firebase-applet-config.json">
-{
-  "projectId": "gen-lang-client-0187988895",
-  "appId": "1:200155183832:web:60916db4b42d5e5ef8f5ad",
-  "apiKey": "AIzaSyA3t6dKg1Oh48_cj7Y96fTHNox5D7waaL0",
-  "authDomain": "gen-lang-client-0187988895.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-qumiro-de9d83ba-06f4-4518-86b9-7cbc9ca0141c",
-  "storageBucket": "gen-lang-client-0187988895.firebasestorage.app",
-  "messagingSenderId": "200155183832",
-  "measurementId": "",
-  "oAuthClientId": "200155183832-1q4m060ki1h82mlltj5n4gi00eutiblu.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
-}
 </file>
 
 <file path="firebase-blueprint.json">
@@ -266,6 +251,22 @@ async function startServer() {
 startServer();
 </file>
 
+<file path="vercel.json">
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "unsafe-none"
+        }
+      ]
+    }
+  ]
+}
+</file>
+
 <file path=".env.example">
 # GEMINI_API_KEY: Required for Gemini AI API calls.
 # AI Studio automatically injects this at runtime from user secrets.
@@ -287,36 +288,6 @@ VITE_FIREBASE_PROJECT_ID=""
 VITE_FIREBASE_STORAGE_BUCKET=""
 VITE_FIREBASE_MESSAGING_SENDER_ID=""
 VITE_FIREBASE_APP_ID=""
-</file>
-
-<file path=".gitignore">
-node_modules
-</file>
-
-<file path="index.html">
-<!doctype html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Qué Miro?</title>
-    <meta name="description" content="Tu biblioteca personal de películas y series." />
-    
-    <!-- PWA Setup -->
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0B0D0E" />
-    
-    <!-- iOS / Safari specific tags -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Qué Miro?" />
-    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
 </file>
 
 <file path="src/components/TitleDetailModal.tsx">
@@ -847,6 +818,39 @@ export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
     }>;
   };
 }
+</file>
+
+<file path=".gitignore">
+node_modules
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Qué Miro?</title>
+    <meta name="description" content="Tu biblioteca personal de películas y series." />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/pwa-192x192.png" />
+
+    <!-- PWA Setup -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0B0D0E" />
+    
+    <!-- iOS / Safari specific tags (Etiqueta actualizada) -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Qué Miro?" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
 </file>
 
 <file path="package.json">
@@ -2041,14 +2045,27 @@ export function useAuth() {
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
 
-// Inicialización de servicios
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const googleProvider = new GoogleAuthProvider();
-export const isFirebaseConfigured = true;
+// Lectura de variables de entorno (Vite / Vercel)
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+// Validación de presencia de la API Key
+export const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== ''
+);
+
+// Inicialización de servicios con el proyecto real
+export const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : ({} as any);
+export const auth = isFirebaseConfigured ? getAuth(app) : ({} as any);
+export const db = isFirebaseConfigured ? getFirestore(app) : ({} as any);
+export const googleProvider = isFirebaseConfigured ? new GoogleAuthProvider() : ({} as any);
 </file>
 
 </files>
