@@ -16,7 +16,7 @@ export function SyncManager() {
     if (authState === 'authenticated' && user) {
       const savedMediaRef = collection(db, `users/${user.uid}/saved_media`);
       
-      const unsubscribe = onSnapshot(savedMediaRef, async (snapshot) => {
+      const unsubscribe = onSnapshot(savedMediaRef, (snapshot) => {
         const firebaseData = snapshot.docs.map(d => d.data() as SavedMedia);
         
         // Initial Migration (Local to Firebase)
@@ -32,9 +32,7 @@ export function SyncManager() {
               const docRef = doc(db, `users/${user.uid}/saved_media/${media.tmdbId}`);
               batch.set(docRef, media);
             });
-            await batch.commit();
-            // Snapshot will trigger again with merged data
-            return;
+            batch.commit();
           }
         }
         

@@ -7,6 +7,7 @@ import {
   signOut 
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
+import { useMediaStore } from '@/store';
 
 type AuthState = 'loading' | 'authenticated' | 'guest' | 'unauthenticated';
 
@@ -82,6 +83,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setAuthState('unauthenticated');
       localStorage.removeItem('que-miro-guest');
+      localStorage.removeItem('que-miro-storage');
+      useMediaStore.getState().setMediaList([]);
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     }
