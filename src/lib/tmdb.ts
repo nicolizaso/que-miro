@@ -1,94 +1,90 @@
 // src/lib/tmdb.ts
+//
+// Cliente del front. No habla con TMDB directamente: pega contra nuestras
+// propias rutas `/api/tmdb/*`, que son las que tienen la API key. Así la key
+// nunca viaja al navegador.
+import { TMDbDetail, TMDbResult } from '@/types';
+
 export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 export const TMDB_IMAGE_ORIGINAL_URL = 'https://image.tmdb.org/t/p/original';
 
 const GENRE_MAP: Record<number, string> = {
-  28: "Action",
-  12: "Adventure",
-  16: "Animation",
-  35: "Comedy",
-  80: "Crime",
-  99: "Documentary",
-  18: "Drama",
-  10751: "Family",
-  14: "Fantasy",
-  36: "History",
-  27: "Horror",
-  10402: "Music",
-  9648: "Mystery",
-  10749: "Romance",
-  878: "Science Fiction",
-  10770: "TV Movie",
-  53: "Thriller",
-  10752: "War",
-  37: "Western",
-  10759: "Action & Adventure",
-  10762: "Kids",
-  10763: "News",
-  10764: "Reality",
-  10765: "Sci-Fi & Fantasy",
-  10766: "Soap",
-  10767: "Talk",
-  10768: "War & Politics"
+  28: 'Acción',
+  12: 'Aventura',
+  16: 'Animación',
+  35: 'Comedia',
+  80: 'Crimen',
+  99: 'Documental',
+  18: 'Drama',
+  10751: 'Familia',
+  14: 'Fantasía',
+  36: 'Historia',
+  27: 'Terror',
+  10402: 'Música',
+  9648: 'Misterio',
+  10749: 'Romance',
+  878: 'Ciencia Ficción',
+  10770: 'Película de TV',
+  53: 'Suspenso',
+  10752: 'Bélica',
+  37: 'Western',
+  10759: 'Acción y Aventura',
+  10762: 'Infantil',
+  10763: 'Noticias',
+  10764: 'Reality',
+  10765: 'Sci-Fi y Fantasía',
+  10766: 'Telenovela',
+  10767: 'Talk Show',
+  10768: 'Guerra y Política',
 };
 
-/**
- * Mapea IDs de géneros a sus nombres correspondientes
- */
+/** Error de red o de la API, con un mensaje ya listo para mostrarle al usuario. */
+export class TMDbRequestError extends Error {}
+
+/** Mapea IDs de géneros de TMDB a sus nombres en español. */
 export function getGenreNames(genreIds: number[]): string[] {
-  return genreIds.map(id => GENRE_MAP[id]).filter(Boolean);
+  return genreIds.map((id) => GENRE_MAP[id]).filter(Boolean);
 }
 
-/**
- * Cliente HTTP base para realizar peticiones a la API de TMDB
- */
-async function fetchTMDB(endpoint: string, params: Record<string, string> = {}) {
-  const apiKey = import.meta.env.VITE_TMDB_API_KEY;
-  
-  if (!apiKey) {
-    console.error("TMDB API key is missing in environment variables.");
-    throw new Error("TMDB API key missing");
+async function fetchApi<T>(path: string): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path);
+  } catch {
+    throw new TMDbRequestError(
+      'No pudimos conectarnos. Revisá tu conexión a internet.',
+    );
   }
 
-  const url = new URL(`https://api.themoviedb.org/3${endpoint}`);
-  url.searchParams.append('api_key', apiKey);
-  url.searchParams.append('language', 'es-ES');
-  
-  Object.entries(params).forEach(([key, value]) => {
-    url.searchParams.append(key, value);
-  });
-
-  const response = await fetch(url.toString());
   if (!response.ok) {
-    throw new Error(`TMDB API Error: ${response.status}`);
+    const message = await response
+      .json()
+      .then((body) => (body as { error?: string })?.error)
+      .catch(() => undefined);
+    throw new TMDbRequestError(message ?? 'No pudimos obtener los datos.');
   }
-  return response.json();
+
+  return (await response.json()) as T;
 }
 
 /**
- * Realiza la búsqueda multi-contenido (películas y series)
+ * Busca películas y series por texto.
+ * @throws {TMDbRequestError} si la búsqueda falla, para que la UI pueda avisar.
  */
-export async function searchMulti(query: string) {
-  try {
-    const data = await fetchTMDB('/search/multi', { query });
-    return data.results.filter((r: any) => r.media_type === 'movie' || r.media_type === 'tv');
-  } catch (e) {
-    console.error('Error al buscar en TMDB:', e);
-    return [];
-  }
+export async function searchMulti(query: string): Promise<TMDbResult[]> {
+  const { results } = await fetchApi<{ results: TMDbResult[] }>(
+    `/api/tmdb/search?query=${encodeURIComponent(query)}`,
+  );
+  return results;
 }
 
 /**
- * Obtiene el detalle de un título (película o serie)
+ * Trae el detalle de un título (sinopsis, reparto, trailer, plataformas).
+ * @throws {TMDbRequestError} si la consulta falla.
  */
-export async function getMediaDetail(id: number, mediaType: 'movie' | 'tv') {
-  try {
-    const data = await fetchTMDB(`/${mediaType}/${id}`, {
-      append_to_response: 'videos,credits,watch/providers'
-    });
-    return data;
-  } catch (e) {
-    console.error('Error al obtener detalle de TMDB:', e);
-    return null;
-  }
+export async function getMediaDetail(
+  id: number,
+  mediaType: 'movie' | 'tv',
+): Promise<TMDbDetail> {
+  return fetchApi<TMDbDetail>(`/api/tmdb/detail?type=${mediaType}&id=${id}`);
 }
