@@ -5,7 +5,7 @@ import { Star, LogOut, LogIn } from 'lucide-react';
 
 export function ProfileView() {
   const { mediaList } = useMediaStore();
-  const { user, authState, logout } = useAuth();
+  const { user, authState, logout, exitGuestMode } = useAuth();
   
   const completedList = mediaList
     .filter(m => m.status === 'completada' && m.review)
@@ -24,8 +24,10 @@ export function ProfileView() {
             <h3 className="font-bold text-accent mb-1">¡Sincroniza tus dispositivos!</h3>
             <p className="text-sm text-text-main/70">Inicia sesión o regístrate para sincronizar tu biblioteca entre tu celular y tu PC.</p>
           </div>
-          <button 
-            onClick={() => logout()} // logging out of guest brings them back to login
+          <button
+            // `exitGuestMode` y no `logout`: conserva los títulos guardados sin
+            // cuenta para poder migrarlos cuando la persona inicie sesión.
+            onClick={exitGuestMode}
             className="flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-accent/90 whitespace-nowrap"
           >
             <LogIn size={16} /> Ingresar

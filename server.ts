@@ -1,83 +1,69 @@
+/**
+ * Server de desarrollo.
+ *
+ * En producción (Vercel) la app se sirve como estático y `api/` corre como
+ * funciones serverless. Este archivo existe para que `npm run dev` levante lo
+ * mismo en local: Vite en modo middleware para el front y las rutas `/api/tmdb`
+ * reusando exactamente la misma lógica que las funciones serverless.
+ */
+import dotenv from 'dotenv';
 import express from 'express';
-import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import {
+  getMediaDetail,
+  parseId,
+  parseMediaType,
+  searchMulti,
+  toErrorResponse,
+} from './api/_lib/tmdb.js';
+
+// `.env.local` primero: dotenv no pisa variables ya definidas, así que lo que
+// esté ahí gana sobre `.env` y sobre el entorno del shell no se impone.
+dotenv.config({ path: '.env.local' });
+dotenv.config();
+
+const PORT = Number(process.env.PORT ?? 3000);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
 
-  // TMDB API Routes
-  app.get('/api/tmdb/search/multi', async (req, res) => {
+  app.get('/api/tmdb/search', async (req, res) => {
+    const query = String(req.query.query ?? '').trim();
+    if (!query) {
+      return res.status(400).json({ error: "Falta el parámetro 'query'." });
+    }
     try {
-      const apiKey = process.env.VITE_TMDB_API_KEY || process.env.TMDB_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: 'TMDB API key is missing.' });
-      }
-      
-      const { query } = req.query;
-      const url = new URL('https://api.themoviedb.org/3/search/multi');
-      url.searchParams.append('api_key', apiKey);
-      url.searchParams.append('language', 'es-ES');
-      url.searchParams.append('query', String(query || ''));
-
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        return res.status(response.status).json({ error: `TMDB API Error: ${response.status}` });
-      }
-      const data = await response.json();
-      return res.json(data);
-    } catch (e) {
-      console.error(e);
-      return res.status(500).json({ error: 'Internal Server Error' });
+      return res.status(200).json({ results: await searchMulti(query) });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
     }
   });
 
-  app.get('/api/tmdb/:mediaType/:id', async (req, res) => {
+  app.get('/api/tmdb/detail', async (req, res) => {
     try {
-      const apiKey = process.env.VITE_TMDB_API_KEY || process.env.TMDB_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: 'TMDB API key is missing.' });
-      }
-      
-      const { mediaType, id } = req.params;
-      if (mediaType !== 'movie' && mediaType !== 'tv') {
-        return res.status(400).json({ error: 'Invalid mediaType' });
-      }
-
-      const url = new URL(`https://api.themoviedb.org/3/${mediaType}/${id}`);
-      url.searchParams.append('api_key', apiKey);
-      url.searchParams.append('language', 'es-ES');
-      url.searchParams.append('append_to_response', 'videos,credits,watch/providers');
-
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        return res.status(response.status).json({ error: `TMDB API Error: ${response.status}` });
-      }
-      const data = await response.json();
-      return res.json(data);
-    } catch (e) {
-      console.error(e);
-      return res.status(500).json({ error: 'Internal Server Error' });
+      const mediaType = parseMediaType(req.query.type);
+      const id = parseId(req.query.id);
+      return res.status(200).json(await getMediaDetail(mediaType, id));
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: 'spa',
+  });
+  app.use(vite.middlewares);
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`▶ Qué Miro? corriendo en http://localhost:${PORT}`);
+    if (!process.env.TMDB_API_KEY) {
+      console.warn(
+        '⚠ Falta TMDB_API_KEY en .env.local — la búsqueda va a fallar. Ver .env.example',
+      );
+    }
   });
 }
 

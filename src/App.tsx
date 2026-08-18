@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LoginView } from '@/views/LoginView';
 import { SyncManager } from '@/components/SyncManager';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 type TabId = 'list' | 'picker' | 'profile';
 
@@ -18,7 +19,8 @@ function MainApp() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === 'k') {
+      // `ctrlKey` además de `metaKey`: en Windows y Linux el atajo es Ctrl+K.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsSearchOpen(true);
       }
@@ -134,9 +136,11 @@ function MainApp() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

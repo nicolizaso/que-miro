@@ -1,26 +1,35 @@
 import React, { useState } from 'react';
 import { SavedMedia } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
-import { Star, StarHalf, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
+import { Loader2, Star, X } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useToast } from '@/contexts/ToastContext';
 
 export function ReviewDrawer({ media, isOpen, onClose }: { media: SavedMedia; isOpen: boolean; onClose: () => void }) {
   const [rating, setRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [reviewText, setReviewText] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const { addReview } = useMediaActions();
+  const { showToast } = useToast();
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    if (rating === 0) return;
-    addReview(media.tmdbId, {
-      rating,
-      text: reviewText,
-      completedAt: new Date().toISOString()
-    });
-    onClose();
+  const handleSave = async () => {
+    if (rating === 0 || isSaving) return;
+    setIsSaving(true);
+    try {
+      await addReview(media.tmdbId, {
+        rating,
+        // Un comentario en blanco no se guarda como string vacío.
+        text: reviewText.trim() || undefined,
+        completedAt: new Date().toISOString(),
+      });
+      showToast(`Guardamos tu reseña de "${media.title}".`);
+      onClose();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const renderStars = () => {
@@ -64,12 +73,16 @@ export function ReviewDrawer({ media, isOpen, onClose }: { media: SavedMedia; is
   };
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4 bg-bg-main/80 backdrop-blur-sm">
-        <motion.div 
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4 bg-bg-main/80 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Calificar ${media.title}`}
+    >
+        <motion.div
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
-          exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
           className="bg-bg-card border border-border-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 flex flex-col gap-6"
         >
           <div className="flex items-start justify-between">
@@ -105,16 +118,16 @@ export function ReviewDrawer({ media, isOpen, onClose }: { media: SavedMedia; is
             >
               Cancelar
             </button>
-            <button 
+            <button
               onClick={handleSave}
-              disabled={rating === 0}
-              className="flex-1 py-4 rounded-xl bg-accent text-white font-medium disabled:opacity-50 transition-colors"
+              disabled={rating === 0 || isSaving}
+              className="flex-1 py-4 rounded-xl bg-accent text-white font-medium disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
+              {isSaving && <Loader2 size={16} className="animate-spin" />}
               Guardar Reseña
             </button>
           </div>
         </motion.div>
-      </div>
-    </AnimatePresence>
+    </div>
   );
 }

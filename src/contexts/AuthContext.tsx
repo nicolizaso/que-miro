@@ -1,21 +1,35 @@
 // src/contexts/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  User, 
-  onAuthStateChanged, 
-  signInWithPopup, 
-  signOut 
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  User,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
 import { useMediaStore } from '@/store';
 
 type AuthState = 'loading' | 'authenticated' | 'guest' | 'unauthenticated';
 
+const GUEST_STORAGE_KEY = 'que-miro-guest';
+
 interface AuthContextType {
   user: User | null;
   authState: AuthState;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  registerWithEmail: (email: string, password: string) => Promise<void>;
   continueAsGuest: () => void;
+  /** Sale del modo invitado para volver a la pantalla de login, sin borrar datos. */
+  exitGuestMode: () => void;
   logout: () => Promise<void>;
 }
 
@@ -27,74 +41,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
-      console.warn("Firebase no está configurado. Activando modo invitado.");
+      // Sin Firebase la app sigue siendo usable: todo queda en localStorage.
+      console.warn('Firebase no está configurado. Activando modo invitado.');
       setAuthState('guest');
       return;
     }
 
-    const isGuest = localStorage.getItem('que-miro-guest') === 'true';
-    
-    // Suscripción al observador de estado de autenticación
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         setAuthState('authenticated');
-        localStorage.removeItem('que-miro-guest');
-      } else if (isGuest) {
-        setAuthState('guest');
-      } else {
-        setAuthState('unauthenticated');
+        localStorage.removeItem(GUEST_STORAGE_KEY);
+        return;
       }
+      // Se lee acá y no fuera del callback para no quedarse con un valor viejo
+      // si el usuario entra y sale del modo invitado en la misma sesión.
+      const isGuest = localStorage.getItem(GUEST_STORAGE_KEY) === 'true';
+      setAuthState(isGuest ? 'guest' : 'unauthenticated');
     });
 
     return () => unsubscribe();
   }, []);
 
-  /**
-   * Maneja el inicio de sesión vía Google OAuth con Popup
-   */
-  const signInWithGoogle = async () => {
+  const requireFirebase = () => {
     if (!isFirebaseConfigured) {
-      throw new Error('Firebase no está configurado correctamente.');
+      throw new Error('Firebase no está configurado en esta instalación.');
     }
-    try {
+  };
+
+  const value = useMemo<AuthContextType>(() => {
+    const signInWithGoogle = async () => {
+      requireFirebase();
       await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      // Manejo controlado de dominios no autorizados u otros errores OAuth
-      if (error?.code === 'auth/unauthorized-domain') {
-        console.error(
-          '[Auth Error]: Dominio no autorizado en Firebase Console. Verifica los Dominios Autorizados.',
-          window.location.hostname
-        );
-      }
-      throw error;
-    }
-  };
+    };
 
-  const continueAsGuest = () => {
-    localStorage.setItem('que-miro-guest', 'true');
-    setAuthState('guest');
-  };
+    const signInWithEmail = async (email: string, password: string) => {
+      requireFirebase();
+      await signInWithEmailAndPassword(auth, email, password);
+    };
 
-  const logout = async () => {
-    try {
+    const registerWithEmail = async (email: string, password: string) => {
+      requireFirebase();
+      await createUserWithEmailAndPassword(auth, email, password);
+    };
+
+    const continueAsGuest = () => {
+      localStorage.setItem(GUEST_STORAGE_KEY, 'true');
+      setAuthState('guest');
+    };
+
+    const exitGuestMode = () => {
+      // Los títulos guardados como invitado se conservan a propósito: si la
+      // persona después inicia sesión, SyncManager los migra a su cuenta.
+      localStorage.removeItem(GUEST_STORAGE_KEY);
+      setAuthState('unauthenticated');
+    };
+
+    const logout = async () => {
       if (isFirebaseConfigured) {
         await signOut(auth);
       }
+      localStorage.removeItem(GUEST_STORAGE_KEY);
+      // Se limpia la biblioteca para que no quede visible en el dispositivo
+      // después de cerrar sesión. En Firestore sigue intacta.
+      useMediaStore.getState().reset();
+      setUser(null);
       setAuthState('unauthenticated');
-      localStorage.removeItem('que-miro-guest');
-      localStorage.removeItem('que-miro-storage');
-      useMediaStore.getState().setMediaList([]);
-    } catch (error) {
-      console.error('Error al cerrar sesión:', error);
-    }
-  };
+    };
 
-  return (
-    <AuthContext.Provider value={{ user, authState, signInWithGoogle, continueAsGuest, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+    return {
+      user,
+      authState,
+      signInWithGoogle,
+      signInWithEmail,
+      registerWithEmail,
+      continueAsGuest,
+      exitGuestMode,
+      logout,
+    };
+  }, [user, authState]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
