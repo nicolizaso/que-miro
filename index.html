@@ -51,6 +51,29 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   </head>
   <body>
+    <!-- Aplica el tema guardado antes del primer pintado. Sin esto, quien tiene
+         elegido el tema claro ve un fogonazo oscuro hasta que React monta.
+         Lee el mismo storage que el store de preferencias (zustand/persist). -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('que-miro-preferences');
+          var theme = saved ? JSON.parse(saved).state.theme : 'system';
+          if (theme === 'light' || theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', theme);
+          }
+          var isDark =
+            theme === 'dark' ||
+            (theme !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute('content', isDark ? '#0b0d0e' : '#faf8f5');
+        } catch (e) {
+          /* Sin storage (modo privado, storage bloqueado) queda el tema del sistema. */
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

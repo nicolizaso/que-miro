@@ -1,112 +1,215 @@
-import React from 'react';
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
-import { Star, LogOut, LogIn } from 'lucide-react';
+import { ThemeRadioGroup } from '@/components/ThemeToggle';
+import { DataSettings } from '@/components/DataSettings';
+import { REGIONS, RegionCode, usePreferences } from '@/preferences';
+import { LogIn, LogOut, Star } from 'lucide-react';
+
+/** Tarjeta de la sesión actual: cuenta, invitado o demo. */
+function SessionCard() {
+  const { user, authState, logout, exitGuestMode } = useAuth();
+
+  // En demo no se muestra nada: el banner de arriba ya avisa y ya ofrece la
+  // salida. Dos carteles diciendo lo mismo en la misma pantalla es ruido.
+  if (authState === 'demo') return null;
+
+  if (authState === 'guest') {
+    return (
+      <div className="bg-accent/10 border border-accent rounded-2xl p-4 flex items-center justify-between gap-4">
+        <div className="flex-1">
+          <h3 className="font-bold text-accent mb-1">
+            ¡Sincronizá tus dispositivos!
+          </h3>
+          <p className="text-sm text-text-muted">
+            Iniciá sesión o registrate para sincronizar tu biblioteca entre el
+            celular y la compu.
+          </p>
+        </div>
+        <button
+          // `exitGuestMode` y no `logout`: conserva los títulos guardados sin
+          // cuenta para poder migrarlos cuando la persona inicie sesión.
+          onClick={exitGuestMode}
+          className="flex items-center gap-2 bg-accent text-accent-contrast px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity whitespace-nowrap"
+        >
+          <LogIn size={16} aria-hidden="true" /> Ingresar
+        </button>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  return (
+    <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex items-center justify-between gap-4">
+      <div className="flex-1 min-w-0">
+        <h3 className="font-bold text-text-main mb-1 truncate">
+          {user.displayName || 'Mi Cuenta'}
+        </h3>
+        <p className="text-sm text-text-muted truncate">
+          Conectado como {user.email}
+        </p>
+      </div>
+      <button
+        onClick={() => logout()}
+        className="flex items-center gap-2 border border-border-card text-text-muted px-4 py-2 rounded-xl text-sm font-medium hover:bg-border-card hover:text-text-main transition-colors whitespace-nowrap"
+      >
+        <LogOut size={16} aria-hidden="true" /> Salir
+      </button>
+    </div>
+  );
+}
+
+/** Preferencias del dispositivo: tema y región de las plataformas. */
+function AppSettings() {
+  const { region, setRegion } = usePreferences();
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div>
+        <h3 className="font-bold text-lg">Ajustes</h3>
+        <p className="text-sm text-text-muted">
+          Valen para este dispositivo; no se sincronizan.
+        </p>
+      </div>
+
+      <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex flex-col gap-5">
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Tema</span>
+          <ThemeRadioGroup />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label htmlFor="region" className="text-sm font-medium">
+            País para las plataformas
+          </label>
+          <select
+            id="region"
+            value={region}
+            onChange={(e) => setRegion(e.target.value as RegionCode)}
+            className="bg-bg-main border border-border-card rounded-xl px-4 py-3 text-text-main focus:outline-none focus:border-accent transition-colors"
+          >
+            {REGIONS.map(({ code, name }) => (
+              <option key={code} value={code}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-text-subtle">
+            Define en qué servicios te decimos que está disponible cada título.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function ProfileView() {
   const { mediaList } = useMediaStore();
-  const { user, authState, logout, exitGuestMode } = useAuth();
-  
+
   const completedList = mediaList
-    .filter(m => m.status === 'completada' && m.review)
-    .sort((a, b) => new Date(b.review!.completedAt).getTime() - new Date(a.review!.completedAt).getTime());
+    .filter((m) => m.status === 'completada' && m.review)
+    .sort(
+      (a, b) =>
+        new Date(b.review!.completedAt).getTime() -
+        new Date(a.review!.completedAt).getTime(),
+    );
 
   const totalWatched = completedList.length;
-  const avgRating = totalWatched > 0 
-    ? (completedList.reduce((acc, curr) => acc + (curr.review?.rating || 0), 0) / totalWatched).toFixed(1)
-    : '0.0';
+  const avgRating =
+    totalWatched > 0
+      ? (
+          completedList.reduce((acc, curr) => acc + (curr.review?.rating || 0), 0) /
+          totalWatched
+        ).toFixed(1)
+      : '0.0';
 
   return (
-    <div className="flex flex-col gap-8 w-full max-w-3xl mx-auto px-4 pt-10 pb-24">
-      {authState === 'guest' && (
-        <div className="bg-accent/10 border border-accent rounded-2xl p-4 flex items-center justify-between gap-4">
-          <div className="flex-1">
-            <h3 className="font-bold text-accent mb-1">¡Sincroniza tus dispositivos!</h3>
-            <p className="text-sm text-text-main/70">Inicia sesión o regístrate para sincronizar tu biblioteca entre tu celular y tu PC.</p>
-          </div>
-          <button
-            // `exitGuestMode` y no `logout`: conserva los títulos guardados sin
-            // cuenta para poder migrarlos cuando la persona inicie sesión.
-            onClick={exitGuestMode}
-            className="flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-accent/90 whitespace-nowrap"
-          >
-            <LogIn size={16} /> Ingresar
-          </button>
-        </div>
-      )}
+    <div className="flex flex-col gap-10 w-full max-w-3xl mx-auto px-4 pt-10 pb-28">
+      <SessionCard />
 
-      {authState === 'authenticated' && user && (
-        <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex items-center justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-text-main mb-1 truncate">
-              {user.displayName || 'Mi Cuenta'}
-            </h3>
-            <p className="text-sm text-text-main/50 truncate">
-              Conectado como {user.email}
-            </p>
-          </div>
-          <button 
-            onClick={() => logout()}
-            className="flex items-center gap-2 border border-border-card text-text-main/70 px-4 py-2 rounded-xl text-sm font-medium hover:bg-border-card hover:text-text-main whitespace-nowrap"
-          >
-            <LogOut size={16} /> Salir
-          </button>
-        </div>
-      )}
+      <section className="flex flex-col items-center text-center">
+        <h2 className="font-serif italic font-bold text-4xl mb-6">
+          Mis Estadísticas
+        </h2>
 
-      <div className="flex flex-col items-center text-center">
-        <h2 className="font-serif italic font-bold text-4xl mb-6">Mis Estadísticas</h2>
-        
         <div className="grid grid-cols-2 gap-4 w-full">
           <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
-            <span className="text-5xl font-serif italic font-bold text-accent mb-2">{totalWatched}</span>
-            <span className="text-sm text-text-main/50 uppercase tracking-wider">Vistas</span>
+            <span className="text-5xl font-serif italic font-bold text-accent mb-2">
+              {totalWatched}
+            </span>
+            <span className="text-sm text-text-muted uppercase tracking-wider">
+              Vistas
+            </span>
           </div>
           <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
             <span className="text-5xl font-serif italic font-bold text-accent mb-2 flex items-baseline gap-1">
-              {avgRating} <Star size={20} className="fill-accent text-accent" />
+              {avgRating}{' '}
+              <Star size={20} className="fill-accent text-accent" aria-hidden="true" />
             </span>
-            <span className="text-sm text-text-main/50 uppercase tracking-wider">Promedio</span>
+            <span className="text-sm text-text-muted uppercase tracking-wider">
+              Promedio
+            </span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="flex flex-col gap-4 mt-8">
-        <h3 className="font-bold text-lg mb-2">Historial Reciente</h3>
-        
+      <AppSettings />
+
+      <DataSettings />
+
+      <section className="flex flex-col gap-4">
+        <h3 className="font-bold text-lg">Historial Reciente</h3>
+
         {completedList.length === 0 ? (
-          <div className="text-center text-text-main/50 py-10">
-            Aún no has calificado ningún título.
+          <div className="text-center text-text-muted py-10">
+            Todavía no calificaste ningún título.
           </div>
         ) : (
-          completedList.map(media => (
-
-            <div key={media.tmdbId} className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col gap-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="font-serif italic font-bold text-xl">{media.title}</h4>
-                  <span className="text-xs text-text-main/40">
-                    {new Date(media.review!.completedAt).toLocaleDateString()}
+          completedList.map((media) => (
+            <article
+              key={media.tmdbId}
+              className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col gap-4"
+            >
+              <div className="flex justify-between items-start gap-4">
+                <div className="min-w-0">
+                  <h4 className="font-serif italic font-bold text-xl">
+                    {media.title}
+                  </h4>
+                  <span className="text-xs text-text-subtle">
+                    {new Date(media.review!.completedAt).toLocaleDateString(
+                      'es-AR',
+                      { day: 'numeric', month: 'long', year: 'numeric' },
+                    )}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 bg-bg-main px-3 py-1 rounded-lg border border-border-card">
+                <div className="flex items-center gap-1 bg-bg-main px-3 py-1 rounded-lg border border-border-card shrink-0">
                   <span className="font-bold">{media.review?.rating}</span>
-                  <Star size={14} className="fill-accent text-accent" />
+                  <Star
+                    size={14}
+                    className="fill-accent text-accent"
+                    aria-hidden="true"
+                  />
+                  <span className="sr-only">de 5 estrellas</span>
                 </div>
               </div>
-              
+
               {media.review?.text && (
                 <div className="relative pt-4">
-                  <span className="absolute -top-2 left-0 text-4xl text-accent font-serif opacity-30">"</span>
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-2 left-0 text-4xl text-accent font-serif opacity-30"
+                  >
+                    "
+                  </span>
                   <p className="text-text-main/80 italic pl-4 text-sm leading-relaxed relative z-10">
                     {media.review.text}
                   </p>
                 </div>
               )}
-            </div>
+            </article>
           ))
         )}
-      </div>
+      </section>
     </div>
   );
 }

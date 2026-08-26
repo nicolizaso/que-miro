@@ -18,11 +18,20 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 
 - **Tres listas** — *Por Ver*, *Viendo* y *Completadas*, con transiciones animadas.
 - **Búsqueda en TMDB** — películas y series, con atajo `⌘K` / `Ctrl+K`.
-- **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está disponible.
+- **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo o
+  puntaje. Los filtros viven en la URL, así que la vista se puede compartir.
+- **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está
+  disponible, según el país que elijas.
 - **Reseñas propias** — puntaje de 0,5 a 5 estrellas (con medias estrellas) y comentario opcional.
 - **Smart Picker** — elige al azar algo de tu lista *Por Ver*, con filtro por género.
 - **Estadísticas** — cantidad de títulos vistos, promedio de puntaje e historial de reseñas.
+- **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.
 - **Modo invitado** — usala sin cuenta; si después iniciás sesión, tu biblioteca se migra sola.
+- **Tus datos son tuyos** — exportá a JSON o CSV, reimportá el JSON y eliminá tu
+  cuenta con todos sus datos cuando quieras.
+- **Tema claro y oscuro** — sigue al sistema o se fija a mano.
+- **Accesible** — navegable por teclado, con foco atrapado en los modales y
+  respeto por `prefers-reduced-motion`.
 - **PWA** — instalable en el celular, con los pósters cacheados para uso offline.
 
 <div align="center">
@@ -36,7 +45,8 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 
 | Capa | Herramientas |
 |---|---|
-| UI | React 19, TypeScript, Tailwind CSS 4, Motion, lucide-react |
+| UI | React 19, TypeScript (`strict`), Tailwind CSS 4, Motion, lucide-react |
+| Rutas | React Router 7 |
 | Estado | Zustand (con persistencia en `localStorage`) |
 | Datos | [TMDB API](https://www.themoviedb.org/documentation/api) vía funciones serverless |
 | Auth y sync | Firebase Auth + Cloud Firestore |
@@ -109,11 +119,15 @@ api/                  Funciones serverless (Vercel)
   tmdb/detail.ts      GET /api/tmdb/detail?type=&id=
 src/
   components/         MediaCard, SearchModal, TitleDetailModal, ReviewDrawer, SyncManager
+    ui/Dialog.tsx     Modal accesible: foco atrapado, Escape, scroll trabado
   contexts/           AuthContext (sesión), ToastContext (avisos)
-  hooks/              useMediaActions — punto único de escritura de la biblioteca
-  lib/                Cliente HTTP del front, init de Firebase, mensajes de error
-  views/              ListView, SmartPickerView, ProfileView, LoginView
-  store.ts            Estado global (Zustand)
+  hooks/              useMediaActions (escrituras), useAccountActions (borrado),
+                      useLibraryFilters (filtros en la URL)
+  lib/                Cliente HTTP del front, init de Firebase, tema, backup,
+                      filtros de la biblioteca, datos del demo
+  views/              ListView, SmartPickerView, ProfileView, LoginView, NotFoundView
+  store.ts            Biblioteca (Zustand + localStorage)
+  preferences.ts      Tema y región, solo de este dispositivo
 server.ts             Server de desarrollo: Vite + las mismas rutas /api
 ```
 
@@ -124,10 +138,20 @@ Dos decisiones que explican la forma del código:
 desarrollo (`server.ts`) monta esas mismas rutas reusando el módulo compartido de
 `api/_lib/tmdb.ts`, así local y producción se comportan igual.
 
+**El tema se resuelve antes del primer pintado.** Los colores son tokens CSS
+(`--qm-*`) que `@theme inline` expone como utilidades de Tailwind, así que
+cambiar `data-theme` en `<html>` repinta la app sin recargar. Un script inline en
+`index.html` lee la preferencia guardada antes de que monte React: sin eso, quien
+tiene el tema claro ve un fogonazo oscuro en cada carga.
+
 **Los datos tienen dueño explícito.** El store guarda un `ownerUid` junto a la
 biblioteca. Al iniciar sesión, si los datos locales eran de invitado se migran a
 la cuenta; si eran de *otra* cuenta, se descartan antes de sincronizar. Sin eso,
-la biblioteca de quien usó el dispositivo antes se le filtraría al siguiente.
+la biblioteca de quien usó el dispositivo antes se le filtraría al siguiente. El
+modo demo se apoya en la misma regla: sus datos llevan un `ownerUid` ficticio,
+así que nunca terminan mezclados con los de una cuenta real.
+
+El plan de las próximas etapas está en [`docs/roadmap.md`](docs/roadmap.md).
 
 ---
 

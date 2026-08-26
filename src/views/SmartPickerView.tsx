@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useMediaStore } from '@/store';
 import { Shuffle } from 'lucide-react';
 import { MediaCard } from '@/components/MediaCard';
@@ -41,7 +41,7 @@ export function SmartPickerView() {
       <div className="flex flex-col items-center justify-center py-20 px-4 text-center h-full max-w-lg mx-auto pb-24">
         <Shuffle className="text-border-card w-16 h-16 mb-6" />
         <h2 className="font-serif italic font-bold text-2xl mb-2">Smart Picker</h2>
-        <p className="text-text-main/50">Agrega títulos a tu lista "Por Ver" para usar el selector aleatorio.</p>
+        <p className="text-text-muted">Agregá títulos a tu lista "Por Ver" para usar el selector aleatorio.</p>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export function SmartPickerView() {
   return (
     <div className="flex flex-col items-center w-full max-w-3xl mx-auto px-4 pt-10 pb-24 min-h-[calc(100vh-80px)]">
       <h2 className="font-serif italic font-bold text-4xl mb-2">Qué Ver Hoy</h2>
-      <p className="text-text-main/50 mb-10 text-center">Deja que el destino elija tu próxima historia.</p>
+      <p className="text-text-muted mb-10 text-center">Deja que el destino elija tu próxima historia.</p>
       
       <div className="flex flex-wrap justify-center gap-2 mb-12">
         <button
@@ -58,7 +58,7 @@ export function SmartPickerView() {
             "px-4 py-2 rounded-full border text-sm transition-colors",
             selectedGenre === null 
               ? "bg-text-main text-bg-main border-text-main" 
-              : "bg-transparent border-border-card text-text-main/70 hover:border-text-main/30"
+              : "bg-transparent border-border-card text-text-muted hover:border-text-subtle hover:text-text-main"
           )}
         >
           Todos
@@ -71,13 +71,21 @@ export function SmartPickerView() {
               "px-4 py-2 rounded-full border text-sm transition-colors",
               selectedGenre === genre 
                 ? "bg-text-main text-bg-main border-text-main" 
-                : "bg-transparent border-border-card text-text-main/70 hover:border-text-main/30"
+                : "bg-transparent border-border-card text-text-muted hover:border-text-subtle hover:text-text-main"
             )}
           >
             {genre}
           </button>
         ))}
       </div>
+
+      <p aria-live="polite" className="sr-only">
+        {isPicking
+          ? 'Eligiendo un título...'
+          : pickedMedia
+            ? `Te tocó ${pickedMedia.title}`
+            : ''}
+      </p>
 
       {!pickedMedia ? (
         <button
@@ -97,7 +105,7 @@ export function SmartPickerView() {
           </div>
           <button
             onClick={handlePick}
-            className="text-sm text-text-main/50 hover:text-text-main underline underline-offset-4"
+            className="text-sm text-text-muted hover:text-text-main underline underline-offset-4"
           >
             Probar otra vez
           </button>

@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Film, Loader2 } from 'lucide-react';
+import { Film, Loader2, Sparkles } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { getAuthErrorMessage } from '@/lib/authErrors';
 
 export function LoginView() {
-  const { signInWithGoogle, signInWithEmail, registerWithEmail, continueAsGuest } =
-    useAuth();
+  const {
+    signInWithGoogle,
+    signInWithEmail,
+    registerWithEmail,
+    continueAsGuest,
+    startDemo,
+  } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,16 +65,34 @@ export function LoginView() {
 
   return (
     <div className="min-h-screen bg-bg-main flex flex-col items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
       <div className="w-full max-w-sm flex flex-col items-center">
-        <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(230,57,70,0.3)]">
-          <Film size={32} className="text-bg-main" />
+        <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-6 shadow-lg shadow-accent/25">
+          <Film size={32} className="text-accent-contrast" aria-hidden="true" />
         </div>
 
         <h1 className="font-serif italic font-bold text-4xl mb-2 text-center">
           Qué Miro?
         </h1>
-        <p className="text-text-main/50 text-center mb-8">
+        <p className="text-text-muted text-center mb-6">
           Tu biblioteca personal de películas y series.
+        </p>
+
+        {/* Primera opción a propósito: quien llega a ver el proyecto quiere
+            recorrerlo, no crearse una cuenta. */}
+        <button
+          type="button"
+          onClick={startDemo}
+          className="w-full flex items-center justify-center gap-2 bg-accent text-accent-contrast font-medium py-3 rounded-2xl hover:opacity-90 transition-opacity mb-3"
+        >
+          <Sparkles size={18} aria-hidden="true" />
+          Ver el demo
+        </button>
+        <p className="text-xs text-text-subtle text-center mb-8">
+          Una biblioteca de ejemplo para recorrer la app sin registrarte.
         </p>
 
         <div className="w-full bg-bg-card border border-border-card rounded-3xl p-6">
@@ -89,7 +113,7 @@ export function LoginView() {
             <div className="flex flex-col gap-1">
               <label
                 htmlFor="email"
-                className="text-xs font-medium text-text-main/70 ml-1"
+                className="text-xs font-medium text-text-muted ml-1"
               >
                 Email
               </label>
@@ -109,7 +133,7 @@ export function LoginView() {
             <div className="flex flex-col gap-1 mb-2">
               <label
                 htmlFor="password"
-                className="text-xs font-medium text-text-main/70 ml-1"
+                className="text-xs font-medium text-text-muted ml-1"
               >
                 Contraseña
               </label>
@@ -130,7 +154,7 @@ export function LoginView() {
             <button
               type="submit"
               disabled={isBusy}
-              className="w-full bg-accent text-white font-medium py-3 rounded-xl hover:bg-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-accent text-accent-contrast font-medium py-3 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {pendingAction === 'form' && (
                 <Loader2 size={16} className="animate-spin" />
@@ -144,7 +168,7 @@ export function LoginView() {
                 setIsLogin(!isLogin);
                 setError('');
               }}
-              className="text-sm text-text-main/50 hover:text-text-main underline underline-offset-4 mb-2"
+              className="text-sm text-text-muted hover:text-text-main underline underline-offset-4 mb-2"
             >
               {isLogin
                 ? '¿No tenés cuenta? Registrate'
@@ -153,7 +177,7 @@ export function LoginView() {
 
             <div className="relative flex items-center py-2">
               <div className="flex-grow border-t border-border-card"></div>
-              <span className="flex-shrink-0 mx-4 text-text-main/40 text-xs">
+              <span className="flex-shrink-0 mx-4 text-text-subtle text-xs">
                 O
               </span>
               <div className="flex-grow border-t border-border-card"></div>
@@ -163,7 +187,7 @@ export function LoginView() {
               type="button"
               onClick={handleGoogleSignIn}
               disabled={isBusy}
-              className="w-full bg-white text-black font-medium py-3 rounded-xl hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full bg-white text-[#1f1f1f] border border-border-card font-medium py-3 rounded-xl hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {pendingAction === 'google' ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -193,14 +217,14 @@ export function LoginView() {
             <button
               type="button"
               onClick={continueAsGuest}
-              className="w-full border border-border-card text-text-main/70 font-medium py-3 rounded-xl hover:bg-border-card transition-colors mt-2"
+              className="w-full border border-border-card text-text-muted font-medium py-3 rounded-xl hover:bg-border-card hover:text-text-main transition-colors mt-2"
             >
               Continuar como Invitado
             </button>
           </form>
         </div>
 
-        <p className="text-xs text-text-main/40 text-center mt-6 max-w-xs">
+        <p className="text-xs text-text-subtle text-center mt-6 max-w-xs">
           En modo invitado tus títulos quedan solo en este dispositivo. Si
           después iniciás sesión, los migramos a tu cuenta.
         </p>
