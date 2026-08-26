@@ -76,6 +76,16 @@ export interface SavedMedia {
 
   /** Ids de las colecciones a las que pertenece. */
   collections?: string[];
+
+  /**
+   * Puntaje del modo duelo, estilo Elo.
+   *
+   * Ausente mientras el título no haya peleado; `duel.ts` lo trata como el
+   * puntaje base. Son campos opcionales que se suman al schema v2 sin migración:
+   * un documento viejo simplemente no los trae.
+   */
+  duelScore?: number;
+  duelCount?: number;
 }
 
 /** Una lista propia, más allá de los tres estados fijos. */

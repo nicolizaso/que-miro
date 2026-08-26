@@ -1,13 +1,15 @@
 import { MediaStatus, MediaType, SavedMedia } from '@/types';
 import { latestRating } from '@/lib/schema';
 import { progressPercent } from '@/lib/progress';
+import { scoreOf } from '@/lib/duel';
 
 export type SortOption =
   | 'recientes'
   | 'titulo'
   | 'puntaje'
   | 'anio'
-  | 'progreso';
+  | 'progreso'
+  | 'ranking';
 
 export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'recientes', label: 'Agregados hace poco' },
@@ -15,6 +17,7 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'puntaje', label: 'Mejor puntuados' },
   { value: 'anio', label: 'Más nuevos' },
   { value: 'progreso', label: 'Más avanzados' },
+  { value: 'ranking', label: 'Mi ranking' },
 ];
 
 export const DEFAULT_SORT: SortOption = 'recientes';
@@ -117,6 +120,16 @@ function compare(a: SavedMedia, b: SavedMedia, sort: SortOption): number {
       const progressA = a.mediaType === 'tv' ? progressPercent(a) : -1;
       const progressB = b.mediaType === 'tv' ? progressPercent(b) : -1;
       return progressA !== progressB ? progressB - progressA : byTitle();
+    }
+
+    case 'ranking': {
+      // Los que nunca pasaron por el duelo van al final: no tienen ranking,
+      // y mezclarlos con los que sí lo tienen haría parecer que sí.
+      const duelledA = (a.duelCount ?? 0) > 0;
+      const duelledB = (b.duelCount ?? 0) > 0;
+      if (duelledA !== duelledB) return duelledA ? -1 : 1;
+      if (!duelledA) return byTitle();
+      return scoreOf(b) - scoreOf(a) || byTitle();
     }
 
     case 'recientes':

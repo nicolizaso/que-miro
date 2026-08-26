@@ -159,6 +159,13 @@ function parseProgress(value: unknown): SeriesProgress | undefined {
   };
 }
 
+/** Un número finito, o `undefined` si no lo es. Admite el cero y los negativos. */
+function parseFiniteNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : undefined;
+}
+
 function parseNullableNumber(value: unknown): number | null | undefined {
   if (value === null || value === undefined) return undefined;
   const num = Number(value);
@@ -218,6 +225,9 @@ export function parseMedia(value: unknown): SavedMedia | null {
     collections: parseStringArray(value.collections).length
       ? parseStringArray(value.collections)
       : undefined,
+
+    duelScore: parseFiniteNumber(value.duelScore),
+    duelCount: parseFiniteNumber(value.duelCount),
   };
 }
 

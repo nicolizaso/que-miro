@@ -1,10 +1,13 @@
+import { useMemo } from 'react';
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeRadioGroup } from '@/components/ThemeToggle';
 import { DataSettings } from '@/components/DataSettings';
 import { CollectionsSettings } from '@/components/CollectionsSettings';
+import { StatsDashboard } from '@/components/StatsDashboard';
 import { REGIONS, RegionCode, usePreferences } from '@/preferences';
 import { formatWatchDate } from '@/lib/dates';
+import { allWatches } from '@/lib/stats';
 import { LogIn, LogOut, Repeat, Star } from 'lucide-react';
 
 /** Tarjeta de la sesión actual: cuenta, invitado o demo. */
@@ -108,64 +111,15 @@ function AppSettings() {
 export function ProfileView() {
   const { mediaList } = useMediaStore();
 
-  /**
-   * El historial completo, aplanado: cada vez que viste algo es una entrada,
-   * con el título al que pertenece. Con el schema anterior "vistas" y "títulos
-   * completados" eran el mismo número; ahora ver algo dos veces cuenta dos
-   * veces en el historial pero un solo título en la biblioteca.
-   */
-  const watches = mediaList
-    .flatMap((media) =>
-      (media.history ?? []).map((entry) => ({ media, entry })),
-    )
-    .sort(
-      (a, b) =>
-        Date.parse(b.entry.completedAt) - Date.parse(a.entry.completedAt),
-    );
-
-  const totalWatches = watches.length;
-  const uniqueTitles = new Set(watches.map(({ media }) => media.tmdbId)).size;
-  const avgRating =
-    totalWatches > 0
-      ? (
-          watches.reduce((acc, { entry }) => acc + entry.rating, 0) / totalWatches
-        ).toFixed(1)
-      : '0.0';
+  // El mismo selector que alimenta el panel de estadísticas: el historial
+  // aplanado, de lo más reciente a lo más viejo.
+  const watches = useMemo(() => allWatches(mediaList), [mediaList]);
 
   return (
-    <div className="flex flex-col gap-10 w-full max-w-3xl mx-auto px-4 pt-10 pb-28">
+    <div className="flex flex-col gap-10 w-full max-w-5xl mx-auto px-4 pt-10 pb-28">
       <SessionCard />
 
-      <section className="flex flex-col items-center text-center">
-        <h2 className="font-serif italic font-bold text-4xl mb-6">
-          Mis Estadísticas
-        </h2>
-
-        <div className="grid grid-cols-2 gap-4 w-full">
-          <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
-            <span className="text-5xl font-serif italic font-bold text-accent mb-2">
-              {totalWatches}
-            </span>
-            <span className="text-sm text-text-muted uppercase tracking-wider">
-              Vistas
-            </span>
-            {totalWatches !== uniqueTitles && (
-              <span className="text-xs text-text-subtle mt-1">
-                {uniqueTitles} títulos distintos
-              </span>
-            )}
-          </div>
-          <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
-            <span className="text-5xl font-serif italic font-bold text-accent mb-2 flex items-baseline gap-1">
-              {avgRating}{' '}
-              <Star size={20} className="fill-accent text-accent" aria-hidden="true" />
-            </span>
-            <span className="text-sm text-text-muted uppercase tracking-wider">
-              Promedio
-            </span>
-          </div>
-        </div>
-      </section>
+      <StatsDashboard />
 
       <AppSettings />
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Film, LayoutGrid, Search, Shuffle, User } from 'lucide-react';
+import { Compass, Film, LayoutGrid, Search, Shuffle, User } from 'lucide-react';
 import { SearchModal } from '@/components/SearchModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DemoBanner } from '@/components/DemoBanner';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Mis Listas', Icon: LayoutGrid, end: true },
+  { to: '/explorar', label: 'Explorar', Icon: Compass, end: false },
   { to: '/picker', label: 'Picker', Icon: Shuffle, end: false },
   { to: '/perfil', label: 'Perfil', Icon: User, end: false },
 ] as const;

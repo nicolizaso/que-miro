@@ -9,10 +9,18 @@
 import dotenv from 'dotenv';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
+import { cacheHeaders } from './api/_lib/cache.js';
 import {
+  RECOMMENDATIONS_TTL,
+  TRENDING_TTL,
+  getList,
   getMediaDetail,
+  getRecommendations,
+  getTrending,
   parseId,
+  parseListKind,
   parseMediaType,
+  parseTrendingWindow,
   searchMulti,
   toErrorResponse,
 } from './api/_lib/tmdb.js';
@@ -45,6 +53,38 @@ async function startServer() {
       const mediaType = parseMediaType(req.query.type);
       const id = parseId(req.query.id);
       return res.status(200).json(await getMediaDetail(mediaType, id));
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/trending', async (req, res) => {
+    try {
+      const results = req.query.type
+        ? await getList(
+            parseMediaType(req.query.type),
+            parseListKind(req.query.list),
+          )
+        : await getTrending(parseTrendingWindow(req.query.window));
+
+      res.set(cacheHeaders(TRENDING_TTL));
+      return res.status(200).json({ results });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/recommendations', async (req, res) => {
+    try {
+      const mediaType = parseMediaType(req.query.type);
+      const id = parseId(req.query.id);
+
+      res.set(cacheHeaders(RECOMMENDATIONS_TTL));
+      return res
+        .status(200)
+        .json({ results: await getRecommendations(mediaType, id) });
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);

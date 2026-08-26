@@ -91,13 +91,13 @@ reglas de seguridad.
 
 *Todo lo que consume los datos ricos de la tanda 2, más los endpoints nuevos.*
 
-| Feature |
-|---|
-| Tab Explorar (tendencias, populares) |
-| Recomendaciones personalizadas |
-| Smart Picker 2.0 |
-| Modo duelo / torneo |
-| Dashboard de estadísticas |
+| Feature | Estado |
+|---|---|
+| Tab Explorar (tendencias, populares) | ✅ |
+| Recomendaciones personalizadas | ✅ |
+| Smart Picker 2.0 | ✅ |
+| Modo duelo / torneo | ✅ |
+| Dashboard de estadísticas | ✅ |
 
 **Base compartida:** dos endpoints serverless nuevos (`/api/tmdb/trending`,
 `/api/tmdb/recommendations`) que estrenan la **capa de caché** — hoy
@@ -106,8 +106,20 @@ usuarios. Del otro lado, recomendaciones, picker, duelo y estadísticas son toda
 **agregaciones sobre la biblioteca propia**: un único módulo de selectores
 derivados, con sus tests, alimenta a las cuatro.
 
-**Orden interno:** caché + endpoints → Explorar → Recomendaciones → selectores
-derivados → Dashboard → Picker 2.0 → Duelo.
+**Cómo quedó implementada**
+
+- **La caché tiene dos capas.** Una en el proceso, que aprovecha las instancias
+  tibias de Vercel, y los headers `s-maxage` que hacen que el borde sirva la
+  respuesta sin llegar a la función. Los errores no se cachean: un TMDB caído no
+  queda pegado durante toda la ventana del TTL.
+- **El servidor no sabe qué vio nadie.** TMDB dice qué se parece a qué —eso es
+  igual para todo el mundo, por eso se puede cachear— y el cliente arma sus
+  recomendaciones cruzándolo con su propia biblioteca.
+- **Un solo módulo de agregaciones** alimenta recomendaciones, dashboard, picker
+  y duelo. La unidad es "una vez que viste algo", no "un título".
+- **El ranking del duelo son dos campos opcionales** que se suman al schema v2
+  sin migración: un documento viejo simplemente no los trae. El roadmap los
+  había previsto para la tanda 2; al ser aditivos, llegar tarde no costó nada.
 
 **Resultado:** la app entretiene. Es la tanda que genera los screenshots.
 
