@@ -17,6 +17,9 @@ function Contender({
     <button
       type="button"
       onClick={onPick}
+      // Sin esto, un lector de pantalla lee "Matrix 1999" y no dice para qué
+      // sirve el botón: el nombre accesible tiene que nombrar la acción.
+      aria-label={`Elegir ${media.title}`}
       className="group flex-1 flex flex-col gap-2 text-left rounded-2xl border border-border-card bg-bg-card overflow-hidden hover:border-accent transition-colors"
     >
       <span className="relative block aspect-[2/3] w-full bg-border-card overflow-hidden">

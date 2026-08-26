@@ -4,6 +4,7 @@ import { Compass, Film, LayoutGrid, Search, Shuffle, User } from 'lucide-react';
 import { SearchModal } from '@/components/SearchModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DemoBanner } from '@/components/DemoBanner';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { SyncManager } from '@/components/SyncManager';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -98,6 +99,8 @@ export function AppLayout() {
           )}
         </div>
       </header>
+
+      <OfflineBanner />
 
       <DemoBanner />
 

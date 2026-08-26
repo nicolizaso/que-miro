@@ -129,13 +129,13 @@ derivados, con sus tests, alimenta a las cuatro.
 
 *Lo que mira hacia afuera, más el arnés de seguridad.*
 
-| Feature |
-|---|
-| "Tu año en Qué Miro" (wrapped) |
-| Perfil público compartible |
-| Compartir título / resultado del picker |
-| Offline real (cola de escrituras + UI optimista) |
-| Tests E2E con Playwright + CI |
+| Feature | Estado |
+|---|---|
+| "Tu año en Qué Miro" (wrapped) | ✅ |
+| Perfil público compartible | ✅ |
+| Compartir título / resultado del picker | ✅ |
+| Offline real (cola de escrituras + UI optimista) | ✅ |
+| Tests E2E con Playwright + CI | ✅ |
 
 **Por qué van juntas:** wrapped, perfil público y compartir usan **el mismo
 renderizador de tarjetas** (en cliente para compartir, en servidor para la imagen
@@ -147,8 +147,25 @@ escritura que la tanda 2 acaba de estabilizar, y escribir tests E2E contra una U
 que todavía cambia es tirar el trabajo. Acá cubren flujos ya congelados: buscar →
 agregar → puntuar → sincronizar → compartir.
 
-**Orden interno:** rutas públicas + reglas → renderizador de tarjetas → perfil
-público → wrapped → compartir → offline → E2E.
+**Cómo quedó implementada**
+
+- **El perfil público es una instantánea, no una ventana.** Abrir `saved_media`
+  a lectura anónima expondría también lo que no se quiso publicar, así que lo
+  que se comparte es una copia curada en `public_profiles/{slug}`, con su fecha
+  a la vista y un botón para volver a publicarla.
+- **Los meta tags los resuelve el servidor.** Los scrapers de redes no ejecutan
+  JavaScript, así que `/u/:slug` lo sirve una función que inyecta título y
+  descripción en el HTML antes de mandarlo. Lee el perfil por la API REST de
+  Firestore: la colección es de lectura anónima por diseño, así que no hacen
+  falta credenciales de servidor ni el SDK de admin.
+- **La tarjeta que se comparte se dibuja como SVG y se pasa a PNG en el
+  navegador.** No lleva el póster a propósito: las imágenes de TMDB son de otro
+  origen y contaminarían el canvas, con lo cual `toBlob` fallaría.
+- **Offline dejó de esperar al servidor.** `setDoc` resuelve recién cuando el
+  cambio llegó a Firestore: sin conexión no resuelve nunca, y esperarlo dejaba
+  la app con el spinner girando. Ahora las escrituras sueltas se lanzan sin
+  esperar —la caché local ya disparó el `onSnapshot`— y quedan encoladas hasta
+  que vuelva la red.
 
 **Resultado:** publicable, con link propio y CI que lo respalda.
 

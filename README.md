@@ -39,6 +39,11 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   puntaje tipo Elo.
 - **Estadísticas** — horas mirando, distribución por género, actividad por mes y
   cómo puntuás, con su tabla accesible al lado de cada gráfico.
+- **Tu año en Qué Miro?** — resumen anual listo para compartir.
+- **Perfil público** — publicá tus estadísticas y reseñas en `/u/tu-nombre`, con
+  su vista previa resuelta del lado del servidor.
+- **Offline de verdad** — sin conexión seguís usando la app, y los cambios se
+  sincronizan solos cuando vuelve la red.
 - **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.
 - **Modo invitado** — usala sin cuenta; si después iniciás sesión, tu biblioteca se migra sola.
 - **Tus datos son tuyos** — exportá a JSON o CSV, reimportá el JSON y eliminá tu
@@ -65,7 +70,7 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 | Datos | [TMDB API](https://www.themoviedb.org/documentation/api) vía funciones serverless |
 | Auth y sync | Firebase Auth + Cloud Firestore |
 | Build | Vite 6, vite-plugin-pwa (Workbox) |
-| Tests | Vitest + Testing Library |
+| Tests | Vitest + Testing Library, Playwright para los E2E |
 | Deploy | Vercel |
 
 ---
@@ -118,7 +123,8 @@ El modelo de datos está documentado en [`firebase-blueprint.json`](firebase-blu
 | `npm run dev` | Server de desarrollo con HMR y las rutas `/api` (puerto 3000). |
 | `npm run build` | Build de producción en `dist/`. |
 | `npm run preview` | Sirve el build ya generado. |
-| `npm test` | Corre la suite de tests. |
+| `npm test` | Corre la suite de tests unitarios. |
+| `npm run test:e2e` | Corre los tests de punta a punta (Playwright). |
 | `npm run test:watch` | Tests en modo watch. |
 | `npm run lint` | Chequeo de tipos con TypeScript. |
 
@@ -134,6 +140,8 @@ api/                  Funciones serverless (Vercel)
   tmdb/detail.ts      GET /api/tmdb/detail?type=&id=
   tmdb/trending.ts    GET /api/tmdb/trending (tendencias, populares, top)
   tmdb/recommendations.ts  GET /api/tmdb/recommendations?type=&id=
+  u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
+e2e/                  Tests de punta a punta (Playwright)
 src/
   components/         MediaCard, SearchModal, TitleDetailModal, ReviewDrawer, SyncManager
     ui/Dialog.tsx     Modal accesible: foco atrapado, Escape, scroll trabado
@@ -177,6 +185,18 @@ La contracara es que envejecen, y para eso está `isStale`.
 qué se parece a qué y cachea la respuesta, porque es igual para todos. Quién
 recibe qué lo decide el navegador, cruzando eso con la biblioteca de esa persona.
 El servidor nunca necesita saber qué vio nadie.
+
+**El perfil público es una copia, no una ventana.** Abrir la biblioteca entera a
+lectura anónima expondría también lo que no se quiso publicar. Lo que se
+comparte es una instantánea curada en `public_profiles/{slug}`, con su fecha a la
+vista. Y como los scrapers de redes no ejecutan JavaScript, `/u/:slug` lo sirve
+una función que le inyecta los meta tags al HTML antes de mandarlo.
+
+**Sin conexión no se espera al servidor.** `setDoc` de Firestore resuelve recién
+cuando el cambio llegó, así que offline no resuelve nunca: esperarlo dejaba la
+app con el spinner girando para siempre. Las escrituras sueltas se lanzan sin
+esperar —la caché local ya actualizó la UI— y el SDK las manda solas al volver
+la red.
 
 **El tema se resuelve antes del primer pintado.** Los colores son tokens CSS
 (`--qm-*`) que `@theme inline` expone como utilidades de Tailwind, así que

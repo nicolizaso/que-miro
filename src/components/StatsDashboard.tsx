@@ -6,6 +6,7 @@ import { ChartFrame } from '@/components/charts/ChartFrame';
 import { BarList } from '@/components/charts/BarList';
 import { ColumnChart } from '@/components/charts/ColumnChart';
 import { TrendChart } from '@/components/charts/TrendChart';
+import { WrappedCard } from '@/components/WrappedCard';
 import {
   formatDuration,
   genreDistribution,
@@ -124,6 +125,8 @@ export function StatsDashboard() {
           <ColumnChart data={ratings} unit="reseñas" />
         </ChartFrame>
       </div>
+
+      <WrappedCard />
 
       {best.length > 0 && (
         <div className="bg-bg-card border border-border-card rounded-2xl p-5 flex flex-col gap-3">

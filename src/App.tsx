@@ -10,6 +10,7 @@ import { ListView } from '@/views/ListView';
 import { LoginView } from '@/views/LoginView';
 import { NotFoundView } from '@/views/NotFoundView';
 import { ProfileView } from '@/views/ProfileView';
+import { PublicProfileView } from '@/views/PublicProfileView';
 import { SmartPickerView } from '@/views/SmartPickerView';
 
 /** Pantalla de carga mientras Firebase resuelve si hay sesión. */
@@ -37,6 +38,8 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/login" element={<LoginView />} />
+        {/* El perfil público se ve sin sesión: es todo el punto de compartirlo. */}
+        <Route path="/u/:slug" element={<PublicProfileView />} />
         {/* Cualquier otra ruta manda al login. `replace` para no dejar la ruta
             protegida en el historial y que "atrás" rebote de vuelta acá. */}
         <Route path="*" element={<Navigate to="/login" replace />} />
@@ -47,6 +50,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route path="/u/:slug" element={<PublicProfileView />} />
       <Route element={<AppLayout />}>
         <Route index element={<ListView />} />
         <Route path="explorar" element={<ExploreView />} />

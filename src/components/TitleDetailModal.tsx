@@ -11,6 +11,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { SeriesProgress } from '@/components/SeriesProgress';
 import { CollectionPicker } from '@/components/CollectionPicker';
 import { WatchHistory } from '@/components/WatchHistory';
+import { ShareButton } from '@/components/ShareButton';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { enrichFromDetail, isStale } from '@/lib/enrich';
 import { pickProviders } from '@/lib/providers';
@@ -246,6 +247,36 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                       Ver Tráiler
                       <span className="sr-only">(se abre en YouTube)</span>
                     </a>
+                  )}
+
+                  {title && (
+                    <ShareButton
+                      className="self-start"
+                      title={title}
+                      text={`Estoy mirando ${title} en Qué Miro?`}
+                      card={{
+                        eyebrow: media?.history?.length
+                          ? 'La vi'
+                          : 'Anotada para ver',
+                        headline: title,
+                        subline: [
+                          detail?.release_date?.split('-')[0] ??
+                            detail?.first_air_date?.split('-')[0] ??
+                            media?.releaseYear,
+                          detail?.genres?.[0]?.name ?? media?.genres[0],
+                        ]
+                          .filter(Boolean)
+                          .join(' · '),
+                        stats: media?.history?.[0]
+                          ? [
+                              {
+                                value: String(media.history[0].rating),
+                                label: 'de 5 estrellas',
+                              },
+                            ]
+                          : undefined,
+                      }}
+                    />
                   )}
 
                   {detail?.overview && (
