@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { Compass, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
@@ -34,6 +34,11 @@ export function ListView() {
   const { authState, startDemo } = useAuth();
   const { filters, setFilters, clearFilters } = useLibraryFilters();
 
+  // En el teléfono los desplegables ocupan media pantalla antes de que se vea
+  // el primer póster, así que arrancan plegados. De `sm` para arriba entran al
+  // lado del buscador y no hace falta esconderlos.
+  const [areFiltersOpen, setAreFiltersOpen] = useState(false);
+
   // Los géneros salen de la pestaña actual, no de toda la biblioteca: ofrecer
   // "Terror" cuando en Completadas no hay ninguna de terror es ofrecer un
   // filtro que solo puede dar cero resultados.
@@ -52,15 +57,15 @@ export function ListView() {
   );
 
   const isFiltered = hasActiveFilters(filters);
-  const selectClass =
-    'bg-bg-card border border-border-card rounded-xl px-3 py-2.5 text-sm text-text-main focus:outline-none focus:border-accent transition-colors';
 
   return (
-    <div className="flex flex-col gap-5 w-full max-w-5xl mx-auto px-4 pt-6 pb-28">
+    <div className="flex flex-col gap-5 w-full max-w-5xl mx-auto px-4 pt-6">
+      <h1 className="text-display">Mis listas</h1>
+
       <div
         role="tablist"
         aria-label="Estado de los títulos"
-        className="flex bg-bg-card p-1 rounded-xl border border-border-card"
+        className="flex bg-bg-card p-1 rounded-control border border-border-card"
       >
         {TABS.map((tab) => {
           const isActive = filters.status === tab.id;
@@ -71,9 +76,16 @@ export function ListView() {
               key={tab.id}
               role="tab"
               aria-selected={isActive}
+              // Sin esto el nombre accesible sale de pegar los dos nodos de
+              // texto y se lee "Por Ver7".
+              aria-label={
+                count > 0
+                  ? `${tab.label}, ${count} ${count === 1 ? 'título' : 'títulos'}`
+                  : tab.label
+              }
               onClick={() => setFilters({ status: tab.id })}
               className={cn(
-                'flex-1 py-3 text-sm font-medium rounded-lg transition-colors relative',
+                'flex-1 py-3 px-1 rounded-lg transition-colors relative',
                 isActive
                   ? 'text-text-main'
                   : 'text-text-muted hover:text-text-main',
@@ -86,10 +98,14 @@ export function ListView() {
                   transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                 />
               )}
-              <span className="relative z-10">
+              {/* `whitespace-nowrap`: "Completadas (6)" partía en dos renglones
+                  en pantallas angostas y descuadraba toda la fila. */}
+              <span className="relative z-10 flex items-center justify-center gap-1.5 whitespace-nowrap text-[13px] sm:text-sm font-medium">
                 {tab.label}
                 {count > 0 && (
-                  <span className="text-text-subtle font-normal"> ({count})</span>
+                  <span className="text-text-subtle font-normal tabular-nums">
+                    {count}
+                  </span>
                 )}
               </span>
             </button>
@@ -101,7 +117,7 @@ export function ListView() {
           tres títulos guardados es ruido. */}
       {inStatus.length > 1 && (
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex gap-2">
             <div className="relative flex-1">
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle pointer-events-none"
@@ -114,115 +130,131 @@ export function ListView() {
                 onChange={(e) => setFilters({ query: e.target.value })}
                 placeholder="Buscar en esta lista..."
                 aria-label="Buscar en esta lista"
-                className="w-full bg-bg-card border border-border-card rounded-xl py-2.5 pl-9 pr-3 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent transition-colors"
+                className="w-full bg-bg-card border border-border-control rounded-control py-2.5 pl-9 pr-3 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent transition-colors"
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setAreFiltersOpen((open) => !open)}
+              aria-expanded={areFiltersOpen}
+              aria-controls="filtros-lista"
+              className="sm:hidden flex items-center gap-2 shrink-0 bg-bg-card border border-border-card rounded-control px-3 py-2.5 text-sm font-medium text-text-main hover:bg-border-card transition-colors"
+            >
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              Filtros
+            </button>
+          </div>
+
+          <div
+            id="filtros-lista"
+            className={cn(
+              'flex-wrap gap-2 sm:flex',
+              areFiltersOpen ? 'flex' : 'hidden',
+            )}
+          >
+            <select
+              value={filters.type ?? ''}
+              onChange={(e) =>
+                setFilters({ type: (e.target.value || null) as MediaType | null })
+              }
+              aria-label="Filtrar por tipo"
+              className="select-control"
+            >
+              {TYPES.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+
+            {genres.length > 1 && (
               <select
-                value={filters.type ?? ''}
-                onChange={(e) =>
-                  setFilters({ type: (e.target.value || null) as MediaType | null })
-                }
-                aria-label="Filtrar por tipo"
-                className={selectClass}
+                value={filters.genre ?? ''}
+                onChange={(e) => setFilters({ genre: e.target.value || null })}
+                aria-label="Filtrar por género"
+                className="select-control"
               >
-                {TYPES.map(({ value, label }) => (
-                  <option key={value} value={value}>
-                    {label}
+                <option value="">Todos los géneros</option>
+                {genres.map((genre) => (
+                  <option key={genre} value={genre}>
+                    {genre}
                   </option>
                 ))}
               </select>
+            )}
 
-              {genres.length > 1 && (
-                <select
-                  value={filters.genre ?? ''}
-                  onChange={(e) => setFilters({ genre: e.target.value || null })}
-                  aria-label="Filtrar por género"
-                  className={selectClass}
-                >
-                  <option value="">Todos los géneros</option>
-                  {genres.map((genre) => (
-                    <option key={genre} value={genre}>
-                      {genre}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Cada desplegable aparece solo si hay más de un valor entre el
-                  cual elegir: un filtro con una sola opción no filtra nada. */}
-              {providers.length > 1 && (
-                <select
-                  value={filters.provider ?? ''}
-                  onChange={(e) => setFilters({ provider: e.target.value || null })}
-                  aria-label="Filtrar por plataforma"
-                  className={selectClass}
-                >
-                  <option value="">Todas las plataformas</option>
-                  {providers.map((provider) => (
-                    <option key={provider} value={provider}>
-                      {provider}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {collections.length > 0 && (
-                <select
-                  value={filters.collection ?? ''}
-                  onChange={(e) =>
-                    setFilters({ collection: e.target.value || null })
-                  }
-                  aria-label="Filtrar por lista"
-                  className={selectClass}
-                >
-                  <option value="">Todas mis listas</option>
-                  {collections.map((collection) => (
-                    <option key={collection.id} value={collection.id}>
-                      {collection.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {tags.length > 1 && (
-                <select
-                  value={filters.tag ?? ''}
-                  onChange={(e) => setFilters({ tag: e.target.value || null })}
-                  aria-label="Filtrar por etiqueta"
-                  className={selectClass}
-                >
-                  <option value="">Cualquier ánimo</option>
-                  {tags.map((tag) => (
-                    <option key={tag} value={tag}>
-                      {tag}
-                    </option>
-                  ))}
-                </select>
-              )}
-
+            {/* Cada desplegable aparece solo si hay más de un valor entre el
+                cual elegir: un filtro con una sola opción no filtra nada. */}
+            {providers.length > 1 && (
               <select
-                value={filters.sort}
-                onChange={(e) =>
-                  setFilters({ sort: e.target.value as typeof filters.sort })
-                }
-                aria-label="Ordenar por"
-                className={selectClass}
+                value={filters.provider ?? ''}
+                onChange={(e) => setFilters({ provider: e.target.value || null })}
+                aria-label="Filtrar por plataforma"
+                className="select-control"
               >
-                {SORT_OPTIONS.map(({ value, label }) => (
-                  <option key={value} value={value}>
-                    {label}
+                <option value="">Todas las plataformas</option>
+                {providers.map((provider) => (
+                  <option key={provider} value={provider}>
+                    {provider}
                   </option>
                 ))}
               </select>
-            </div>
+            )}
+
+            {collections.length > 0 && (
+              <select
+                value={filters.collection ?? ''}
+                onChange={(e) =>
+                  setFilters({ collection: e.target.value || null })
+                }
+                aria-label="Filtrar por lista"
+                className="select-control"
+              >
+                <option value="">Todas mis listas</option>
+                {collections.map((collection) => (
+                  <option key={collection.id} value={collection.id}>
+                    {collection.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {tags.length > 1 && (
+              <select
+                value={filters.tag ?? ''}
+                onChange={(e) => setFilters({ tag: e.target.value || null })}
+                aria-label="Filtrar por etiqueta"
+                className="select-control"
+              >
+                <option value="">Cualquier ánimo</option>
+                {tags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <select
+              value={filters.sort}
+              onChange={(e) =>
+                setFilters({ sort: e.target.value as typeof filters.sort })
+              }
+              aria-label="Ordenar por"
+              className="select-control"
+            >
+              {SORT_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {isFiltered && (
             <div className="flex items-center justify-between gap-3 text-sm">
-              <p className="text-text-muted flex items-center gap-2">
-                <SlidersHorizontal size={14} aria-hidden="true" />
+              <p className="text-text-muted">
                 {filteredList.length} de {inStatus.length}{' '}
                 {inStatus.length === 1 ? 'título' : 'títulos'}
               </p>
@@ -265,7 +297,7 @@ export function ListView() {
                 </p>
                 <Link
                   to="/explorar"
-                  className="mt-6 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity"
+                  className="mt-6 flex items-center gap-2 px-4 py-2.5 rounded-control bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity"
                 >
                   <Compass size={16} aria-hidden="true" />
                   Explorar títulos
@@ -276,7 +308,7 @@ export function ListView() {
                 {mediaList.length === 0 && authState !== 'demo' && (
                   <button
                     onClick={startDemo}
-                    className="mt-3 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border-card text-sm font-medium text-text-main hover:bg-border-card transition-colors"
+                    className="mt-3 flex items-center gap-2 px-4 py-2.5 rounded-control border border-border-card text-sm font-medium text-text-main hover:bg-border-card transition-colors"
                   >
                     <Sparkles size={16} aria-hidden="true" />
                     Ver una biblioteca de ejemplo

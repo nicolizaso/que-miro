@@ -38,8 +38,8 @@ export function StatsDashboard() {
   if (summary.totalWatches === 0) {
     return (
       <section className="flex flex-col gap-4">
-        <h2 className="font-serif italic font-bold text-3xl">Mis estadísticas</h2>
-        <div className="bg-bg-card border border-border-card rounded-2xl p-8 text-center text-text-muted">
+        <h2 className="text-section">Mis estadísticas</h2>
+        <div className="surface p-8 text-center text-text-muted">
           <p>Todavía no terminaste ningún título.</p>
           <p className="text-sm mt-2">
             Cuando puntúes el primero, acá vas a ver cuánto mirás, qué géneros
@@ -54,7 +54,7 @@ export function StatsDashboard() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-serif italic font-bold text-3xl">Mis estadísticas</h2>
+      <h2 className="text-section">Mis estadísticas</h2>
 
       {/* Cinco columnas y el destacado ocupando dos: es el que lleva el texto
           más largo y el que tiene que leerse primero. */}
@@ -129,8 +129,8 @@ export function StatsDashboard() {
       <WrappedCard />
 
       {best.length > 0 && (
-        <div className="bg-bg-card border border-border-card rounded-2xl p-5 flex flex-col gap-3">
-          <h3 className="font-bold">Tus favoritas</h3>
+        <div className="surface p-5 flex flex-col gap-3">
+          <h3 className="text-section">Tus favoritas</h3>
           <ol className="flex flex-col gap-2">
             {best.map(({ media, entry }) => (
               <li

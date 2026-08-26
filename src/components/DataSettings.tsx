@@ -132,19 +132,19 @@ export function DataSettings() {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h3 className="font-bold text-lg">Tus datos</h3>
+        <h2 className="text-section">Tus datos</h2>
         <p className="text-sm text-text-muted">
           Tu biblioteca es tuya: llevatela cuando quieras.
         </p>
       </div>
 
-      <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex flex-col gap-3">
+      <div className="surface p-4 flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
             onClick={handleExportJson}
             disabled={isEmpty}
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download size={16} aria-hidden="true" />
             Exportar JSON
@@ -153,7 +153,7 @@ export function DataSettings() {
             type="button"
             onClick={handleExportCsv}
             disabled={isEmpty}
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download size={16} aria-hidden="true" />
             Exportar CSV
@@ -163,7 +163,7 @@ export function DataSettings() {
             onClick={() => fileInputRef.current?.click()}
             disabled={isDemo}
             title={isDemo ? 'No disponible mientras estás en el demo' : undefined}
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <FileUp size={16} aria-hidden="true" />
             Importar
@@ -185,12 +185,12 @@ export function DataSettings() {
         </p>
       </div>
 
-      <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex flex-col gap-3">
+      <div className="surface p-4 flex flex-col gap-3">
         <button
           type="button"
           onClick={() => setDialog('clear')}
           disabled={isEmpty || isDemo}
-          className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-card text-sm font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Trash2 size={16} aria-hidden="true" />
           Vaciar mi biblioteca
@@ -200,7 +200,7 @@ export function DataSettings() {
           <button
             type="button"
             onClick={() => setDialog('delete')}
-            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-accent/40 text-sm font-medium text-accent hover:bg-accent/10 transition-colors"
+            className="flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-accent/40 text-sm font-medium text-accent hover:bg-accent/10 transition-colors"
           >
             <Trash2 size={16} aria-hidden="true" />
             Eliminar mi cuenta
@@ -255,7 +255,7 @@ export function DataSettings() {
         description={
           <p>
             Se borran los {mediaList.length} títulos que tenés guardados, con sus
-            reseñas. Esto no se puede deshacer — si querés conservarlos,
+            reseñas. Esto no se puede deshacer: si querés conservarlos,
             exportalos antes.
           </p>
         }

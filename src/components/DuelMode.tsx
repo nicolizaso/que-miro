@@ -20,7 +20,7 @@ function Contender({
       // Sin esto, un lector de pantalla lee "Matrix 1999" y no dice para qué
       // sirve el botón: el nombre accesible tiene que nombrar la acción.
       aria-label={`Elegir ${media.title}`}
-      className="group flex-1 flex flex-col gap-2 text-left rounded-2xl border border-border-card bg-bg-card overflow-hidden hover:border-accent transition-colors"
+      className="group flex-1 flex flex-col gap-2 text-left rounded-surface border border-border-card bg-bg-card overflow-hidden hover:border-accent transition-colors"
     >
       <span className="relative block aspect-[2/3] w-full bg-border-card overflow-hidden">
         {media.posterPath ? (
@@ -40,7 +40,7 @@ function Contender({
         )}
       </span>
       <span className="px-3 pb-3 block">
-        <span className="font-serif italic font-bold leading-tight line-clamp-2 block">
+        <span className="font-semibold leading-snug line-clamp-2 block">
           {media.title}
         </span>
         <span className="text-xs text-text-subtle">{media.releaseYear}</span>
@@ -191,7 +191,7 @@ export function DuelMode({ pending }: { pending: SavedMedia[] }) {
             {board.slice(0, 10).map((media, index) => (
               <li
                 key={media.tmdbId}
-                className="flex items-center gap-3 bg-bg-card border border-border-card rounded-xl px-3 py-2"
+                className="flex items-center gap-3 bg-bg-card border border-border-card rounded-control px-3 py-2"
               >
                 <span className="w-5 text-sm font-bold text-text-subtle tabular-nums shrink-0">
                   {index + 1}

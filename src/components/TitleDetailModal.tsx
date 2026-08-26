@@ -153,7 +153,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
             </p>
             <button
               onClick={onClose}
-              className="mt-2 px-4 py-2 rounded-xl border border-border-card text-sm hover:bg-border-card transition-colors"
+              className="mt-2 px-4 py-2 rounded-control border border-border-card text-sm hover:bg-border-card transition-colors"
             >
               Cerrar
             </button>
@@ -190,7 +190,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                 <div className="absolute bottom-6 left-6 right-6">
                   <h2
                     id={titleId}
-                    className="font-serif italic font-bold text-3xl sm:text-4xl text-white drop-shadow-lg line-clamp-2"
+                    className="text-display text-white drop-shadow-lg line-clamp-2"
                   >
                     {title}
                   </h2>
@@ -222,7 +222,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
               {error && (
                 <p
                   role="alert"
-                  className="flex items-start gap-2 text-sm text-text-muted bg-accent/10 border border-accent/20 rounded-xl p-3"
+                  className="flex items-start gap-2 text-sm text-text-muted bg-accent/10 border border-accent/20 rounded-control p-3"
                 >
                   <AlertCircle size={16} className="shrink-0 mt-0.5 text-accent" aria-hidden="true" />
                   {error} Lo que ya tenías guardado se sigue viendo.
@@ -241,7 +241,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                       href={`https://www.youtube.com/watch?v=${trailer.key}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full py-4 bg-accent text-accent-contrast rounded-xl font-medium hover:opacity-90 transition-opacity shrink-0"
+                      className="flex items-center justify-center gap-2 w-full py-4 bg-accent text-accent-contrast rounded-control font-medium hover:opacity-90 transition-opacity shrink-0"
                     >
                       <Play size={20} className="fill-current" aria-hidden="true" />
                       Ver Tráiler
@@ -328,7 +328,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                         {allProviders.map((p) => (
                           <li
                             key={p.provider_name}
-                            className="w-12 h-12 rounded-xl bg-border-card overflow-hidden shrink-0"
+                            className="w-12 h-12 rounded-control bg-border-card overflow-hidden shrink-0"
                             title={p.provider_name}
                           >
                             <img

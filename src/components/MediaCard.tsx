@@ -55,7 +55,7 @@ export function MediaCard({
 
   return (
     <>
-      <article className="group relative bg-bg-card border border-border-card rounded-2xl overflow-hidden hover:border-text-subtle transition-colors flex flex-col h-full">
+      <article className="group relative surface overflow-hidden hover:border-text-subtle transition-colors flex flex-col h-full">
         {/* Un botón de verdad y no un div con onClick: es la única forma de que
             la tarjeta se pueda abrir con teclado. Los botones de acción quedan
             afuera porque no se pueden anidar dentro de otro botón. */}
@@ -113,7 +113,7 @@ export function MediaCard({
             )}
 
             <span className="absolute bottom-3 left-3 right-3 flex flex-col gap-1.5">
-              <span className="font-serif italic font-bold text-lg leading-tight line-clamp-2">
+              <span className="font-semibold text-base leading-snug line-clamp-2">
                 {media.title}
               </span>
               <span className="flex flex-wrap gap-2 text-xs text-text-muted">
@@ -155,7 +155,7 @@ export function MediaCard({
             {media.status === 'por_ver' && (
               <button
                 onClick={() => handleStatusChange('viendo')}
-                className="w-10 h-10 rounded-xl bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-text-muted"
+                className="w-10 h-10 rounded-control bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-text-muted"
                 aria-label={`Mover "${media.title}" a Viendo`}
                 title="Mover a Viendo"
               >
@@ -165,7 +165,7 @@ export function MediaCard({
             {media.status !== 'completada' && (
               <button
                 onClick={() => handleStatusChange('completada')}
-                className="w-10 h-10 rounded-xl bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-status-completada"
+                className="w-10 h-10 rounded-control bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-status-completada"
                 aria-label={`Marcar "${media.title}" como completada`}
                 title="Marcar Completada"
               >
@@ -174,7 +174,7 @@ export function MediaCard({
             )}
             <button
               onClick={() => setIsConfirmingDelete(true)}
-              className="w-10 h-10 rounded-xl bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-text-muted hover:text-accent transition-colors"
+              className="w-10 h-10 rounded-control bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-text-muted hover:text-accent transition-colors"
               aria-label={`Eliminar "${media.title}" de la biblioteca`}
               title="Eliminar de mi biblioteca"
             >

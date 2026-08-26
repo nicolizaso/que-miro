@@ -18,35 +18,38 @@ export function PublicProfileView() {
 
   return (
     <div className="min-h-screen bg-bg-main text-text-main flex flex-col">
-      <header className="border-b border-border-card px-4 sm:px-6 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-            <Film size={20} className="text-accent-contrast" aria-hidden="true" />
-          </span>
-          <span className="font-serif italic font-bold text-xl">Qué Miro?</span>
-        </Link>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <Link
-            to="/"
-            className="text-sm px-4 py-2 rounded-xl bg-accent text-accent-contrast font-medium hover:opacity-90 transition-opacity"
-          >
-            Armá la tuya
+      <header className="border-b border-border-card">
+        {/* Mismo ancho que el contenido: el logo cae en la vertical del título. */}
+        <div className="w-full max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+              <Film size={20} className="text-accent-contrast" aria-hidden="true" />
+            </span>
+            <span className="font-serif italic font-bold text-xl">Qué Miro?</span>
           </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link
+              to="/"
+              className="text-sm px-4 py-2 rounded-control bg-accent text-accent-contrast font-medium hover:opacity-90 transition-opacity"
+            >
+              Armá la tuya
+            </Link>
+          </div>
         </div>
       </header>
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-10">
         {isLoading ? (
           <div className="flex flex-col gap-4" role="status" aria-label="Cargando perfil">
-            <div className="h-10 w-2/3 bg-border-card rounded-xl animate-pulse" />
-            <div className="h-24 bg-border-card rounded-2xl animate-pulse" />
-            <div className="h-40 bg-border-card rounded-2xl animate-pulse" />
+            <div className="h-10 w-2/3 bg-border-card rounded-control animate-pulse" />
+            <div className="h-24 bg-border-card rounded-surface animate-pulse" />
+            <div className="h-40 bg-border-card rounded-surface animate-pulse" />
           </div>
         ) : error || !profile ? (
           <div className="flex flex-col items-center text-center gap-4 py-20">
             <UserX className="text-border-card w-14 h-14" aria-hidden="true" />
-            <h1 className="font-serif italic font-bold text-3xl">
+            <h1 className="text-display">
               {error ? 'No pudimos cargar el perfil' : 'Este perfil no existe'}
             </h1>
             <p className="text-text-muted max-w-sm">
@@ -56,7 +59,7 @@ export function PublicProfileView() {
             </p>
             <Link
               to="/"
-              className="mt-2 px-5 py-2.5 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors"
+              className="mt-2 px-5 py-2.5 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors"
             >
               Ir a Qué Miro?
             </Link>
@@ -64,10 +67,8 @@ export function PublicProfileView() {
         ) : (
           <div className="flex flex-col gap-10">
             <section>
-              <p className="text-sm uppercase tracking-wider text-accent mb-1">
-                La biblioteca de
-              </p>
-              <h1 className="font-serif italic font-bold text-4xl sm:text-5xl">
+              <p className="text-eyebrow text-accent mb-1">La biblioteca de</p>
+              <h1 className="text-display sm:text-5xl">
                 {profile.displayName}
               </h1>
               <p className="text-sm text-text-subtle mt-2">
@@ -87,7 +88,7 @@ export function PublicProfileView() {
               ].map(({ value, label }) => (
                 <div
                   key={label}
-                  className="bg-bg-card border border-border-card rounded-2xl p-4"
+                  className="surface p-4"
                 >
                   <p className="font-serif italic font-bold text-2xl text-accent leading-tight">
                     {value}
@@ -99,7 +100,7 @@ export function PublicProfileView() {
 
             {profile.topGenres.length > 0 && (
               <section className="flex flex-col gap-3">
-                <h2 className="font-bold text-lg">Lo que más mira</h2>
+                <h2 className="text-section">Lo que más mira</h2>
                 <ul className="flex flex-wrap gap-2">
                   {profile.topGenres.map((genre) => (
                     <li
@@ -115,11 +116,11 @@ export function PublicProfileView() {
 
             {profile.favorites.length > 0 && (
               <section className="flex flex-col gap-3">
-                <h2 className="font-bold text-lg">Sus favoritas</h2>
+                <h2 className="text-section">Sus favoritas</h2>
                 <ul className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
                   {profile.favorites.map((favorite) => (
                     <li key={favorite.tmdbId} className="w-28 sm:w-32 shrink-0">
-                      <div className="aspect-[2/3] w-full rounded-xl overflow-hidden bg-border-card">
+                      <div className="aspect-[2/3] w-full rounded-control overflow-hidden bg-border-card">
                         {favorite.posterPath ? (
                           <img
                             src={`${TMDB_IMAGE_BASE_URL}${favorite.posterPath}`}
@@ -153,15 +154,15 @@ export function PublicProfileView() {
 
             {profile.reviews.length > 0 && (
               <section className="flex flex-col gap-3">
-                <h2 className="font-bold text-lg">Sus reseñas</h2>
+                <h2 className="text-section">Sus reseñas</h2>
                 {profile.reviews.map((review) => (
                   <article
                     key={review.id}
-                    className="bg-bg-card border border-border-card rounded-2xl p-5 flex flex-col gap-3"
+                    className="surface p-5 flex flex-col gap-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="font-serif italic font-bold text-lg">
+                        <h3 className="font-semibold">
                           {review.title}
                         </h3>
                         <p className="text-xs text-text-subtle">

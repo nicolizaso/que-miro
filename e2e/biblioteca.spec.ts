@@ -40,7 +40,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('el demo carga títulos en las tres listas', async ({ page }) => {
-  await expect(page.getByRole('tab', { name: /Por Ver/ })).toContainText('(');
+  await expect(page.getByRole('tab', { name: /Por Ver/ })).toContainText(/\d/);
   await expect(page.locator('article').first()).toBeVisible();
 
   await selectTab(page, /Viendo/);
@@ -175,6 +175,8 @@ test('el panel de estadísticas calcula sobre el historial', async ({ page }) =>
 
 test('exportar descarga un backup con la biblioteca adentro', async ({ page }) => {
   await page.getByRole('link', { name: 'Perfil' }).click();
+  await page.getByRole('link', { name: 'Ajustes' }).click();
+  await expect(page).toHaveURL(/\/perfil\/ajustes/);
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),

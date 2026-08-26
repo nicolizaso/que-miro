@@ -53,7 +53,7 @@ export function WatchHistory({ media }: { media: SavedMedia }) {
         {history.map((entry) => (
           <li
             key={entry.id}
-            className="bg-bg-main border border-border-card rounded-xl p-3 flex flex-col gap-2"
+            className="bg-bg-main border border-border-card rounded-control p-3 flex flex-col gap-2"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">

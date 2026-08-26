@@ -82,7 +82,7 @@ export function ToastProvider({
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.2 }}
               className={
-                'pointer-events-auto flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-md ' +
+                'pointer-events-auto flex items-start gap-3 rounded-surface border px-4 py-3 shadow-lg backdrop-blur-md ' +
                 (toast.variant === 'error'
                   ? 'bg-accent/15 border-accent/40 text-accent'
                   : 'bg-bg-card/95 border-border-card text-text-main')

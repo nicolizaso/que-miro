@@ -49,7 +49,7 @@ export function ShareButton({
       type="button"
       onClick={handleShare}
       className={cn(
-        'flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors',
+        'flex items-center justify-center gap-2 px-4 py-2 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors',
         className,
       )}
     >

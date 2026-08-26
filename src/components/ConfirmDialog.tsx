@@ -51,7 +51,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="flex-1 py-3 rounded-xl border border-border-card font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors disabled:opacity-50"
+            className="flex-1 py-3 rounded-control border border-border-card font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -60,7 +60,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={isPending}
             className={
-              'flex-1 py-3 rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 ' +
+              'flex-1 py-3 rounded-control font-medium transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 ' +
               (destructive
                 ? 'bg-accent text-accent-contrast'
                 : 'bg-text-main text-bg-main')

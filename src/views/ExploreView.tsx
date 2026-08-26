@@ -27,9 +27,9 @@ export function ExploreView() {
     Boolean(topRatedSeries.error);
 
   return (
-    <div className="flex flex-col gap-10 w-full max-w-5xl mx-auto px-4 pt-8 pb-28">
+    <div className="flex flex-col gap-10 w-full max-w-5xl mx-auto px-4 pt-8">
       <header>
-        <h1 className="font-serif italic font-bold text-4xl mb-1">Explorar</h1>
+        <h1 className="text-display mb-1">Explorar</h1>
         <p className="text-text-muted">
           Qué se está viendo, y qué podría gustarte a vos.
         </p>
@@ -52,9 +52,7 @@ export function ExploreView() {
         <div className="flex flex-col gap-8">
           <div className="flex items-center gap-2 text-accent">
             <Sparkles size={18} aria-hidden="true" />
-            <h2 className="text-sm font-medium uppercase tracking-wider">
-              Para vos
-            </h2>
+            <h2 className="text-eyebrow text-accent">Para vos</h2>
           </div>
 
           {loadingRecs && groups.length === 0 && (

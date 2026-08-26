@@ -34,13 +34,13 @@ export function WrappedCard() {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-bold text-lg">Tu año en Qué Miro?</h3>
+        <h3 className="text-section">Tu año en Qué Miro?</h3>
         {years.length > 1 && (
           <select
             value={selectedYear ?? ''}
             onChange={(e) => setYear(Number(e.target.value))}
             aria-label="Año del resumen"
-            className="bg-bg-card border border-border-card rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:border-accent"
+            className="bg-bg-card border border-border-control rounded-control pl-3 pr-8 py-1.5 text-sm focus:outline-none focus:border-accent"
           >
             {years.map((option) => (
               <option key={option} value={option}>
@@ -51,23 +51,23 @@ export function WrappedCard() {
         )}
       </div>
 
-      {/* Fondo oscuro fijo, no del tema: es la misma imagen que se comparte, y
-          tiene que verse igual la lea quien la lea. */}
-      <div className="relative overflow-hidden rounded-2xl bg-[#0b0d0e] text-[#f4f5f6] p-6 sm:p-8 flex flex-col gap-6">
+      {/* El panel se destaca con el acento, no con un negro fijo: la imagen
+          que se comparte se dibuja aparte en `shareCard`, con su propia paleta,
+          así que acá no hay nada que igualar y sí un tema que respetar. Un
+          bloque #0b0d0e en medio de una página crema se leía como un error. */}
+      <div className="relative overflow-hidden rounded-surface border border-accent/30 bg-accent/10 p-6 sm:p-8 flex flex-col gap-6">
         <span
           aria-hidden="true"
           className="absolute inset-y-0 left-0 w-1.5 bg-accent"
         />
 
         <div>
-          <p className="flex items-center gap-2 text-sm uppercase tracking-wider text-accent">
+          <p className="flex items-center gap-2 text-eyebrow text-accent">
             <Sparkles size={14} aria-hidden="true" />
             Tu {wrapped.year}
           </p>
-          <p className="font-serif italic font-bold text-3xl sm:text-4xl mt-2">
-            {wrapped.timeLabel} mirando
-          </p>
-          <p className="text-[#a3a7ad] mt-1">
+          <p className="text-display mt-2">{wrapped.timeLabel} mirando</p>
+          <p className="text-text-muted mt-1">
             {wrapped.titles} {wrapped.titles === 1 ? 'título' : 'títulos'}
             {wrapped.topGenre && `, sobre todo de ${wrapped.topGenre.toLowerCase()}`}
             {wrapped.busiestMonth && `. Tu mes fuerte fue ${wrapped.busiestMonth}`}.
@@ -76,20 +76,23 @@ export function WrappedCard() {
 
         <dl className="grid grid-cols-3 gap-4">
           {highlights.map(({ value, label }) => (
-            <div key={label}>
+            // `justify-between` con `h-full`: en el teléfono "2 días y 9 h"
+            // ocupa dos renglones y los otros dos uno, y sin esto las
+            // etiquetas quedaban a tres alturas distintas.
+            <div key={label} className="flex h-full flex-col justify-between">
               <dt className="sr-only">{label}</dt>
               <dd className="font-serif italic font-bold text-2xl text-accent">
                 {value}
               </dd>
-              <p className="text-xs text-[#a3a7ad] mt-0.5">{label}</p>
+              <p className="text-xs text-text-muted mt-0.5">{label}</p>
             </div>
           ))}
         </dl>
 
         {wrapped.best && (
-          <p className="text-sm text-[#a3a7ad]">
+          <p className="text-sm text-text-muted">
             Lo mejor del año:{' '}
-            <span className="text-[#f4f5f6] font-medium">
+            <span className="text-text-main font-medium">
               {wrapped.best.media.title}
             </span>{' '}
             ({wrapped.best.entry.rating}★)

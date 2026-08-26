@@ -171,6 +171,59 @@ agregar → puntuar → sincronizar → compartir.
 
 ---
 
+## Rediseño de UI y UX ✅
+
+Las cuatro tandas dejaron la app completa en función, no en forma. Esta pasada
+no agrega ninguna funcionalidad: acomoda lo que ya existe para que se pueda
+usar cómodo y se pueda mostrar.
+
+Es un **rediseño de preservación**: la marca —Playfair, el rojo, el doble
+tema— se queda. El problema no era la marca sino cómo estaba aplicada.
+
+**Qué estaba mal**
+
+| Síntoma | Por qué importaba |
+| --- | --- |
+| Barra de navegación inferior también en escritorio | Un patrón de teléfono a 1440 px, tapando contenido |
+| Playfair itálica en absolutamente todo | Un display serif a 18 px repetido cien veces no jerarquiza: cansa |
+| El perfil, una columna de 3700 px | Ocho bloques iguales apilados; nadie llega al final |
+| "Tu año" pintado con un negro fijo | En tema claro era un agujero negro en medio de una página crema |
+| Los `select` con el estilo del sistema operativo | El único control que no pertenecía al resto |
+| 350 px de filtros antes del primer póster en el teléfono | La app abría mostrando controles, no biblioteca |
+| Ni la home ni el perfil tenían `h1` | La navegación por encabezados no llevaba a ninguna parte |
+
+**Cómo quedó implementado**
+
+- **Dos navegaciones, una sola a la vez.** Barra inferior hasta `md`, barra
+  superior de ahí en adelante. La que no corresponde queda en `display: none`,
+  así que ni el teclado ni el lector de pantalla ven enlaces duplicados.
+- **El perfil se partió en dos pestañas con URL propia**, `/perfil` y
+  `/perfil/ajustes`. Son enlaces y no botones justamente porque cambian de
+  dirección: "atrás" y "recargar" hacen lo que se espera.
+- **La Playfair itálica quedó reservada** para el título de una vista y las
+  cifras protagonistas. El resto pasó a la sans del sistema. Tres utilidades
+  nuevas lo hacen explícito: `text-display`, `text-section`, `text-eyebrow`.
+- **Un radio por rol.** `--radius-control` y `--radius-surface` reemplazan los
+  `rounded-xl` y `rounded-2xl` sueltos, y `surface` es la tarjeta estándar.
+- **El borde de un control se separó del de una tarjeta.** Son dos trabajos
+  distintos: el de la tarjeta es decorativo y puede ser sutil, el del campo es
+  lo único que dice dónde empieza el campo y WCAG le pide 3:1. Con un solo
+  token, el borde de los inputs en tema claro daba 1,24:1 —invisible.
+- **La paleta se corrigió contra WCAG AA y quedó bajo test.** El texto sutil
+  en tema claro no llegaba a 4,5:1; el blanco sobre el rojo del tema oscuro,
+  tampoco (4,17:1), así que ahí la etiqueta del botón pasó a ser tinta sobre el
+  acento brillante. `src/lib/contrast.test.ts` lee `index.css`, saca los tokens
+  y verifica los 15 pares de cada tema; además compara las dos copias del tema
+  claro, que se editan a mano y se pueden desincronizar.
+- **"Tu año en Qué Miro?" sigue el tema.** La imagen que se comparte se dibuja
+  aparte en `shareCard`, con su propia paleta fija, así que en pantalla no
+  había nada que igualar y sí un tema que respetar.
+
+**Resultado:** una app que se puede mostrar en un portfolio sin pedir disculpas
+por cómo se ve en escritorio.
+
+---
+
 ## Resumen
 
 ```
@@ -178,4 +231,5 @@ T1  Cimientos      demo, tema+a11y, región, filtros, export/import
 T2  Datos ricos    episodios, historial, tags, providers, colecciones
 T3  Descubrir      explorar, recomendaciones, picker 2.0, duelo, stats
 T4  Producción     wrapped, perfil público, compartir, offline, E2E
+UI  Rediseño       navegación, tipografía, formas, contraste AA
 ```
