@@ -48,7 +48,7 @@ export function CollectionPicker({ media }: { media: SavedMedia }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-lg font-bold">Mis listas</h3>
+      <h3 className="text-section">Mis listas</h3>
 
       {collections.length === 0 && !isCreating && (
         <p className="text-sm text-text-subtle">
@@ -96,12 +96,12 @@ export function CollectionPicker({ media }: { media: SavedMedia }) {
             maxLength={MAX_COLLECTION_NAME}
             placeholder="Nombre de la lista"
             aria-label="Nombre de la lista nueva"
-            className="flex-1 bg-bg-main border border-border-card rounded-xl px-3 py-2 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
+            className="flex-1 bg-bg-main border border-border-card rounded-control px-3 py-2 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
           />
           <button
             type="submit"
             disabled={!name.trim() || isSaving}
-            className="px-4 py-2 rounded-xl bg-accent text-accent-contrast text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center gap-2"
+            className="px-4 py-2 rounded-control bg-accent text-accent-contrast text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center gap-2"
           >
             {isSaving && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
             Crear
@@ -112,7 +112,7 @@ export function CollectionPicker({ media }: { media: SavedMedia }) {
               setIsCreating(false);
               setName('');
             }}
-            className="px-3 py-2 rounded-xl border border-border-card text-sm text-text-muted hover:text-text-main transition-colors"
+            className="px-3 py-2 rounded-control border border-border-card text-sm text-text-muted hover:text-text-main transition-colors"
           >
             Cancelar
           </button>

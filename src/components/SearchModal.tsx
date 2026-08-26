@@ -12,7 +12,7 @@ const DEBOUNCE_MS = 400;
 /** Placeholder que ocupa el mismo alto que un resultado, para que no salte la UI. */
 function ResultSkeleton() {
   return (
-    <div className="flex gap-4 p-3 bg-bg-card border border-border-card rounded-2xl items-center animate-pulse">
+    <div className="flex gap-4 p-3 surface items-center animate-pulse">
       <div className="w-16 h-24 bg-border-card rounded-lg shrink-0" />
       <div className="flex-1 flex flex-col gap-2">
         <div className="h-4 bg-border-card rounded w-2/3" />
@@ -133,7 +133,7 @@ export function SearchModal({
             aria-describedby={statusId}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-bg-card border border-border-card rounded-2xl py-4 pl-12 pr-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
+            className="w-full surface py-4 pl-12 pr-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
           />
         </div>
 
@@ -154,7 +154,7 @@ export function SearchModal({
           {error && (
             <div
               role="alert"
-              className="flex items-start gap-3 p-4 bg-accent/10 border border-accent/20 rounded-2xl text-accent text-sm"
+              className="flex items-start gap-3 p-4 bg-accent/10 border border-accent/20 rounded-surface text-accent text-sm"
             >
               <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
               <span>{error}</span>
@@ -179,7 +179,7 @@ export function SearchModal({
               return (
                 <div
                   key={`${result.media_type}-${result.id}`}
-                  className="flex gap-4 p-3 bg-bg-card border border-border-card rounded-2xl items-center"
+                  className="flex gap-4 p-3 surface items-center"
                 >
                   <div className="w-16 h-24 bg-border-card rounded-lg flex-shrink-0 overflow-hidden">
                     {result.poster_path ? (
@@ -213,7 +213,7 @@ export function SearchModal({
 
                   {isAdded ? (
                     <span
-                      className="p-3 bg-border-card rounded-xl text-text-muted flex items-center justify-center"
+                      className="p-3 bg-border-card rounded-control text-text-muted flex items-center justify-center"
                       title="Ya está en tu biblioteca"
                     >
                       <Check size={20} aria-hidden="true" />
@@ -222,7 +222,7 @@ export function SearchModal({
                   ) : (
                     <button
                       onClick={() => handleAdd(result)}
-                      className="p-3 bg-bg-main border border-border-card rounded-xl text-status-por-ver hover:bg-border-card transition-colors flex items-center justify-center"
+                      className="p-3 bg-bg-main border border-border-card rounded-control text-status-por-ver hover:bg-border-card transition-colors flex items-center justify-center"
                       aria-label={`Agregar "${title}" a Por Ver`}
                       title="Agregar a Por Ver"
                     >

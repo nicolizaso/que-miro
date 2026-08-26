@@ -33,10 +33,10 @@ export function ChartFrame({
   const tableId = useId();
 
   return (
-    <section className="bg-bg-card border border-border-card rounded-2xl p-5 flex flex-col gap-4">
+    <section className="surface p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-bold">{title}</h3>
+          <h3 className="text-section">{title}</h3>
           {subtitle && (
             <p className="text-sm text-text-muted mt-0.5">{subtitle}</p>
           )}

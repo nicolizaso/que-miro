@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 function CardSkeleton() {
   return (
     <li className="w-32 sm:w-36 shrink-0">
-      <div className="aspect-[2/3] w-full rounded-xl bg-border-card animate-pulse" />
+      <div className="aspect-[2/3] w-full rounded-control bg-border-card animate-pulse" />
       <div className="h-3 w-3/4 rounded bg-border-card animate-pulse mt-2" />
     </li>
   );
@@ -60,7 +60,7 @@ function ResultCard({ result }: { result: TMDbResult }) {
           onClick={() => setIsDetailOpen(true)}
           className="block w-full text-left"
         >
-          <span className="relative block aspect-[2/3] w-full rounded-xl overflow-hidden bg-border-card">
+          <span className="relative block aspect-[2/3] w-full rounded-control overflow-hidden bg-border-card">
             {result.poster_path ? (
               <img
                 src={`${TMDB_IMAGE_BASE_URL}${result.poster_path}`}
@@ -150,7 +150,7 @@ export function TitleCarousel({
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="font-serif italic font-bold text-2xl">{title}</h2>
+        <h2 className="text-section">{title}</h2>
         {subtitle && <p className="text-sm text-text-muted">{subtitle}</p>}
       </div>
 

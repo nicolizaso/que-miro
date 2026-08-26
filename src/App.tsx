@@ -9,7 +9,11 @@ import { ExploreView } from '@/views/ExploreView';
 import { ListView } from '@/views/ListView';
 import { LoginView } from '@/views/LoginView';
 import { NotFoundView } from '@/views/NotFoundView';
-import { ProfileView } from '@/views/ProfileView';
+import {
+  ProfileSettings,
+  ProfileSummary,
+  ProfileView,
+} from '@/views/ProfileView';
 import { PublicProfileView } from '@/views/PublicProfileView';
 import { SmartPickerView } from '@/views/SmartPickerView';
 
@@ -21,7 +25,7 @@ function Splash() {
       role="status"
       aria-label="Cargando"
     >
-      <div className="w-12 h-12 rounded-xl bg-accent animate-pulse flex items-center justify-center">
+      <div className="w-12 h-12 rounded-control bg-accent animate-pulse flex items-center justify-center">
         <Film size={24} className="text-accent-contrast" aria-hidden="true" />
       </div>
     </div>
@@ -55,7 +59,10 @@ function AppRoutes() {
         <Route index element={<ListView />} />
         <Route path="explorar" element={<ExploreView />} />
         <Route path="picker" element={<SmartPickerView />} />
-        <Route path="perfil" element={<ProfileView />} />
+        <Route path="perfil" element={<ProfileView />}>
+          <Route index element={<ProfileSummary />} />
+          <Route path="ajustes" element={<ProfileSettings />} />
+        </Route>
         <Route path="*" element={<NotFoundView />} />
       </Route>
     </Routes>

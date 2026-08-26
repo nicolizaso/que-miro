@@ -85,13 +85,13 @@ export function PublicProfileSettings() {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h3 className="font-bold text-lg">Perfil público</h3>
+        <h2 className="text-section">Perfil público</h2>
         <p className="text-sm text-text-muted">
           Una página con tus estadísticas y reseñas, para compartir.
         </p>
       </div>
 
-      <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex flex-col gap-4">
+      <div className="surface p-4 flex flex-col gap-4">
         {!canPublish ? (
           <p className="text-sm text-text-subtle">
             Necesitás una cuenta para publicar tu perfil.
@@ -107,7 +107,7 @@ export function PublicProfileSettings() {
               <label htmlFor="slug" className="text-sm font-medium">
                 Tu dirección
               </label>
-              <div className="flex items-center gap-0 rounded-xl border border-border-card bg-bg-main overflow-hidden focus-within:border-accent transition-colors">
+              <div className="flex items-center gap-0 rounded-control border border-border-card bg-bg-main overflow-hidden focus-within:border-accent transition-colors">
                 <span className="pl-3 text-sm text-text-subtle shrink-0">/u/</span>
                 <input
                   id="slug"
@@ -130,7 +130,7 @@ export function PublicProfileSettings() {
                     type="button"
                     onClick={handlePublish}
                     disabled={isSaving || !draft}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-control bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                   >
                     {isSaving ? (
                       <Loader2 size={16} className="animate-spin" aria-hidden="true" />
@@ -195,7 +195,7 @@ export function PublicProfileSettings() {
                 type="button"
                 onClick={handlePublish}
                 disabled={isSaving || !draft}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-control bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {isSaving ? (
                   <Loader2 size={16} className="animate-spin" aria-hidden="true" />

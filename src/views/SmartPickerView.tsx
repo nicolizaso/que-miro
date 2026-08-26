@@ -31,15 +31,15 @@ export function SmartPickerView() {
 
   if (pending.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 px-4 text-center max-w-lg mx-auto pb-28">
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center max-w-lg mx-auto">
         <Shuffle className="text-border-card w-16 h-16 mb-6" aria-hidden="true" />
-        <h1 className="font-serif italic font-bold text-2xl mb-2">Qué Ver Hoy</h1>
+        <h1 className="text-display mb-2">Qué ver hoy</h1>
         <p className="text-text-muted mb-6">
           Agregá títulos a tu lista "Por Ver" y volvé: acá se decide por vos.
         </p>
         <Link
           to="/explorar"
-          className="px-4 py-2.5 rounded-xl bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity"
+          className="px-4 py-2.5 rounded-control bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity"
         >
           Explorar títulos
         </Link>
@@ -48,8 +48,8 @@ export function SmartPickerView() {
   }
 
   return (
-    <div className="flex flex-col items-center w-full max-w-3xl mx-auto px-4 pt-8 pb-28">
-      <h1 className="font-serif italic font-bold text-4xl mb-2">Qué Ver Hoy</h1>
+    <div className="flex flex-col items-center w-full max-w-3xl mx-auto px-4 pt-8">
+      <h1 className="text-display mb-2">Qué ver hoy</h1>
       <p className="text-text-muted mb-6 text-center">
         {mode === 'azar'
           ? 'Dejá que el destino elija tu próxima historia.'
@@ -59,7 +59,7 @@ export function SmartPickerView() {
       <div
         role="tablist"
         aria-label="Modo del picker"
-        className="flex bg-bg-card p-1 rounded-xl border border-border-card mb-8"
+        className="flex bg-bg-card p-1 rounded-control border border-border-card mb-8"
       >
         {MODES.map(({ value, label, Icon }) => (
           <button

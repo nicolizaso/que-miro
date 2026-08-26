@@ -24,13 +24,15 @@ export function StatTile({
   return (
     <div
       className={cn(
-        'bg-bg-card border border-border-card rounded-2xl p-5 flex flex-col justify-center min-h-28',
+        'surface p-5 flex flex-col justify-center min-h-28',
         className,
       )}
     >
       <span
         className={cn(
-          'font-serif italic font-bold text-accent leading-none text-balance',
+          // `leading-[1.1]` y no `leading-none`: con interlineado 1 la cola de
+          // la `y` de "y 4 h" se mete en la etiqueta de abajo.
+          'font-serif italic font-bold text-accent leading-[1.1] text-balance',
           // El destacado es el número que encabeza el panel, pero su valor
           // puede ser un texto largo ("3 días y 4 h"): baja de tamaño en
           // pantallas chicas en vez de partirse en dos renglones.

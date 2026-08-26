@@ -36,7 +36,7 @@ function Season({
   const isComplete = seen >= season.episodeCount;
 
   return (
-    <div className="border border-border-card rounded-xl overflow-hidden">
+    <div className="border border-border-card rounded-control overflow-hidden">
       <div className="flex items-center gap-2 bg-bg-main px-3 py-2">
         <button
           type="button"
@@ -160,7 +160,7 @@ export function SeriesProgress({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-lg font-bold">Tu progreso</h3>
+        <h3 className="text-section">Tu progreso</h3>
         <span className="text-sm text-text-muted tabular-nums">
           {seen} de {total} episodios
         </span>
@@ -203,7 +203,7 @@ export function SeriesProgress({
         <button
           type="button"
           onClick={() => setIsReviewOpen(true)}
-          className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-accent/40 text-accent text-sm font-medium hover:bg-accent/10 transition-colors"
+          className="flex items-center justify-center gap-2 w-full py-3 rounded-control border border-accent/40 text-accent text-sm font-medium hover:bg-accent/10 transition-colors"
         >
           <Star size={16} aria-hidden="true" />
           Puntuar la serie

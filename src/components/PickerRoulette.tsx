@@ -87,8 +87,6 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
   };
 
   const isFiltered = Object.values(filters).some((value) => value !== null);
-  const selectClass =
-    'bg-bg-card border border-border-card rounded-xl px-3 py-2 text-sm text-text-main focus:outline-none focus:border-accent transition-colors';
 
   const spinning = pool[frame % Math.max(pool.length, 1)];
 
@@ -105,7 +103,7 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
               }))
             }
             aria-label="Filtrar por tipo"
-            className={selectClass}
+            className="select-control"
           >
             <option value="">Película o serie</option>
             <option value="movie">Solo películas</option>
@@ -121,7 +119,7 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
               }))
             }
             aria-label="Filtrar por duración"
-            className={selectClass}
+            className="select-control"
           >
             <option value="">Cualquier duración</option>
             {DURATION_BUCKETS.map(({ value, label }) => (
@@ -138,7 +136,7 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
                 setFilters((f) => ({ ...f, genre: e.target.value || null }))
               }
               aria-label="Filtrar por género"
-              className={selectClass}
+              className="select-control"
             >
               <option value="">Cualquier género</option>
               {genres.map((genre) => (
@@ -156,7 +154,7 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
                 setFilters((f) => ({ ...f, provider: e.target.value || null }))
               }
               aria-label="Filtrar por plataforma"
-              className={selectClass}
+              className="select-control"
             >
               <option value="">Cualquier plataforma</option>
               {providers.map((provider) => (
@@ -174,7 +172,7 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
                 setFilters((f) => ({ ...f, collection: e.target.value || null }))
               }
               aria-label="Filtrar por lista"
-              className={selectClass}
+              className="select-control"
             >
               <option value="">Cualquier lista</option>
               {collections.map((collection) => (
@@ -192,7 +190,7 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
                 setFilters((f) => ({ ...f, tag: e.target.value || null }))
               }
               aria-label="Filtrar por ánimo"
-              className={selectClass}
+              className="select-control"
             >
               <option value="">Cualquier ánimo</option>
               {tags.map((tag) => (
@@ -224,7 +222,7 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
 
       {isSpinning ? (
         <div className="flex flex-col items-center gap-4">
-          <div className="w-40 h-60 rounded-2xl overflow-hidden border-2 border-accent bg-bg-card">
+          <div className="w-40 h-60 rounded-surface overflow-hidden border-2 border-accent bg-bg-card">
             {spinning?.posterPath ? (
               <motion.img
                 key={spinning.tmdbId}

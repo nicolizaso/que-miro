@@ -70,7 +70,7 @@ export function LoginView() {
       </div>
 
       <div className="w-full max-w-sm flex flex-col items-center">
-        <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-6 shadow-lg shadow-accent/25">
+        <div className="w-16 h-16 rounded-surface bg-accent flex items-center justify-center mb-6 shadow-lg shadow-accent/25">
           <Film size={32} className="text-accent-contrast" aria-hidden="true" />
         </div>
 
@@ -86,7 +86,7 @@ export function LoginView() {
         <button
           type="button"
           onClick={startDemo}
-          className="w-full flex items-center justify-center gap-2 bg-accent text-accent-contrast font-medium py-3 rounded-2xl hover:opacity-90 transition-opacity mb-3"
+          className="w-full flex items-center justify-center gap-2 bg-accent text-accent-contrast font-medium py-3 rounded-surface hover:opacity-90 transition-opacity mb-3"
         >
           <Sparkles size={18} aria-hidden="true" />
           Ver el demo
@@ -104,7 +104,7 @@ export function LoginView() {
             {error && (
               <div
                 role="alert"
-                className="p-3 bg-accent/10 border border-accent/20 rounded-xl text-accent text-sm"
+                className="p-3 bg-accent/10 border border-accent/20 rounded-control text-accent text-sm"
               >
                 {error}
               </div>
@@ -125,7 +125,7 @@ export function LoginView() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-bg-main border border-border-card rounded-xl px-4 py-3 focus:outline-none focus:border-accent transition-colors"
+                className="bg-bg-main border border-border-card rounded-control px-4 py-3 focus:outline-none focus:border-accent transition-colors"
                 placeholder="tu@email.com"
               />
             </div>
@@ -146,7 +146,7 @@ export function LoginView() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="bg-bg-main border border-border-card rounded-xl px-4 py-3 focus:outline-none focus:border-accent transition-colors"
+                className="bg-bg-main border border-border-card rounded-control px-4 py-3 focus:outline-none focus:border-accent transition-colors"
                 placeholder="••••••••"
               />
             </div>
@@ -154,7 +154,7 @@ export function LoginView() {
             <button
               type="submit"
               disabled={isBusy}
-              className="w-full bg-accent text-accent-contrast font-medium py-3 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-accent text-accent-contrast font-medium py-3 rounded-control hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {pendingAction === 'form' && (
                 <Loader2 size={16} className="animate-spin" />
@@ -187,7 +187,7 @@ export function LoginView() {
               type="button"
               onClick={handleGoogleSignIn}
               disabled={isBusy}
-              className="w-full bg-white text-[#1f1f1f] border border-border-card font-medium py-3 rounded-xl hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full bg-white text-[#1f1f1f] border border-border-card font-medium py-3 rounded-control hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {pendingAction === 'google' ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -217,7 +217,7 @@ export function LoginView() {
             <button
               type="button"
               onClick={continueAsGuest}
-              className="w-full border border-border-card text-text-muted font-medium py-3 rounded-xl hover:bg-border-card hover:text-text-main transition-colors mt-2"
+              className="w-full border border-border-card text-text-muted font-medium py-3 rounded-control hover:bg-border-card hover:text-text-main transition-colors mt-2"
             >
               Continuar como Invitado
             </button>

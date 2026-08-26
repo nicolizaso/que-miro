@@ -65,13 +65,13 @@ export function CollectionsSettings() {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h3 className="font-bold text-lg">Mis listas</h3>
+        <h2 className="text-section">Mis listas</h2>
         <p className="text-sm text-text-muted">
           Agrupaciones propias, por fuera de los tres estados.
         </p>
       </div>
 
-      <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex flex-col gap-4">
+      <div className="surface p-4 flex flex-col gap-4">
         {collections.length === 0 ? (
           <p className="text-sm text-text-subtle">
             Todavía no tenés ninguna. Creá una acá, o desde la ficha de
@@ -92,12 +92,12 @@ export function CollectionsSettings() {
                         onChange={(e) => setEditingName(e.target.value)}
                         maxLength={MAX_COLLECTION_NAME}
                         aria-label={`Nuevo nombre para ${collection.name}`}
-                        className="flex-1 bg-bg-main border border-border-card rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                        className="flex-1 bg-bg-main border border-border-card rounded-control px-3 py-2 text-sm focus:outline-none focus:border-accent"
                       />
                       <button
                         type="submit"
                         aria-label="Guardar nombre"
-                        className="p-2 rounded-xl bg-accent text-accent-contrast hover:opacity-90 transition-opacity"
+                        className="p-2 rounded-control bg-accent text-accent-contrast hover:opacity-90 transition-opacity"
                       >
                         <Check size={16} aria-hidden="true" />
                       </button>
@@ -105,7 +105,7 @@ export function CollectionsSettings() {
                         type="button"
                         onClick={() => setEditingId(null)}
                         aria-label="Cancelar"
-                        className="p-2 rounded-xl border border-border-card text-text-muted hover:text-text-main transition-colors"
+                        className="p-2 rounded-control border border-border-card text-text-muted hover:text-text-main transition-colors"
                       >
                         <X size={16} aria-hidden="true" />
                       </button>
@@ -117,7 +117,7 @@ export function CollectionsSettings() {
               return (
                 <li
                   key={collection.id}
-                  className="flex items-center gap-2 bg-bg-main border border-border-card rounded-xl px-3 py-2"
+                  className="flex items-center gap-2 bg-bg-main border border-border-card rounded-control px-3 py-2"
                 >
                   <Link
                     to={`/?lista=${encodeURIComponent(collection.id)}`}
@@ -160,12 +160,12 @@ export function CollectionsSettings() {
             maxLength={MAX_COLLECTION_NAME}
             placeholder="Maratón del finde"
             aria-label="Nombre de la lista nueva"
-            className="flex-1 bg-bg-main border border-border-card rounded-xl px-3 py-2 text-sm placeholder:text-text-subtle focus:outline-none focus:border-accent"
+            className="flex-1 bg-bg-main border border-border-card rounded-control px-3 py-2 text-sm placeholder:text-text-subtle focus:outline-none focus:border-accent"
           />
           <button
             type="submit"
             disabled={!newName.trim() || isSaving}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40"
+            className="flex items-center gap-2 px-4 py-2 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40"
           >
             {isSaving ? (
               <Loader2 size={16} className="animate-spin" aria-hidden="true" />

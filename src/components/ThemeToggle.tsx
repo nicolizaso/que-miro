@@ -47,7 +47,7 @@ export function ThemeRadioGroup() {
     <div
       role="radiogroup"
       aria-label="Tema de la aplicación"
-      className="flex bg-bg-main p-1 rounded-xl border border-border-card"
+      className="flex bg-bg-main p-1 rounded-control border border-border-card"
     >
       {OPTIONS.map(({ value, label, Icon }) => (
         <button

@@ -237,21 +237,21 @@ export function ReviewDrawer({
             placeholder="Escribí un comentario breve (opcional)..."
             value={reviewText}
             onChange={(e) => setReviewText(e.target.value)}
-            className="w-full h-28 bg-bg-main border border-border-card rounded-xl p-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent resize-none"
+            className="w-full h-28 bg-bg-main border border-border-card rounded-control p-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent resize-none"
           />
         </div>
 
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-4 rounded-xl border border-border-card font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors"
+            className="flex-1 py-4 rounded-control border border-border-card font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors"
           >
             Cancelar
           </button>
           <button
             onClick={handleSave}
             disabled={rating === 0 || isSaving}
-            className="flex-1 py-4 rounded-xl bg-accent text-accent-contrast font-medium disabled:opacity-50 transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+            className="flex-1 py-4 rounded-control bg-accent text-accent-contrast font-medium disabled:opacity-50 transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
           >
             {isSaving && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
             Guardar Reseña
