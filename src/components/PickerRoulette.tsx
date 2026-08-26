@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { SavedMedia } from '@/types';
 import { useMediaStore } from '@/store';
 import { MediaCard } from '@/components/MediaCard';
+import { ShareButton } from '@/components/ShareButton';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { collectGenres, collectProviders, collectTags } from '@/lib/library';
 import {
@@ -271,9 +272,22 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
           <p aria-live="polite" className="sr-only">
             Te tocó {picked.title}
           </p>
-          <div className="w-full mb-6">
+          <div className="w-full mb-4">
             <MediaCard media={picked} />
           </div>
+          <ShareButton
+            className="mb-4"
+            label="Compartir"
+            title="Qué Miro?"
+            text={`Esta noche me toca ${picked.title}.`}
+            card={{
+              eyebrow: 'Me tocó',
+              headline: picked.title,
+              subline: [picked.releaseYear, picked.genres[0]]
+                .filter(Boolean)
+                .join(' · '),
+            }}
+          />
           <button
             onClick={handlePick}
             className="text-sm text-text-muted hover:text-text-main underline underline-offset-4"

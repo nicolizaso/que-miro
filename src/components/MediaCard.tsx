@@ -65,6 +65,18 @@ export function MediaCard({
             setIsDetailOpen(true);
             onClick?.();
           }}
+          // Nombre accesible explícito. Sin él, el nombre sale de concatenar
+          // todo lo que la tarjeta tiene adentro —"5 de 5 estrellas Parásitos
+          // 2019 Comedia..."— y queda una sopa que arranca por el puntaje en
+          // vez de por lo que el botón hace.
+          aria-label={[
+            `Ver detalle de ${media.title}`,
+            STATUS_LABELS[media.status],
+            rating !== undefined && `${rating} de 5 estrellas`,
+            showProgress && `${percent}% visto`,
+          ]
+            .filter(Boolean)
+            .join('. ')}
           className="text-left cursor-pointer"
         >
           <span className="relative block aspect-[2/3] w-full bg-border-card overflow-hidden">
@@ -90,7 +102,6 @@ export function MediaCard({
               <span className="absolute top-3 right-3 flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold">
                 {rating}
                 <Star size={12} className="fill-accent text-accent" aria-hidden="true" />
-                <span className="sr-only">de 5 estrellas</span>
               </span>
             )}
 
@@ -98,7 +109,6 @@ export function MediaCard({
               <span className="absolute top-3 left-3 flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-medium">
                 <Repeat size={11} aria-hidden="true" />
                 {times}
-                <span className="sr-only">veces vista</span>
               </span>
             )}
 
@@ -133,10 +143,6 @@ export function MediaCard({
                 </span>
               )}
             </span>
-          </span>
-          <span className="sr-only">
-            Ver detalle de {media.title}. Estado: {STATUS_LABELS[media.status]}.
-            {showProgress && ` Progreso: ${percent}%.`}
           </span>
         </button>
 

@@ -5,6 +5,7 @@ import { ThemeRadioGroup } from '@/components/ThemeToggle';
 import { DataSettings } from '@/components/DataSettings';
 import { CollectionsSettings } from '@/components/CollectionsSettings';
 import { StatsDashboard } from '@/components/StatsDashboard';
+import { PublicProfileSettings } from '@/components/PublicProfileSettings';
 import { REGIONS, RegionCode, usePreferences } from '@/preferences';
 import { formatWatchDate } from '@/lib/dates';
 import { allWatches } from '@/lib/stats';
@@ -122,6 +123,8 @@ export function ProfileView() {
       <StatsDashboard />
 
       <AppSettings />
+
+      <PublicProfileSettings />
 
       <CollectionsSettings />
 

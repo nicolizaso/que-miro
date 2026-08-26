@@ -26,3 +26,36 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Solo Chromium: los tres motores triplicarían el tiempo del job para
+      # cubrir diferencias que esta app no tiene.
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Tests de punta a punta
+        run: npm run test:e2e
+        env:
+          # Los flujos que se prueban acá no dependen de TMDB —modo demo,
+          # progreso, reseñas, filtros—, pero el server arranca más limpio con
+          # la variable presente.
+          TMDB_API_KEY: e2e-sin-red
+
+      - name: Guardar el reporte si algo falló
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

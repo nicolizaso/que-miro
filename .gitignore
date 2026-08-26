@@ -37,3 +37,9 @@ logs
 .vercel
 coverage
 repomix-output.xml
+
+# Playwright: reportes y trazas de cada corrida
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

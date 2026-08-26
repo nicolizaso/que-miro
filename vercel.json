@@ -5,6 +5,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/u/:slug",
+      "destination": "/api/u/:slug"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
@@ -27,5 +31,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/u/[slug].ts": {
+      "includeFiles": "dist/index.html"
+    }
+  }
 }

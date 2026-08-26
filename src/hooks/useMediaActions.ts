@@ -58,6 +58,25 @@ export function useMediaActions() {
   };
 
   /**
+   * Lanza una escritura sin esperar a que el servidor la confirme.
+   *
+   * Firestore resuelve la promesa de `setDoc` recién cuando el cambio llegó al
+   * servidor: sin conexión no resuelve nunca, y esperarla dejaba a la app con
+   * el spinner girando para siempre. Lo que sí es inmediato es la caché local,
+   * que dispara `onSnapshot` al toque — así que el estado ya se actualizó
+   * cuando esta función vuelve, y el cambio queda encolado hasta que haya red.
+   *
+   * El `catch` sigue enganchado para los errores que sí importan, como que las
+   * reglas rechacen la escritura.
+   */
+  const fireAndForget = (promise: Promise<unknown>) => {
+    promise.catch((error) => {
+      console.error('[media] No se pudo guardar el cambio:', error);
+      showToast('No pudimos guardar el cambio. Intentá de nuevo.', 'error');
+    });
+  };
+
+  /**
    * Escribe un cambio parcial sobre un título.
    *
    * Con `merge` a propósito: el documento remoto puede tener campos más nuevos
@@ -70,11 +89,9 @@ export function useMediaActions() {
       useMediaStore.getState().patchMedia(tmdbId, withTimestamp);
       return;
     }
-    await withErrorToast(async () => {
-      await setDoc(mediaDoc(tmdbId), sanitizeData(withTimestamp), {
-        merge: true,
-      });
-    });
+    fireAndForget(
+      setDoc(mediaDoc(tmdbId), sanitizeData(withTimestamp), { merge: true }),
+    );
   };
 
   /**
@@ -91,9 +108,7 @@ export function useMediaActions() {
       useMediaStore.getState().addMedia(media);
     } else {
       const fullMedia = { ...media, updatedAt: new Date().toISOString() };
-      await withErrorToast(async () => {
-        await setDoc(mediaDoc(media.tmdbId), sanitizeData(fullMedia));
-      });
+      fireAndForget(setDoc(mediaDoc(media.tmdbId), sanitizeData(fullMedia)));
     }
 
     try {
@@ -165,9 +180,7 @@ export function useMediaActions() {
       useMediaStore.getState().removeMedia(tmdbId);
       return;
     }
-    await withErrorToast(async () => {
-      await deleteDoc(mediaDoc(tmdbId));
-    });
+    fireAndForget(deleteDoc(mediaDoc(tmdbId)));
   };
 
   /**
@@ -187,6 +200,9 @@ export function useMediaActions() {
       return;
     }
 
+    // Acá sí se espera la confirmación: importar es una operación en bloque
+    // sobre la que quien la hizo está esperando un resultado, no un cambio
+    // suelto que pueda quedar encolado sin que se note.
     await withErrorToast(async () => {
       for (let i = 0; i < items.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
