@@ -40,7 +40,7 @@ function Contender({
         )}
       </span>
       <span className="px-3 pb-3 block">
-        <span className="font-serif italic font-bold leading-tight line-clamp-2 block">
+        <span className="font-semibold leading-snug line-clamp-2 block">
           {media.title}
         </span>
         <span className="text-xs text-text-subtle">{media.releaseYear}</span>
