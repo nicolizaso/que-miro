@@ -255,7 +255,7 @@ export function DataSettings() {
         description={
           <p>
             Se borran los {mediaList.length} títulos que tenés guardados, con sus
-            reseñas. Esto no se puede deshacer — si querés conservarlos,
+            reseñas. Esto no se puede deshacer: si querés conservarlos,
             exportalos antes.
           </p>
         }

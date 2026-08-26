@@ -130,7 +130,7 @@ export function ListView() {
                 onChange={(e) => setFilters({ query: e.target.value })}
                 placeholder="Buscar en esta lista..."
                 aria-label="Buscar en esta lista"
-                className="w-full bg-bg-card border border-border-card rounded-control py-2.5 pl-9 pr-3 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent transition-colors"
+                className="w-full bg-bg-card border border-border-control rounded-control py-2.5 pl-9 pr-3 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent transition-colors"
               />
             </div>
 

@@ -94,7 +94,7 @@ function AppSettings() {
             id="region"
             value={region}
             onChange={(e) => setRegion(e.target.value as RegionCode)}
-            className="bg-bg-main border border-border-card rounded-control pl-4 pr-9 py-3 text-text-main focus:outline-none focus:border-accent transition-colors"
+            className="bg-bg-main border border-border-control rounded-control pl-4 pr-9 py-3 text-text-main focus:outline-none focus:border-accent transition-colors"
           >
             {REGIONS.map(({ code, name }) => (
               <option key={code} value={code}>

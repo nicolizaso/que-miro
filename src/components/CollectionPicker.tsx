@@ -96,7 +96,7 @@ export function CollectionPicker({ media }: { media: SavedMedia }) {
             maxLength={MAX_COLLECTION_NAME}
             placeholder="Nombre de la lista"
             aria-label="Nombre de la lista nueva"
-            className="flex-1 bg-bg-main border border-border-card rounded-control px-3 py-2 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
+            className="flex-1 bg-bg-main border border-border-control rounded-control px-3 py-2 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
           />
           <button
             type="submit"

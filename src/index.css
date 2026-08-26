@@ -18,6 +18,10 @@
   --color-bg-main: var(--qm-bg-main);
   --color-bg-card: var(--qm-bg-card);
   --color-border-card: var(--qm-border-card);
+  /* El borde de un control tiene otro trabajo que el de una tarjeta: es lo
+     único que dice dónde empieza el campo, así que WCAG 1.4.11 le pide 3:1
+     contra el fondo. El de la tarjeta es decorativo y puede ser sutil. */
+  --color-border-control: var(--qm-border-control);
   --color-accent: var(--qm-accent);
   --color-accent-contrast: var(--qm-accent-contrast);
   --color-text-main: var(--qm-text-main);
@@ -54,13 +58,14 @@
   --qm-bg-main: #faf8f5;
   --qm-bg-card: #ffffff;
   --qm-border-card: #e5e0d8;
+  --qm-border-control: #938f8a;
   /* Más oscuro que el rojo del tema oscuro: sobre blanco, #e63946 no llega al
      contraste 4.5:1 que pide WCAG AA para texto. */
   --qm-accent: #c1121f;
   --qm-accent-contrast: #ffffff;
   --qm-text-main: #17161a;
   --qm-text-muted: #5c5952;
-  --qm-text-subtle: #86817a;
+  --qm-text-subtle: #76726b;
   --qm-overlay: rgb(250 248 245 / 0.85);
 
   --qm-status-viendo: #12776c;
@@ -77,8 +82,13 @@
   --qm-bg-main: #0b0d0e;
   --qm-bg-card: #14171a;
   --qm-border-card: #26292e;
-  --qm-accent: #e63946;
-  --qm-accent-contrast: #ffffff;
+  --qm-border-control: #5c6470;
+  /* Un poco más claro que el rojo de marca: sobre la tarjeta #14171a, el
+     #e63946 original se quedaba en 4.32:1. */
+  --qm-accent: #ed3b48;
+  /* Tinta, no blanco: sobre este rojo el blanco da 3.95:1 y no llega a AA.
+     Un acento brillante con etiqueta oscura sí, y con margen. */
+  --qm-accent-contrast: #0b0d0e;
   --qm-text-main: #f4f5f6;
   --qm-text-muted: #a3a7ad;
   --qm-text-subtle: #7c8188;
@@ -86,7 +96,7 @@
 
   --qm-status-viendo: #2a9d8f;
   --qm-status-por-ver: #e9c46a;
-  --qm-status-completada: #9d4edd;
+  --qm-status-completada: #ab55f1;
 }
 
 /* El selector de arriba con `:not([data-theme='light'])` aplica siempre que no
@@ -100,11 +110,12 @@
     --qm-bg-main: #faf8f5;
     --qm-bg-card: #ffffff;
     --qm-border-card: #e5e0d8;
+  --qm-border-control: #938f8a;
     --qm-accent: #c1121f;
     --qm-accent-contrast: #ffffff;
     --qm-text-main: #17161a;
     --qm-text-muted: #5c5952;
-    --qm-text-subtle: #86817a;
+    --qm-text-subtle: #76726b;
     --qm-overlay: rgb(250 248 245 / 0.85);
 
     --qm-status-viendo: #12776c;
@@ -220,5 +231,5 @@
  * y este `pr-9` es el hueco que necesita.
  */
 @utility select-control {
-  @apply bg-bg-card border border-border-card rounded-control py-2.5 pl-3 pr-9 text-sm text-text-main focus:outline-none focus:border-accent transition-colors;
+  @apply bg-bg-card border border-border-control rounded-control py-2.5 pl-3 pr-9 text-sm text-text-main focus:outline-none focus:border-accent transition-colors;
 }

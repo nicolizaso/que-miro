@@ -70,11 +70,11 @@ export function LoginView() {
       </div>
 
       <div className="w-full max-w-sm flex flex-col items-center">
-        <div className="w-16 h-16 rounded-surface bg-accent flex items-center justify-center mb-6 shadow-lg shadow-accent/25">
+        <div className="w-16 h-16 rounded-surface bg-accent flex items-center justify-center mb-6">
           <Film size={32} className="text-accent-contrast" aria-hidden="true" />
         </div>
 
-        <h1 className="font-serif italic font-bold text-4xl mb-2 text-center">
+        <h1 className="text-display mb-2 text-center">
           Qué Miro?
         </h1>
         <p className="text-text-muted text-center mb-6">
@@ -86,7 +86,7 @@ export function LoginView() {
         <button
           type="button"
           onClick={startDemo}
-          className="w-full flex items-center justify-center gap-2 bg-accent text-accent-contrast font-medium py-3 rounded-surface hover:opacity-90 transition-opacity mb-3"
+          className="w-full flex items-center justify-center gap-2 bg-accent text-accent-contrast font-medium py-3 rounded-control hover:opacity-90 transition-opacity mb-3"
         >
           <Sparkles size={18} aria-hidden="true" />
           Ver el demo
@@ -95,10 +95,10 @@ export function LoginView() {
           Una biblioteca de ejemplo para recorrer la app sin registrarte.
         </p>
 
-        <div className="w-full bg-bg-card border border-border-card rounded-3xl p-6">
+        <div className="w-full surface p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <h2 className="text-xl font-bold mb-2">
-              {isLogin ? 'Iniciar Sesión' : 'Registrarse'}
+            <h2 className="text-section mb-2">
+              {isLogin ? 'Iniciar sesión' : 'Registrarse'}
             </h2>
 
             {error && (
@@ -125,7 +125,7 @@ export function LoginView() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-bg-main border border-border-card rounded-control px-4 py-3 focus:outline-none focus:border-accent transition-colors"
+                className="bg-bg-main border border-border-control rounded-control px-4 py-3 focus:outline-none focus:border-accent transition-colors"
                 placeholder="tu@email.com"
               />
             </div>
@@ -146,7 +146,7 @@ export function LoginView() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="bg-bg-main border border-border-card rounded-control px-4 py-3 focus:outline-none focus:border-accent transition-colors"
+                className="bg-bg-main border border-border-control rounded-control px-4 py-3 focus:outline-none focus:border-accent transition-colors"
                 placeholder="••••••••"
               />
             </div>
@@ -159,7 +159,7 @@ export function LoginView() {
               {pendingAction === 'form' && (
                 <Loader2 size={16} className="animate-spin" />
               )}
-              {isLogin ? 'Ingresar' : 'Crear Cuenta'}
+              {isLogin ? 'Ingresar' : 'Crear cuenta'}
             </button>
 
             <button

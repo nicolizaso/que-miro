@@ -237,7 +237,7 @@ export function ReviewDrawer({
             placeholder="Escribí un comentario breve (opcional)..."
             value={reviewText}
             onChange={(e) => setReviewText(e.target.value)}
-            className="w-full h-28 bg-bg-main border border-border-card rounded-control p-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent resize-none"
+            className="w-full h-28 bg-bg-main border border-border-control rounded-control p-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent resize-none"
           />
         </div>
 

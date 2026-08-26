@@ -40,7 +40,7 @@ export function WrappedCard() {
             value={selectedYear ?? ''}
             onChange={(e) => setYear(Number(e.target.value))}
             aria-label="Año del resumen"
-            className="bg-bg-card border border-border-card rounded-control pl-3 pr-8 py-1.5 text-sm focus:outline-none focus:border-accent"
+            className="bg-bg-card border border-border-control rounded-control pl-3 pr-8 py-1.5 text-sm focus:outline-none focus:border-accent"
           >
             {years.map((option) => (
               <option key={option} value={option}>
