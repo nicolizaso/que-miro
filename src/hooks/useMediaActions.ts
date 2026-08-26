@@ -1,17 +1,20 @@
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { usePreferences } from '@/preferences';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { SavedMedia, MediaStatus, Review } from '@/types';
+import { getMediaDetail } from '@/lib/tmdb';
+import { enrichFromDetail } from '@/lib/enrich';
+import { SavedMedia, MediaStatus, SeriesProgress, WatchEntry } from '@/types';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
 
 /**
  * Firestore rechaza documentos con `undefined`. Los campos opcionales de
- * `SavedMedia` (poster, backdrop, review) pueden venir así, por eso se
- * normalizan a `null` antes de escribir.
+ * `SavedMedia` (poster, backdrop, historial, progreso) pueden venir así, por
+ * eso se normalizan a `null` antes de escribir.
  */
 function sanitizeData<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') {
@@ -31,17 +34,13 @@ function sanitizeData<T>(obj: T): T {
  * Punto único para modificar la biblioteca.
  *
  * Con sesión iniciada escribe en Firestore y deja que `SyncManager` refresque
- * el estado local; sin sesión escribe directo en el store local (modo invitado).
+ * el estado local; sin sesión escribe directo en el store local (modo invitado
+ * y demo).
  */
 export function useMediaActions() {
-  const {
-    addMedia: localAdd,
-    updateStatus: localUpdate,
-    addReview: localReview,
-    removeMedia: localRemove,
-  } = useMediaStore();
   const { user, authState } = useAuth();
   const { showToast } = useToast();
+  const region = usePreferences((state) => state.region);
 
   const isAuth = isFirebaseConfigured && authState === 'authenticated' && user;
 
@@ -58,42 +57,114 @@ export function useMediaActions() {
     }
   };
 
-  const addMedia = async (media: Omit<SavedMedia, 'updatedAt'>) => {
-    if (!isAuth) return localAdd(media);
-    const fullMedia = { ...media, updatedAt: new Date().toISOString() };
+  /**
+   * Escribe un cambio parcial sobre un título.
+   *
+   * Con `merge` a propósito: el documento remoto puede tener campos más nuevos
+   * que los del estado local, y reescribirlo entero desde acá los perdería.
+   */
+  const write = async (tmdbId: number, patch: Partial<SavedMedia>) => {
+    const withTimestamp = { ...patch, updatedAt: new Date().toISOString() };
+
+    if (!isAuth) {
+      useMediaStore.getState().patchMedia(tmdbId, withTimestamp);
+      return;
+    }
     await withErrorToast(async () => {
-      await setDoc(mediaDoc(media.tmdbId), sanitizeData(fullMedia));
+      await setDoc(mediaDoc(tmdbId), sanitizeData(withTimestamp), {
+        merge: true,
+      });
     });
+  };
+
+  /**
+   * Agrega un título y le completa los datos de su ficha.
+   *
+   * El título se guarda primero con lo que ya trae el resultado de búsqueda, y
+   * el enriquecimiento va después, sin bloquear: si TMDB tarda o falla, el
+   * título queda igual en la biblioteca y solo se pierde el filtro por
+   * plataforma. Al revés —esperar la ficha antes de guardar— un TMDB caído
+   * impediría agregar nada.
+   */
+  const addMedia = async (media: Omit<SavedMedia, 'updatedAt'>) => {
+    if (!isAuth) {
+      useMediaStore.getState().addMedia(media);
+    } else {
+      const fullMedia = { ...media, updatedAt: new Date().toISOString() };
+      await withErrorToast(async () => {
+        await setDoc(mediaDoc(media.tmdbId), sanitizeData(fullMedia));
+      });
+    }
+
+    try {
+      const detail = await getMediaDetail(media.tmdbId, media.mediaType);
+      await write(media.tmdbId, enrichFromDetail(detail, region));
+    } catch (error) {
+      console.warn('[media] No pudimos completar la ficha del título:', error);
+    }
+  };
+
+  /** Vuelve a pedirle la ficha a TMDB y actualiza los datos cacheados. */
+  const refreshDetails = async (media: SavedMedia) => {
+    const detail = await getMediaDetail(media.tmdbId, media.mediaType);
+    await write(media.tmdbId, enrichFromDetail(detail, region));
   };
 
   const updateStatus = async (tmdbId: number, status: MediaStatus) => {
-    if (!isAuth) return localUpdate(tmdbId, status);
-    await withErrorToast(async () => {
-      await setDoc(
-        mediaDoc(tmdbId),
-        sanitizeData({ status, updatedAt: new Date().toISOString() }),
-        { merge: true },
-      );
+    await write(tmdbId, { status });
+  };
+
+  const patchMedia = async (tmdbId: number, patch: Partial<SavedMedia>) => {
+    await write(tmdbId, patch);
+  };
+
+  /**
+   * Suma un visionado al historial.
+   *
+   * El historial se reescribe entero en vez de usar `arrayUnion`: las entradas
+   * son objetos y `arrayUnion` compara por igualdad estructural, así que ver
+   * dos veces lo mismo con el mismo puntaje y sin comentario se perdería.
+   */
+  const addWatchEntry = async (media: SavedMedia, entry: WatchEntry) => {
+    if (!isAuth) {
+      useMediaStore.getState().addWatchEntry(media.tmdbId, entry);
+      return;
+    }
+    await write(media.tmdbId, {
+      history: [entry, ...(media.history ?? [])],
+      status: 'completada',
     });
   };
 
-  const addReview = async (tmdbId: number, review: Review) => {
-    if (!isAuth) return localReview(tmdbId, review);
-    await withErrorToast(async () => {
-      await setDoc(
-        mediaDoc(tmdbId),
-        sanitizeData({
-          review,
-          status: 'completada',
-          updatedAt: new Date().toISOString(),
-        }),
-        { merge: true },
-      );
+  const removeWatchEntry = async (media: SavedMedia, entryId: string) => {
+    if (!isAuth) {
+      useMediaStore.getState().removeWatchEntry(media.tmdbId, entryId);
+      return;
+    }
+    const history = (media.history ?? []).filter((entry) => entry.id !== entryId);
+    await write(media.tmdbId, {
+      history,
+      status: history.length > 0 ? 'completada' : 'viendo',
+    });
+  };
+
+  const setProgress = async (
+    tmdbId: number,
+    progress: SeriesProgress,
+    status?: MediaStatus,
+  ) => {
+    const hasProgress = Object.keys(progress.watched).length > 0;
+    await write(tmdbId, {
+      progress: hasProgress ? progress : undefined,
+      ...(status ? { status } : {}),
     });
   };
 
   const removeMedia = async (tmdbId: number) => {
-    if (!isAuth) return localRemove(tmdbId);
+    if (!isAuth) {
+      useMediaStore.getState().removeMedia(tmdbId);
+      return;
+    }
     await withErrorToast(async () => {
       await deleteDoc(mediaDoc(tmdbId));
     });
@@ -127,5 +198,15 @@ export function useMediaActions() {
     });
   };
 
-  return { addMedia, updateStatus, addReview, removeMedia, saveMany };
+  return {
+    addMedia,
+    refreshDetails,
+    updateStatus,
+    patchMedia,
+    addWatchEntry,
+    removeWatchEntry,
+    setProgress,
+    removeMedia,
+    saveMany,
+  };
 }

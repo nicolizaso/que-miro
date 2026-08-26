@@ -30,8 +30,20 @@ function makeFilters(overrides: Partial<LibraryFilters> = {}): LibraryFilters {
     query: '',
     genre: null,
     type: null,
+    provider: null,
+    collection: null,
+    tag: null,
     sort: DEFAULT_SORT,
     ...overrides,
+  };
+}
+
+function makeWatch(rating: number, tags?: string[]) {
+  return {
+    id: `w-${rating}-${tags?.join('') ?? ''}`,
+    rating,
+    tags,
+    completedAt: '2024-01-01T00:00:00.000Z',
   };
 }
 
@@ -123,7 +135,7 @@ describe('filterLibrary', () => {
     const conReseña = makeMedia({
       tmdbId: 4,
       title: 'Whiplash',
-      review: { rating: 4.5, completedAt: '2024-01-01T00:00:00.000Z' },
+      history: [makeWatch(4.5)],
     });
     const result = filterLibrary(
       [...library, conReseña],
@@ -131,7 +143,64 @@ describe('filterLibrary', () => {
     );
 
     expect(result[0].title).toBe('Whiplash');
-    expect(result.at(-1)?.review).toBeUndefined();
+    expect(result.at(-1)?.history).toBeUndefined();
+  });
+
+  it('usa el puntaje del visionado más reciente', () => {
+    const revisto = makeMedia({
+      tmdbId: 5,
+      title: 'Alien',
+      history: [
+        { id: 'nueva', rating: 5, completedAt: '2024-06-01T00:00:00.000Z' },
+        { id: 'vieja', rating: 2, completedAt: '2020-01-01T00:00:00.000Z' },
+      ],
+    });
+    const otro = makeMedia({ tmdbId: 6, title: 'Otra', history: [makeWatch(4)] });
+
+    const result = filterLibrary([revisto, otro], makeFilters({ sort: 'puntaje' }));
+    expect(result[0].title).toBe('Alien');
+  });
+
+  it('filtra por plataforma', () => {
+    const enNetflix = makeMedia({
+      tmdbId: 7,
+      title: 'En Netflix',
+      providers: ['Netflix', 'Max'],
+    });
+    const result = filterLibrary(
+      [...library, enNetflix],
+      makeFilters({ provider: 'Netflix' }),
+    );
+
+    expect(result.map((m) => m.title)).toEqual(['En Netflix']);
+  });
+
+  it('filtra por colección propia', () => {
+    const enLista = makeMedia({
+      tmdbId: 8,
+      title: 'En la lista',
+      collections: ['abc'],
+    });
+    const result = filterLibrary(
+      [...library, enLista],
+      makeFilters({ collection: 'abc' }),
+    );
+
+    expect(result.map((m) => m.title)).toEqual(['En la lista']);
+  });
+
+  it('filtra por etiqueta de cualquiera de sus reseñas', () => {
+    const conTag = makeMedia({
+      tmdbId: 9,
+      title: 'Con tag',
+      history: [makeWatch(3), makeWatch(5, ['Para llorar'])],
+    });
+    const result = filterLibrary(
+      [...library, conTag],
+      makeFilters({ tag: 'Para llorar' }),
+    );
+
+    expect(result.map((m) => m.title)).toEqual(['Con tag']);
   });
 
   it('no muta la lista que recibe', () => {
@@ -158,6 +227,9 @@ describe('hasActiveFilters', () => {
     expect(hasActiveFilters(makeFilters({ query: 'dune' }))).toBe(true);
     expect(hasActiveFilters(makeFilters({ genre: 'Drama' }))).toBe(true);
     expect(hasActiveFilters(makeFilters({ type: 'tv' }))).toBe(true);
+    expect(hasActiveFilters(makeFilters({ provider: 'Netflix' }))).toBe(true);
+    expect(hasActiveFilters(makeFilters({ collection: 'abc' }))).toBe(true);
+    expect(hasActiveFilters(makeFilters({ tag: 'Para llorar' }))).toBe(true);
     expect(hasActiveFilters(makeFilters({ sort: 'titulo' }))).toBe(true);
   });
 });

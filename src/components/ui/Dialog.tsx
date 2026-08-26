@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +36,17 @@ function isVisible(element: HTMLElement): boolean {
  * de abajo todavía abierto.
  */
 let openDialogCount = 0;
+
+/**
+ * Pila de diálogos abiertos, del más viejo al de arriba de todo.
+ *
+ * Los listeners de teclado van en `document` y no en el contenedor: si el
+ * elemento enfocado se desmonta —un formulario que se cierra, un botón que
+ * desaparece— el foco vuelve a `<body>`, los eventos dejan de pasar por el
+ * árbol del diálogo y Escape deja de responder. Con la pila, además, un Escape
+ * cierra solo el diálogo de arriba y no los de abajo.
+ */
+const dialogStack: symbol[] = [];
 
 function lockBodyScroll(): () => void {
   if (openDialogCount === 0) {
@@ -97,11 +108,28 @@ export function Dialog({
   // devuelva el foco al elemento correcto aunque el árbol haya cambiado.
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
+  // Identidad estable de este diálogo dentro de la pila.
+  const token = useRef<symbol>(Symbol('dialog'));
+  /**
+   * `onClose` en un ref, y no en las dependencias del efecto.
+   *
+   * Quien usa el diálogo suele pasar una función anónima, que cambia de
+   * identidad en cada render. Si el efecto dependiera de ella, cualquier
+   * re-render del padre lo volvería a correr: el cleanup devolvería el foco al
+   * disparador —arrancándoselo a quien estuviera escribiendo— y el diálogo se
+   * reordenaría dentro de la pila, dejando a un modal de abajo creyéndose el de
+   * arriba.
+   */
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!isOpen) return;
 
     previouslyFocused.current = document.activeElement as HTMLElement | null;
     const releaseScroll = lockBodyScroll();
+    const id = token.current;
+    dialogStack.push(id);
 
     const focusTarget =
       initialFocusRef?.current ??
@@ -109,26 +137,23 @@ export function Dialog({
       containerRef.current;
     focusTarget?.focus();
 
-    return () => {
-      releaseScroll();
-      previouslyFocused.current?.focus();
-    };
-  }, [isOpen, initialFocusRef]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Solo responde el diálogo de arriba de la pila.
+      if (dialogStack[dialogStack.length - 1] !== id) return;
 
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
       if (event.key !== 'Tab') return;
 
       const focusables = Array.from(
-        containerRef.current?.querySelectorAll<HTMLElement>(
-          FOCUSABLE_SELECTOR,
-        ) ?? [],
+        container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
       ).filter(isVisible);
 
       if (focusables.length === 0) {
@@ -140,18 +165,35 @@ export function Dialog({
       const last = focusables[focusables.length - 1];
       const active = document.activeElement;
 
+      // Si el foco se escapó del diálogo —porque quien lo tenía se desmontó—
+      // se lo trae de vuelta en vez de dejarlo tabular por la página de atrás.
+      if (!active || !container.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+
       // El ciclo se cierra a mano en los extremos: sin esto el foco se escapa a
       // la barra del navegador y de ahí a la página de atrás.
-      if (event.shiftKey && (active === first || active === containerRef.current)) {
+      if (event.shiftKey && (active === first || active === container)) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && active === last) {
         event.preventDefault();
         first.focus();
       }
-    },
-    [onClose],
-  );
+    };
+
+    document.addEventListener('keydown', onKeyDown, true);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      const index = dialogStack.indexOf(id);
+      if (index !== -1) dialogStack.splice(index, 1);
+      releaseScroll();
+      previouslyFocused.current?.focus();
+    };
+  }, [isOpen, initialFocusRef]);
 
   if (!isOpen) return null;
 
@@ -163,7 +205,6 @@ export function Dialog({
       aria-label={label}
       aria-labelledby={labelledBy}
       tabIndex={-1}
-      onKeyDown={handleKeyDown}
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) onClose();
       }}

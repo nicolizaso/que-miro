@@ -1,12 +1,20 @@
 import { MediaStatus, MediaType, SavedMedia } from '@/types';
+import { latestRating } from '@/lib/schema';
+import { progressPercent } from '@/lib/progress';
 
-export type SortOption = 'recientes' | 'titulo' | 'puntaje' | 'anio';
+export type SortOption =
+  | 'recientes'
+  | 'titulo'
+  | 'puntaje'
+  | 'anio'
+  | 'progreso';
 
 export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'recientes', label: 'Agregados hace poco' },
   { value: 'titulo', label: 'Título (A-Z)' },
   { value: 'puntaje', label: 'Mejor puntuados' },
   { value: 'anio', label: 'Más nuevos' },
+  { value: 'progreso', label: 'Más avanzados' },
 ];
 
 export const DEFAULT_SORT: SortOption = 'recientes';
@@ -19,6 +27,12 @@ export interface LibraryFilters {
   genre: string | null;
   /** `null` para películas y series juntas. */
   type: MediaType | null;
+  /** Nombre de una plataforma de streaming, o `null` para todas. */
+  provider: string | null;
+  /** Id de una colección propia, o `null` para no filtrar por lista. */
+  collection: string | null;
+  /** Etiqueta de ánimo de alguna reseña del título. */
+  tag: string | null;
   sort: SortOption;
 }
 
@@ -26,6 +40,9 @@ export const EMPTY_FILTERS: Omit<LibraryFilters, 'status'> = {
   query: '',
   genre: null,
   type: null,
+  provider: null,
+  collection: null,
+  tag: null,
   sort: DEFAULT_SORT,
 };
 
@@ -43,41 +60,68 @@ export function normalizeText(value: string): string {
     .trim();
 }
 
+/** Junta valores de todos los títulos, sin repetir y ordenados. */
+function collectUnique(
+  list: SavedMedia[],
+  pick: (media: SavedMedia) => string[] | undefined,
+): string[] {
+  const values = new Set<string>();
+  for (const media of list) {
+    for (const value of pick(media) ?? []) values.add(value);
+  }
+  return Array.from(values).sort((a, b) => a.localeCompare(b, 'es'));
+}
+
 /** Los géneros presentes en una lista de títulos, ordenados alfabéticamente. */
 export function collectGenres(list: SavedMedia[]): string[] {
-  const genres = new Set<string>();
-  for (const media of list) {
-    for (const genre of media.genres) genres.add(genre);
-  }
-  return Array.from(genres).sort((a, b) => a.localeCompare(b, 'es'));
+  return collectUnique(list, (media) => media.genres);
+}
+
+/** Las plataformas presentes en una lista de títulos. */
+export function collectProviders(list: SavedMedia[]): string[] {
+  return collectUnique(list, (media) => media.providers);
+}
+
+/** Las etiquetas usadas en las reseñas de una lista de títulos. */
+export function collectTags(list: SavedMedia[]): string[] {
+  return collectUnique(list, (media) =>
+    media.history?.flatMap((entry) => entry.tags ?? []),
+  );
 }
 
 function compare(a: SavedMedia, b: SavedMedia, sort: SortOption): number {
+  const byTitle = () =>
+    a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
+
   switch (sort) {
     case 'titulo':
-      return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
+      return byTitle();
 
     case 'puntaje': {
       // Sin reseña no hay puntaje: esos van al fondo en vez de contar como 0,
       // que los mezclaría con los realmente mal puntuados.
-      const ratingA = a.review?.rating ?? -1;
-      const ratingB = b.review?.rating ?? -1;
-      if (ratingA !== ratingB) return ratingB - ratingA;
-      return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
+      const ratingA = latestRating(a) ?? -1;
+      const ratingB = latestRating(b) ?? -1;
+      return ratingA !== ratingB ? ratingB - ratingA : byTitle();
     }
 
     case 'anio': {
       const yearA = Number(a.releaseYear) || 0;
       const yearB = Number(b.releaseYear) || 0;
-      if (yearA !== yearB) return yearB - yearA;
-      return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
+      return yearA !== yearB ? yearB - yearA : byTitle();
+    }
+
+    case 'progreso': {
+      // Ordena por lo que te falta menos. Las películas no tienen progreso, así
+      // que quedan al final: no hay nada que retomar.
+      const progressA = a.mediaType === 'tv' ? progressPercent(a) : -1;
+      const progressB = b.mediaType === 'tv' ? progressPercent(b) : -1;
+      return progressA !== progressB ? progressB - progressA : byTitle();
     }
 
     case 'recientes':
     default:
-      return (
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   }
 }
 
@@ -98,6 +142,21 @@ export function filterLibrary(
       if (media.status !== filters.status) return false;
       if (filters.type && media.mediaType !== filters.type) return false;
       if (filters.genre && !media.genres.includes(filters.genre)) return false;
+      if (filters.provider && !media.providers?.includes(filters.provider)) {
+        return false;
+      }
+      if (
+        filters.collection &&
+        !media.collections?.includes(filters.collection)
+      ) {
+        return false;
+      }
+      if (
+        filters.tag &&
+        !media.history?.some((entry) => entry.tags?.includes(filters.tag!))
+      ) {
+        return false;
+      }
       if (query && !normalizeText(media.title).includes(query)) return false;
       return true;
     })
@@ -110,6 +169,9 @@ export function hasActiveFilters(filters: LibraryFilters): boolean {
     filters.query.trim() !== '' ||
     filters.genre !== null ||
     filters.type !== null ||
+    filters.provider !== null ||
+    filters.collection !== null ||
+    filters.tag !== null ||
     filters.sort !== DEFAULT_SORT
   );
 }

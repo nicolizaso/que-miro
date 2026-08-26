@@ -3,7 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMediaStore } from '@/store';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, onSnapshot, doc, writeBatch } from 'firebase/firestore';
-import { SavedMedia } from '@/types';
+import { Collection, SavedMedia } from '@/types';
+import { parseCollection, parseMedia } from '@/lib/schema';
 import { useToast } from '@/contexts/ToastContext';
 
 /**
@@ -16,8 +17,12 @@ import { useToast } from '@/contexts/ToastContext';
  *   después me registré".
  * - Si los datos locales pertenecen a *otra* cuenta, se descartan antes de
  *   suscribirse. Sin esto, la biblioteca de quien usó el dispositivo antes se
- *   le filtraría al siguiente usuario.
+ *   le filtraría al siguiente usuario. Los datos del modo demo caen acá: su
+ *   `ownerUid` ficticio nunca coincide con un UID real.
  * - Sin sesión, no se toca nada: el modo invitado vive solo en localStorage.
+ *
+ * Todo lo que llega de Firestore pasa por `parseMedia`, que migra los
+ * documentos guardados con versiones viejas del schema.
  */
 export function SyncManager() {
   const { user, authState } = useAuth();
@@ -27,7 +32,7 @@ export function SyncManager() {
     if (!isFirebaseConfigured) return;
     if (authState !== 'authenticated' || !user) return;
 
-    const { ownerUid, mediaList, reset, setOwnerUid, setMediaList } =
+    const { ownerUid, mediaList, reset, setOwnerUid, setMediaList, setCollections } =
       useMediaStore.getState();
 
     // Datos de otra cuenta en este dispositivo: se descartan, no se migran.
@@ -39,12 +44,23 @@ export function SyncManager() {
     setOwnerUid(user.uid);
 
     const savedMediaRef = collection(db, `users/${user.uid}/saved_media`);
+    const collectionsRef = collection(db, `users/${user.uid}/collections`);
     let migrated = false;
 
-    const unsubscribe = onSnapshot(
+    const onError = (error: unknown) => {
+      console.error('[sync] Error de conexión con Firestore:', error);
+      showToast(
+        'Perdimos la conexión con el servidor. Tus cambios pueden no guardarse.',
+        'error',
+      );
+    };
+
+    const unsubscribeMedia = onSnapshot(
       savedMediaRef,
       async (snapshot) => {
-        const remote = snapshot.docs.map((d) => d.data() as SavedMedia);
+        const remote = snapshot.docs
+          .map((d) => parseMedia(d.data()))
+          .filter((media): media is SavedMedia => media !== null);
 
         // Migración one-shot de lo que el usuario había guardado como invitado.
         if (!migrated) {
@@ -89,16 +105,26 @@ export function SyncManager() {
           ),
         );
       },
-      (error) => {
-        console.error('[sync] Error de conexión con Firestore:', error);
-        showToast(
-          'Perdimos la conexión con el servidor. Tus cambios pueden no guardarse.',
-          'error',
-        );
-      },
+      onError,
     );
 
-    return () => unsubscribe();
+    const unsubscribeCollections = onSnapshot(
+      collectionsRef,
+      (snapshot) => {
+        setCollections(
+          snapshot.docs
+            .map((d) => parseCollection(d.data()))
+            .filter((item): item is Collection => item !== null)
+            .sort((a, b) => a.name.localeCompare(b.name, 'es')),
+        );
+      },
+      onError,
+    );
+
+    return () => {
+      unsubscribeMedia();
+      unsubscribeCollections();
+    };
   }, [user, authState, showToast]);
 
   return null;

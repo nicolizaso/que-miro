@@ -1,36 +1,51 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   getMediaDetail,
   TMDB_IMAGE_BASE_URL,
   TMDB_IMAGE_ORIGINAL_URL,
 } from '@/lib/tmdb';
-import { TMDbDetail } from '@/types';
+import { SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
 import { X, Play, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
+import { SeriesProgress } from '@/components/SeriesProgress';
+import { CollectionPicker } from '@/components/CollectionPicker';
+import { WatchHistory } from '@/components/WatchHistory';
+import { useMediaActions } from '@/hooks/useMediaActions';
+import { enrichFromDetail, isStale } from '@/lib/enrich';
+import { pickProviders } from '@/lib/providers';
 import { getRegionName, usePreferences } from '@/preferences';
-
-/**
- * Regiones a las que se recurre si la elegida no tiene catálogo para el título.
- *
- * Mostrar plataformas de otro país es peor que no mostrar nada solo si no se
- * aclara: por eso, cuando se usa un fallback, la UI dice de qué país son.
- */
-const FALLBACK_REGIONS = ['ES', 'US'];
 
 interface Props {
   id: number;
   mediaType: 'movie' | 'tv';
+  /** El título guardado, si está en la biblioteca. Habilita progreso y listas. */
+  media?: SavedMedia;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
+/** Temporadas de la ficha de TMDB, en la forma que usa la biblioteca. */
+function seasonsFromDetail(detail: TMDbDetail | null): SeasonInfo[] {
+  return (detail?.seasons ?? [])
+    .filter((season) => season.episode_count > 0)
+    .map((season) => ({
+      seasonNumber: season.season_number,
+      name: season.name || `Temporada ${season.season_number}`,
+      episodeCount: season.episode_count,
+    }));
+}
+
+export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Props) {
   const [detail, setDetail] = useState<TMDbDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const preferredRegion = usePreferences((state) => state.region);
+  const { patchMedia } = useMediaActions();
   const titleId = useId();
+  // Un backfill por apertura: sin esto, el patch cambia `media`, el efecto se
+  // vuelve a disparar y se escribe en loop.
+  const backfilled = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isOpen || !id) {
@@ -66,42 +81,50 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
     };
   }, [id, mediaType, isOpen]);
 
+  /**
+   * Completa los datos que el título no tenía cacheados.
+   *
+   * Cubre a los que se guardaron antes de que existieran las plataformas y las
+   * temporadas, y a los que quedaron con el catálogo de otro país. Como la
+   * ficha ya se pidió para mostrar el modal, sale gratis: es una escritura, sin
+   * llamada extra a TMDB.
+   */
+  useEffect(() => {
+    if (!detail || !media) return;
+    if (backfilled.current === media.tmdbId) return;
+    if (!isStale(media, preferredRegion)) return;
+
+    backfilled.current = media.tmdbId;
+    void patchMedia(media.tmdbId, enrichFromDetail(detail, preferredRegion));
+    // `patchMedia` cambia de identidad en cada render del hook, así que queda
+    // afuera: lo que dispara este efecto es que llegue la ficha.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, media, preferredRegion]);
+
+  useEffect(() => {
+    if (!isOpen) backfilled.current = null;
+  }, [isOpen]);
+
   const trailer = detail?.videos?.results?.find(
     (v) => v.type === 'Trailer' && v.site === 'YouTube',
   );
   const cast = detail?.credits?.cast?.slice(0, 5) ?? [];
 
-  const providerResults = detail?.['watch/providers']?.results;
-  // Se busca primero la región elegida y recién después los fallbacks, para
-  // poder avisar cuál se terminó mostrando.
-  const shownRegion = providerResults
-    ? [preferredRegion, ...FALLBACK_REGIONS].find(
-        (region) => providerResults[region],
-      )
-    : undefined;
-  const providers = shownRegion ? providerResults?.[shownRegion] : undefined;
+  const picked = pickProviders(detail, preferredRegion);
+  const allProviders = picked?.providers.slice(0, 4) ?? [];
 
-  // TMDB puede repetir la misma plataforma en flatrate/rent/buy: se deduplica.
-  const allProviders = [
-    ...(providers?.flatrate ?? []),
-    ...(providers?.rent ?? []),
-    ...(providers?.buy ?? []),
-  ]
-    .filter(
-      (provider, index, list) =>
-        list.findIndex((p) => p.provider_name === provider.provider_name) ===
-        index,
-    )
-    .slice(0, 4);
-
-  const title = detail?.title || detail?.name || '';
+  const title = detail?.title || detail?.name || media?.title || '';
+  // Las cacheadas ganan: reflejan lo que la persona vio cuando marcó episodios.
+  const seasons = media?.seasons?.length
+    ? media.seasons
+    : seasonsFromDetail(detail);
 
   return (
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
       label={title || 'Detalle del título'}
-      labelledBy={detail ? titleId : undefined}
+      labelledBy={title ? titleId : undefined}
       className="z-[60] flex items-center justify-center p-4 sm:p-6 bg-overlay backdrop-blur-md overflow-y-auto"
     >
       <motion.div
@@ -118,7 +141,10 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
           <X size={20} aria-hidden="true" />
         </button>
 
-        {error ? (
+        {error && !media ? (
+          // Sin el título en la biblioteca no queda nada para mostrar salvo el
+          // error. Si está guardado, el modal sigue en pie: el progreso, el
+          // historial y las listas son datos propios y no dependen de TMDB.
           <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
             <AlertCircle className="text-accent" size={32} aria-hidden="true" />
             <p role="alert" className="text-text-muted text-sm max-w-xs">
@@ -137,10 +163,19 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
               {loading && (
                 <div className="absolute inset-0 animate-pulse bg-border-card" />
               )}
-              {(detail?.backdrop_path || detail?.poster_path) && (
+              {/* Sin la ficha de TMDB queda el póster que el título ya tenía
+                  guardado: peor encuadre que un backdrop, pero mejor que un
+                  rectángulo gris. */}
+              {(detail?.backdrop_path ??
+                detail?.poster_path ??
+                media?.backdropPath ??
+                media?.posterPath) && (
                 <img
                   src={`${TMDB_IMAGE_ORIGINAL_URL}${
-                    detail.backdrop_path ?? detail.poster_path
+                    detail?.backdrop_path ??
+                    detail?.poster_path ??
+                    media?.backdropPath ??
+                    media?.posterPath
                   }`}
                   alt=""
                   className="w-full h-full object-cover"
@@ -150,7 +185,7 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
                   van sobre una imagen, no sobre el fondo del tema. */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
-              {detail && (
+              {title && (
                 <div className="absolute bottom-6 left-6 right-6">
                   <h2
                     id={titleId}
@@ -160,19 +195,39 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
                   </h2>
                   <div className="flex flex-wrap gap-2 text-sm text-white/80 mt-2">
                     <span>
-                      {(detail.release_date || detail.first_air_date || '').split(
+                      {(detail?.release_date || detail?.first_air_date || '').split(
                         '-',
-                      )[0]}
+                      )[0] || media?.releaseYear}
                     </span>
-                    {detail.genres?.slice(0, 3).map((g) => (
-                      <span key={g.id}>• {g.name}</span>
-                    ))}
+                    {(detail?.genres?.map((g) => g.name) ?? media?.genres ?? [])
+                      .slice(0, 3)
+                      .map((name) => (
+                        <span key={name}>• {name}</span>
+                      ))}
                   </div>
                 </div>
               )}
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8">
+              {media && mediaType === 'tv' && (
+                <SeriesProgress media={media} seasons={seasons} />
+              )}
+
+              {media && <WatchHistory media={media} />}
+
+              {media && <CollectionPicker media={media} />}
+
+              {error && (
+                <p
+                  role="alert"
+                  className="flex items-start gap-2 text-sm text-text-muted bg-accent/10 border border-accent/20 rounded-xl p-3"
+                >
+                  <AlertCircle size={16} className="shrink-0 mt-0.5 text-accent" aria-hidden="true" />
+                  {error} Lo que ya tenías guardado se sigue viendo.
+                </p>
+              )}
+
               {loading ? (
                 <div className="flex items-center justify-center gap-2 py-10 text-text-muted">
                   <Loader2 className="animate-spin" size={20} aria-hidden="true" />
@@ -227,12 +282,12 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
                     </div>
                   )}
 
-                  {allProviders.length > 0 && shownRegion && (
+                  {allProviders.length > 0 && picked && (
                     <div>
                       <h3 className="text-lg font-bold mb-1">
-                        Dónde Ver en {getRegionName(shownRegion)}
+                        Dónde Ver en {getRegionName(picked.region)}
                       </h3>
-                      {shownRegion !== preferredRegion && (
+                      {picked.region !== preferredRegion && (
                         <p className="text-xs text-text-subtle mb-3">
                           No hay datos para {getRegionName(preferredRegion)}. Podés
                           cambiar el país en tu perfil.
@@ -257,7 +312,7 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
                     </div>
                   )}
 
-                  {!loading && allProviders.length === 0 && detail && (
+                  {allProviders.length === 0 && detail && (
                     <p className="text-sm text-text-subtle">
                       No encontramos plataformas para este título en{' '}
                       {getRegionName(preferredRegion)}.

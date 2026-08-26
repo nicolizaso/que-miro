@@ -52,29 +52,36 @@ y ver una biblioteca real con filtros. Ya es mostrable.
 
 *Las cinco features que cambian `SavedMedia` y el camino de escritura.*
 
-| Feature |
-|---|
-| Progreso por temporada y episodio |
-| Historial y revisiones múltiples |
-| Reseñas con tags/ánimo |
-| Filtro por plataforma (guardar providers al agregar) |
-| Listas y colecciones propias |
+| Feature | Estado |
+|---|---|
+| Progreso por temporada y episodio | ✅ |
+| Historial y revisiones múltiples | ✅ |
+| Reseñas con tags/ánimo | ✅ |
+| Filtro por plataforma (guardar providers al agregar) | ✅ |
+| Listas y colecciones propias | ✅ |
 
 **Por qué van juntas:** las cinco tocan `src/types.ts`, `useMediaActions.ts`,
 `SyncManager.tsx` y `firestore.rules`. Separarlas es pagar cuatro veces el mismo
 peaje: migrar documentos existentes, re-testear la sincronización y revisar las
 reglas de seguridad.
 
-**Detalle que importa para después:** al enriquecer el título en el momento de
-guardarlo, capturar también **duración y cantidad total de episodios**. La tanda
-3 los necesita para el picker con filtro de duración, y volver a pedirlos
-implicaría re-tocar toda la biblioteca.
+**Cómo quedó implementada**
 
-**Orden interno:** schema v3 completo de una → migrador → reglas → UI de cada
-feature → colecciones al final, que es la que más superficie nueva agrega.
-
-> Es la tanda más pesada de las cuatro. El progreso por episodio vale por dos.
-> Si alguna hay que partir en dos sesiones, es esta.
+- **Una sola puerta de entrada a la migración.** Todo lo que entra a la app —los
+  documentos de Firestore, lo que había en `localStorage` y los backups
+  importados— pasa por `parseMedia`. La conversión del `review` único de la v1
+  al `history` de la v2 vive ahí y en ningún otro lado.
+- **El enriquecimiento se cachea en el título.** Al agregar algo se pide su
+  ficha una vez y se guardan plataformas, duración, temporadas y total de
+  episodios. Lo necesitan el filtro por plataforma y el progreso, que trabajan
+  sobre la biblioteca entera: pedir la ficha de cada título en cada cambio de
+  filtro no es viable. `isStale` marca cuándo hay que refrescar, y la ficha
+  completa lo que falte cuando se abre un título viejo.
+- **La duración y el total de episodios ya están guardados**, que es lo que la
+  tanda 3 necesita para el picker con filtro de duración.
+- **La pertenencia a una colección vive en el título**, no en la colección:
+  "agregar este título a esta lista" es la operación frecuente y así es una sola
+  escritura. El precio se paga al borrar una lista, que es mucho más raro.
 
 **Resultado:** deja de ser una lista de deseos y pasa a ser un tracker de verdad.
 

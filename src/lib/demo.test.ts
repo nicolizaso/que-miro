@@ -43,8 +43,47 @@ describe('buildDemoLibrary', () => {
 
   it('le pone reseña a todas las completadas y solo a ellas', () => {
     for (const media of buildDemoLibrary()) {
-      expect(Boolean(media.review)).toBe(media.status === 'completada');
+      expect(Boolean(media.history?.length)).toBe(media.status === 'completada');
     }
+  });
+
+  it('las series que se están viendo arrancan con progreso', () => {
+    const viendo = buildDemoLibrary().filter((m) => m.status === 'viendo');
+
+    expect(viendo.length).toBeGreaterThan(0);
+    for (const media of viendo) {
+      expect(Object.keys(media.progress?.watched ?? {}).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('toda serie con progreso declara sus temporadas', () => {
+    // Sin las temporadas no se puede calcular el porcentaje, así que el demo
+    // mostraría episodios marcados y ninguna barra.
+    for (const media of buildDemoLibrary()) {
+      if (media.progress) expect(media.seasons?.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('el progreso del seed no supera el total de episodios', () => {
+    for (const media of buildDemoLibrary()) {
+      for (const [number, episodes] of Object.entries(
+        media.progress?.watched ?? {},
+      )) {
+        const season = media.seasons?.find(
+          (s) => s.seasonNumber === Number(number),
+        );
+        expect(season).toBeDefined();
+        expect(Math.max(...episodes)).toBeLessThanOrEqual(season!.episodeCount);
+      }
+    }
+  });
+
+  it('le pone tags a algunas reseñas, para que el filtro por ánimo tenga qué mostrar', () => {
+    const conTags = buildDemoLibrary().filter((m) =>
+      m.history?.some((entry) => entry.tags?.length),
+    );
+
+    expect(conTags.length).toBeGreaterThanOrEqual(2);
   });
 
   it('deja suficientes títulos por ver como para que el picker tenga de dónde elegir', () => {
