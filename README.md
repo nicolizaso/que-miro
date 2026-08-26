@@ -31,8 +31,14 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   de pisar lo que habías escrito la primera vez.
 - **Listas propias** — agrupaciones más allá de los tres estados: "maratón del
   finde", "pendientes de terror".
-- **Smart Picker** — elige al azar algo de tu lista *Por Ver*, con filtro por género.
-- **Estadísticas** — cantidad de títulos vistos, promedio de puntaje e historial de reseñas.
+- **Explorar** — tendencias, populares y mejor puntuadas, más recomendaciones
+  armadas a partir de lo que puntuaste alto.
+- **Smart Picker** — elige al azar de tu lista *Por Ver*, filtrando por duración,
+  tipo, género, plataforma, lista o ánimo.
+- **Modo duelo** — comparaciones de a dos que arman un ranking de tu lista, con
+  puntaje tipo Elo.
+- **Estadísticas** — horas mirando, distribución por género, actividad por mes y
+  cómo puntuás, con su tabla accesible al lado de cada gráfico.
 - **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.
 - **Modo invitado** — usala sin cuenta; si después iniciás sesión, tu biblioteca se migra sola.
 - **Tus datos son tuyos** — exportá a JSON o CSV, reimportá el JSON y eliminá tu
@@ -123,8 +129,11 @@ El modelo de datos está documentado en [`firebase-blueprint.json`](firebase-blu
 ```
 api/                  Funciones serverless (Vercel)
   _lib/tmdb.ts        Cliente de TMDB — el único lugar con la API key
+  _lib/cache.ts       Caché con TTL para lo que es igual para todos
   tmdb/search.ts      GET /api/tmdb/search?query=
   tmdb/detail.ts      GET /api/tmdb/detail?type=&id=
+  tmdb/trending.ts    GET /api/tmdb/trending (tendencias, populares, top)
+  tmdb/recommendations.ts  GET /api/tmdb/recommendations?type=&id=
 src/
   components/         MediaCard, SearchModal, TitleDetailModal, ReviewDrawer, SyncManager
     ui/Dialog.tsx     Modal accesible: foco atrapado, Escape, scroll trabado
@@ -133,9 +142,11 @@ src/
                       useAccountActions (borrado), useLibraryFilters (filtros
                       en la URL)
   lib/                Cliente HTTP del front, init de Firebase, tema, schema y
-                      migraciones, progreso de series, backup, filtros de la
-                      biblioteca, datos del demo
-  views/              ListView, SmartPickerView, ProfileView, LoginView, NotFoundView
+                      migraciones, progreso de series, estadísticas, picker,
+                      duelo, backup, filtros de la biblioteca, datos del demo
+  components/charts/  Piezas del panel de estadísticas
+  views/              ListView, ExploreView, SmartPickerView, ProfileView,
+                      LoginView, NotFoundView
   store.ts            Biblioteca (Zustand + localStorage)
   preferences.ts      Tema y región, solo de este dispositivo
 server.ts             Server de desarrollo: Vite + las mismas rutas /api
@@ -161,6 +172,11 @@ Suena redundante teniendo la API a mano, pero quienes los usan —el filtro por
 plataforma, el progreso por episodio— trabajan sobre la biblioteca entera:
 pedir la ficha de cada título cada vez que alguien mueve un filtro no es viable.
 La contracara es que envejecen, y para eso está `isStale`.
+
+**Las recomendaciones se arman en el cliente.** El servidor le pregunta a TMDB
+qué se parece a qué y cachea la respuesta, porque es igual para todos. Quién
+recibe qué lo decide el navegador, cruzando eso con la biblioteca de esa persona.
+El servidor nunca necesita saber qué vio nadie.
 
 **El tema se resuelve antes del primer pintado.** Los colores son tokens CSS
 (`--qm-*`) que `@theme inline` expone como utilidades de Tailwind, así que

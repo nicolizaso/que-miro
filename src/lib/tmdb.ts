@@ -79,6 +79,47 @@ export async function searchMulti(query: string): Promise<TMDbResult[]> {
 }
 
 /**
+ * Lo que está mirando todo el mundo.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function getTrending(
+  window: 'day' | 'week' = 'day',
+): Promise<TMDbResult[]> {
+  const { results } = await fetchApi<{ results: TMDbResult[] }>(
+    `/api/tmdb/trending?window=${window}`,
+  );
+  return results;
+}
+
+/**
+ * Populares o mejor puntuadas de una categoría.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function getList(
+  mediaType: 'movie' | 'tv',
+  kind: 'popular' | 'top_rated',
+): Promise<TMDbResult[]> {
+  const { results } = await fetchApi<{ results: TMDbResult[] }>(
+    `/api/tmdb/trending?type=${mediaType}&list=${kind}`,
+  );
+  return results;
+}
+
+/**
+ * Títulos parecidos a uno dado.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function getRecommendations(
+  id: number,
+  mediaType: 'movie' | 'tv',
+): Promise<TMDbResult[]> {
+  const { results } = await fetchApi<{ results: TMDbResult[] }>(
+    `/api/tmdb/recommendations?type=${mediaType}&id=${id}`,
+  );
+  return results;
+}
+
+/**
  * Trae el detalle de un título (sinopsis, reparto, trailer, plataformas).
  * @throws {TMDbRequestError} si la consulta falla.
  */

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Compass, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { MediaCard } from '@/components/MediaCard';
@@ -260,15 +261,22 @@ export function ListView() {
               <>
                 <p>No tenés títulos en esta lista.</p>
                 <p className="text-sm mt-2">
-                  Usá el buscador para agregar contenido.
+                  Buscá algo con ⌘K, o mirá qué se está viendo.
                 </p>
+                <Link
+                  to="/explorar"
+                  className="mt-6 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  <Compass size={16} aria-hidden="true" />
+                  Explorar títulos
+                </Link>
                 {/* Con la biblioteca entera vacía, ofrecer el demo es más útil
                     que un cartel: es también la única puerta al demo cuando la
                     instalación no tiene Firebase y nunca se ve el login. */}
                 {mediaList.length === 0 && authState !== 'demo' && (
                   <button
                     onClick={startDemo}
-                    className="mt-6 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border-card text-sm font-medium text-text-main hover:bg-border-card transition-colors"
+                    className="mt-3 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border-card text-sm font-medium text-text-main hover:bg-border-card transition-colors"
                   >
                     <Sparkles size={16} aria-hidden="true" />
                     Ver una biblioteca de ejemplo
