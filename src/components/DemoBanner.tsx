@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { hydrateDemoLibrary } from '@/lib/demo';
+import { usePreferences } from '@/preferences';
 
 /**
  * Aviso persistente de que lo que se está viendo son datos de ejemplo.
@@ -11,6 +12,7 @@ import { hydrateDemoLibrary } from '@/lib/demo';
  */
 export function DemoBanner() {
   const { authState, stopDemo } = useAuth();
+  const region = usePreferences((state) => state.region);
   const hydrated = useRef(false);
 
   useEffect(() => {
@@ -18,8 +20,8 @@ export function DemoBanner() {
     hydrated.current = true;
     // Sin `await` ni manejo de error: si TMDB no responde, la biblioteca queda
     // con los datos del seed y las tarjetas muestran su placeholder.
-    void hydrateDemoLibrary();
-  }, [authState]);
+    void hydrateDemoLibrary(region);
+  }, [authState, region]);
 
   if (authState !== 'demo') return null;
 

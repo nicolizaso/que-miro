@@ -18,11 +18,19 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 
 - **Tres listas** — *Por Ver*, *Viendo* y *Completadas*, con transiciones animadas.
 - **Búsqueda en TMDB** — películas y series, con atajo `⌘K` / `Ctrl+K`.
-- **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo o
-  puntaje. Los filtros viven en la URL, así que la vista se puede compartir.
+- **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo,
+  plataforma, lista o ánimo. Los filtros viven en la URL, así que la vista se
+  puede compartir.
 - **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está
   disponible, según el país que elijas.
-- **Reseñas propias** — puntaje de 0,5 a 5 estrellas (con medias estrellas) y comentario opcional.
+- **Progreso de series** — marcá episodios de a uno o por temporada entera, con
+  barra de progreso y un "vas por T2E5" para retomar donde dejaste.
+- **Reseñas propias** — puntaje de 0,5 a 5 estrellas (con medias estrellas),
+  comentario y etiquetas de ánimo.
+- **Historial de visionados** — volver a ver algo suma una entrada nueva en vez
+  de pisar lo que habías escrito la primera vez.
+- **Listas propias** — agrupaciones más allá de los tres estados: "maratón del
+  finde", "pendientes de terror".
 - **Smart Picker** — elige al azar algo de tu lista *Por Ver*, con filtro por género.
 - **Estadísticas** — cantidad de títulos vistos, promedio de puntaje e historial de reseñas.
 - **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.
@@ -121,10 +129,12 @@ src/
   components/         MediaCard, SearchModal, TitleDetailModal, ReviewDrawer, SyncManager
     ui/Dialog.tsx     Modal accesible: foco atrapado, Escape, scroll trabado
   contexts/           AuthContext (sesión), ToastContext (avisos)
-  hooks/              useMediaActions (escrituras), useAccountActions (borrado),
-                      useLibraryFilters (filtros en la URL)
-  lib/                Cliente HTTP del front, init de Firebase, tema, backup,
-                      filtros de la biblioteca, datos del demo
+  hooks/              useMediaActions (escrituras), useCollectionActions (listas),
+                      useAccountActions (borrado), useLibraryFilters (filtros
+                      en la URL)
+  lib/                Cliente HTTP del front, init de Firebase, tema, schema y
+                      migraciones, progreso de series, backup, filtros de la
+                      biblioteca, datos del demo
   views/              ListView, SmartPickerView, ProfileView, LoginView, NotFoundView
   store.ts            Biblioteca (Zustand + localStorage)
   preferences.ts      Tema y región, solo de este dispositivo
@@ -137,6 +147,20 @@ Dos decisiones que explican la forma del código:
 `/api/tmdb/*` y son las funciones de `api/` las que hablan con TMDB. El server de
 desarrollo (`server.ts`) monta esas mismas rutas reusando el módulo compartido de
 `api/_lib/tmdb.ts`, así local y producción se comportan igual.
+
+**Las migraciones tienen una sola puerta.** Todo lo que entra a la app —los
+documentos de Firestore, lo que había en `localStorage` y los backups
+importados— pasa por `parseMedia` en [`src/lib/schema.ts`](src/lib/schema.ts).
+Cuando el formato cambia, la conversión se escribe una vez y las tres entradas
+quedan cubiertas. Así fue la v1 → v2, que convirtió el `review` único de cada
+título en un historial de visionados.
+
+**Los datos de TMDB se cachean en el título.** Al guardar algo se pide su ficha
+una vez y se anotan plataformas, duración, temporadas y total de episodios.
+Suena redundante teniendo la API a mano, pero quienes los usan —el filtro por
+plataforma, el progreso por episodio— trabajan sobre la biblioteca entera:
+pedir la ficha de cada título cada vez que alguien mueve un filtro no es viable.
+La contracara es que envejecen, y para eso está `isStale`.
 
 **El tema se resuelve antes del primer pintado.** Los colores son tokens CSS
 (`--qm-*`) que `@theme inline` expone como utilidades de Tailwind, así que

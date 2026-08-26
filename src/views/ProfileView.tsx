@@ -2,8 +2,10 @@ import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeRadioGroup } from '@/components/ThemeToggle';
 import { DataSettings } from '@/components/DataSettings';
+import { CollectionsSettings } from '@/components/CollectionsSettings';
 import { REGIONS, RegionCode, usePreferences } from '@/preferences';
-import { LogIn, LogOut, Star } from 'lucide-react';
+import { formatWatchDate } from '@/lib/dates';
+import { LogIn, LogOut, Repeat, Star } from 'lucide-react';
 
 /** Tarjeta de la sesión actual: cuenta, invitado o demo. */
 function SessionCard() {
@@ -106,20 +108,27 @@ function AppSettings() {
 export function ProfileView() {
   const { mediaList } = useMediaStore();
 
-  const completedList = mediaList
-    .filter((m) => m.status === 'completada' && m.review)
+  /**
+   * El historial completo, aplanado: cada vez que viste algo es una entrada,
+   * con el título al que pertenece. Con el schema anterior "vistas" y "títulos
+   * completados" eran el mismo número; ahora ver algo dos veces cuenta dos
+   * veces en el historial pero un solo título en la biblioteca.
+   */
+  const watches = mediaList
+    .flatMap((media) =>
+      (media.history ?? []).map((entry) => ({ media, entry })),
+    )
     .sort(
       (a, b) =>
-        new Date(b.review!.completedAt).getTime() -
-        new Date(a.review!.completedAt).getTime(),
+        Date.parse(b.entry.completedAt) - Date.parse(a.entry.completedAt),
     );
 
-  const totalWatched = completedList.length;
+  const totalWatches = watches.length;
+  const uniqueTitles = new Set(watches.map(({ media }) => media.tmdbId)).size;
   const avgRating =
-    totalWatched > 0
+    totalWatches > 0
       ? (
-          completedList.reduce((acc, curr) => acc + (curr.review?.rating || 0), 0) /
-          totalWatched
+          watches.reduce((acc, { entry }) => acc + entry.rating, 0) / totalWatches
         ).toFixed(1)
       : '0.0';
 
@@ -135,11 +144,16 @@ export function ProfileView() {
         <div className="grid grid-cols-2 gap-4 w-full">
           <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
             <span className="text-5xl font-serif italic font-bold text-accent mb-2">
-              {totalWatched}
+              {totalWatches}
             </span>
             <span className="text-sm text-text-muted uppercase tracking-wider">
               Vistas
             </span>
+            {totalWatches !== uniqueTitles && (
+              <span className="text-xs text-text-subtle mt-1">
+                {uniqueTitles} títulos distintos
+              </span>
+            )}
           </div>
           <div className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col items-center justify-center">
             <span className="text-5xl font-serif italic font-bold text-accent mb-2 flex items-baseline gap-1">
@@ -155,19 +169,21 @@ export function ProfileView() {
 
       <AppSettings />
 
+      <CollectionsSettings />
+
       <DataSettings />
 
       <section className="flex flex-col gap-4">
         <h3 className="font-bold text-lg">Historial Reciente</h3>
 
-        {completedList.length === 0 ? (
+        {watches.length === 0 ? (
           <div className="text-center text-text-muted py-10">
             Todavía no calificaste ningún título.
           </div>
         ) : (
-          completedList.map((media) => (
+          watches.map(({ media, entry }) => (
             <article
-              key={media.tmdbId}
+              key={entry.id}
               className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col gap-4"
             >
               <div className="flex justify-between items-start gap-4">
@@ -175,15 +191,18 @@ export function ProfileView() {
                   <h4 className="font-serif italic font-bold text-xl">
                     {media.title}
                   </h4>
-                  <span className="text-xs text-text-subtle">
-                    {new Date(media.review!.completedAt).toLocaleDateString(
-                      'es-AR',
-                      { day: 'numeric', month: 'long', year: 'numeric' },
+                  <span className="text-xs text-text-subtle flex items-center gap-2">
+                    {formatWatchDate(entry.completedAt)}
+                    {(media.history?.length ?? 0) > 1 && (
+                      <span className="flex items-center gap-1">
+                        <Repeat size={11} aria-hidden="true" />
+                        {media.history!.length} veces en total
+                      </span>
                     )}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 bg-bg-main px-3 py-1 rounded-lg border border-border-card shrink-0">
-                  <span className="font-bold">{media.review?.rating}</span>
+                  <span className="font-bold">{entry.rating}</span>
                   <Star
                     size={14}
                     className="fill-accent text-accent"
@@ -193,7 +212,20 @@ export function ProfileView() {
                 </div>
               </div>
 
-              {media.review?.text && (
+              {entry.tags && entry.tags.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5">
+                  {entry.tags.map((tag) => (
+                    <li
+                      key={tag}
+                      className="px-2 py-0.5 rounded-full bg-border-card text-[11px] text-text-muted"
+                    >
+                      {tag}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {entry.text && (
                 <div className="relative pt-4">
                   <span
                     aria-hidden="true"
@@ -202,7 +234,7 @@ export function ProfileView() {
                     "
                   </span>
                   <p className="text-text-main/80 italic pl-4 text-sm leading-relaxed relative z-10">
-                    {media.review.text}
+                    {entry.text}
                   </p>
                 </div>
               )}

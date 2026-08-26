@@ -1,6 +1,8 @@
 import { useMediaStore } from '@/store';
 import { getMediaDetail } from '@/lib/tmdb';
-import { MediaStatus, MediaType, SavedMedia } from '@/types';
+import { enrichFromDetail } from '@/lib/enrich';
+import { newWatchId } from '@/lib/schema';
+import { MediaStatus, MediaType, SavedMedia, SeriesProgress } from '@/types';
 
 /**
  * Dueño ficticio de la biblioteca de demostración.
@@ -28,6 +30,17 @@ interface DemoSeedEntry {
   daysAgo: number;
   rating?: number;
   reviewText?: string;
+  tags?: string[];
+  /**
+   * Temporadas de la serie: número de temporada -> cantidad de episodios.
+   *
+   * Van en el seed y no solo en la hidratación porque sin ellas el progreso no
+   * se puede dibujar: marcar "vi nueve episodios" no dice nada si no se sabe
+   * cuántos tiene la temporada. Si TMDB responde, sus datos las reemplazan.
+   */
+  seasons?: Record<number, number>;
+  /** Episodios vistos por temporada, para las series empezadas. */
+  watched?: Record<number, number[]>;
 }
 
 export const DEMO_SEED: DemoSeedEntry[] = [
@@ -42,10 +55,12 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     rating: 5,
     reviewText:
       'Empieza como una comedia y termina siendo otra cosa. La escena de la inundación no me la saco más de la cabeza.',
+    tags: ['Me voló la cabeza', 'Para pensar'],
   },
   {
     tmdbId: 1396,
     mediaType: 'tv',
+    seasons: { 1: 7, 2: 13, 3: 13, 4: 13, 5: 16 },
     title: 'Breaking Bad',
     releaseYear: '2008',
     genres: ['Drama', 'Crimen'],
@@ -53,6 +68,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     daysAgo: 11,
     rating: 5,
     reviewText: 'La quinta temporada justifica todo lo anterior.',
+    tags: ['Para maratonear'],
   },
   {
     tmdbId: 157336,
@@ -64,10 +80,12 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     daysAgo: 19,
     rating: 4.5,
     reviewText: 'La banda sonora hace la mitad del trabajo, y está perfecto así.',
+    tags: ['Para llorar'],
   },
   {
     tmdbId: 87108,
     mediaType: 'tv',
+    seasons: { 1: 5 },
     title: 'Chernobyl',
     releaseYear: '2019',
     genres: ['Drama'],
@@ -85,6 +103,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     daysAgo: 38,
     rating: 4.5,
     reviewText: 'Salí del cine con taquicardia.',
+    tags: ['Me voló la cabeza'],
   },
   {
     tmdbId: 545611,
@@ -100,29 +119,35 @@ export const DEMO_SEED: DemoSeedEntry[] = [
   {
     tmdbId: 95396,
     mediaType: 'tv',
+    seasons: { 1: 9, 2: 10 },
     title: 'Severance',
     releaseYear: '2022',
     genres: ['Drama', 'Misterio', 'Ciencia Ficción'],
     status: 'viendo',
     daysAgo: 1,
+    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9], 2: [1, 2, 3] },
   },
   {
     tmdbId: 136315,
     mediaType: 'tv',
+    seasons: { 1: 8, 2: 10, 3: 10 },
     title: 'The Bear',
     releaseYear: '2022',
     genres: ['Drama', 'Comedia'],
     status: 'viendo',
     daysAgo: 3,
+    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8] },
   },
   {
     tmdbId: 94605,
     mediaType: 'tv',
+    seasons: { 1: 9, 2: 9 },
     title: 'Arcane',
     releaseYear: '2021',
     genres: ['Animación', 'Ciencia Ficción', 'Aventura'],
     status: 'viendo',
     daysAgo: 8,
+    watched: { 1: [1, 2, 3, 4, 5] },
   },
   {
     tmdbId: 438631,
@@ -154,6 +179,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
   {
     tmdbId: 70523,
     mediaType: 'tv',
+    seasons: { 1: 10, 2: 8, 3: 8 },
     title: 'Dark',
     releaseYear: '2017',
     genres: ['Drama', 'Misterio', 'Sci-Fi y Fantasía'],
@@ -172,6 +198,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
   {
     tmdbId: 76331,
     mediaType: 'tv',
+    seasons: { 1: 10, 2: 10, 3: 9, 4: 10 },
     title: 'Succession',
     releaseYear: '2018',
     genres: ['Drama'],
@@ -201,25 +228,45 @@ function daysAgoToIso(days: number): string {
  * la API, y mientras tanto las tarjetas muestran su placeholder.
  */
 export function buildDemoLibrary(): SavedMedia[] {
-  return DEMO_SEED.map((entry) => ({
-    tmdbId: entry.tmdbId,
-    mediaType: entry.mediaType,
-    title: entry.title,
-    posterPath: null,
-    backdropPath: null,
-    releaseYear: entry.releaseYear,
-    genres: entry.genres,
-    status: entry.status,
-    updatedAt: daysAgoToIso(entry.daysAgo),
-    review:
-      entry.rating === undefined
-        ? undefined
-        : {
-            rating: entry.rating,
-            text: entry.reviewText,
-            completedAt: daysAgoToIso(entry.daysAgo),
-          },
-  }));
+  return DEMO_SEED.map((entry) => {
+    const progress: SeriesProgress | undefined = entry.watched
+      ? { watched: entry.watched, lastWatchedAt: daysAgoToIso(entry.daysAgo) }
+      : undefined;
+
+    const seasons = entry.seasons
+      ? Object.entries(entry.seasons).map(([number, episodeCount]) => ({
+          seasonNumber: Number(number),
+          name: `Temporada ${number}`,
+          episodeCount,
+        }))
+      : undefined;
+
+    return {
+      tmdbId: entry.tmdbId,
+      mediaType: entry.mediaType,
+      title: entry.title,
+      posterPath: null,
+      backdropPath: null,
+      releaseYear: entry.releaseYear,
+      genres: entry.genres,
+      status: entry.status,
+      updatedAt: daysAgoToIso(entry.daysAgo),
+      seasons,
+      progress,
+      history:
+        entry.rating === undefined
+          ? undefined
+          : [
+              {
+                id: newWatchId(),
+                rating: entry.rating,
+                text: entry.reviewText,
+                tags: entry.tags,
+                completedAt: daysAgoToIso(entry.daysAgo),
+              },
+            ],
+    };
+  });
 }
 
 /**
@@ -229,7 +276,7 @@ export function buildDemoLibrary(): SavedMedia[] {
  * así la tarjeta queda coherente aunque un id del seed apunte a otra cosa.
  * Si la API no responde, la biblioteca sigue en pie con los datos del seed.
  */
-export async function hydrateDemoLibrary(): Promise<void> {
+export async function hydrateDemoLibrary(region: string): Promise<void> {
   const results = await Promise.allSettled(
     DEMO_SEED.map((entry) => getMediaDetail(entry.tmdbId, entry.mediaType)),
   );
@@ -248,6 +295,9 @@ export async function hydrateDemoLibrary(): Promise<void> {
       backdropPath: detail.backdrop_path,
       releaseYear: date ? date.split('-')[0] : DEMO_SEED[index].releaseYear,
       genres: genres?.length ? genres : DEMO_SEED[index].genres,
+      // Temporadas y plataformas: sin esto el demo no puede mostrar ni el
+      // progreso por episodio ni el filtro por plataforma.
+      ...enrichFromDetail(detail, region),
     });
   });
 

@@ -1,0 +1,216 @@
+import { describe, expect, it } from 'vitest';
+import {
+  latestRating,
+  latestWatch,
+  parseCollection,
+  parseMedia,
+  parseMediaList,
+  watchCount,
+} from './schema';
+
+/** Un título tal como lo guardaba la v1 del schema: con un `review` suelto. */
+function v1Media(overrides: Record<string, unknown> = {}) {
+  return {
+    tmdbId: 603,
+    mediaType: 'movie',
+    title: 'Matrix',
+    posterPath: '/poster.jpg',
+    backdropPath: null,
+    releaseYear: '1999',
+    genres: ['Ciencia Ficción'],
+    status: 'completada',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    review: {
+      rating: 4.5,
+      text: 'Un clásico.',
+      completedAt: '2024-01-01T00:00:00.000Z',
+    },
+    ...overrides,
+  };
+}
+
+describe('parseMedia — migración de v1 a v2', () => {
+  it('convierte el review único en la primera entrada del historial', () => {
+    const media = parseMedia(v1Media())!;
+
+    expect(media.history).toHaveLength(1);
+    expect(media.history![0].rating).toBe(4.5);
+    expect(media.history![0].text).toBe('Un clásico.');
+    expect(media.history![0].completedAt).toBe('2024-01-01T00:00:00.000Z');
+    // El id lo genera la migración: los documentos v1 no tenían.
+    expect(media.history![0].id).toBeTruthy();
+  });
+
+  it('conserva los puntajes por temporada que traía el review viejo', () => {
+    const media = parseMedia(
+      v1Media({
+        mediaType: 'tv',
+        review: {
+          rating: 5,
+          seasonRatings: { 1: 4, 2: 5 },
+          completedAt: '2024-01-01T00:00:00.000Z',
+        },
+      }),
+    )!;
+
+    expect(media.history![0].seasonRatings).toEqual({ 1: 4, 2: 5 });
+  });
+
+  it('un título v1 sin review queda sin historial', () => {
+    const media = parseMedia(v1Media({ review: undefined, status: 'por_ver' }))!;
+
+    expect(media.history).toBeUndefined();
+    expect(media.status).toBe('por_ver');
+  });
+
+  it('el historial nuevo tiene prioridad sobre el review viejo', () => {
+    const media = parseMedia({
+      ...v1Media(),
+      history: [
+        { id: 'a', rating: 3, completedAt: '2025-01-01T00:00:00.000Z' },
+      ],
+    })!;
+
+    expect(media.history).toHaveLength(1);
+    expect(media.history![0].rating).toBe(3);
+  });
+
+  it('ordena el historial de lo más reciente a lo más viejo', () => {
+    const media = parseMedia({
+      ...v1Media(),
+      review: undefined,
+      history: [
+        { id: 'vieja', rating: 2, completedAt: '2020-01-01T00:00:00.000Z' },
+        { id: 'nueva', rating: 5, completedAt: '2025-01-01T00:00:00.000Z' },
+      ],
+    })!;
+
+    expect(media.history!.map((entry) => entry.id)).toEqual(['nueva', 'vieja']);
+  });
+});
+
+describe('parseMedia — validación', () => {
+  it('descarta lo que no tiene id, tipo o título válidos', () => {
+    expect(parseMedia(null)).toBeNull();
+    expect(parseMedia(v1Media({ tmdbId: 'abc' }))).toBeNull();
+    expect(parseMedia(v1Media({ tmdbId: -3 }))).toBeNull();
+    expect(parseMedia(v1Media({ mediaType: 'libro' }))).toBeNull();
+    expect(parseMedia(v1Media({ title: '   ' }))).toBeNull();
+  });
+
+  it('cae en valores por defecto cuando un campo opcional viene mal', () => {
+    const media = parseMedia(
+      v1Media({
+        review: undefined,
+        status: 'inventado',
+        genres: ['Drama', 42],
+        posterPath: 12,
+      }),
+    )!;
+
+    expect(media.status).toBe('por_ver');
+    expect(media.genres).toEqual(['Drama']);
+    expect(media.posterPath).toBeNull();
+  });
+
+  it('descarta un visionado con puntaje fuera de rango', () => {
+    const media = parseMedia(v1Media({ review: { rating: 42 } }))!;
+    expect(media.history).toBeUndefined();
+  });
+
+  it('haber terminado algo implica el estado completada', () => {
+    const media = parseMedia(v1Media({ status: 'por_ver' }))!;
+    expect(media.status).toBe('completada');
+  });
+
+  it('ignora el progreso en las películas', () => {
+    const media = parseMedia(
+      v1Media({ mediaType: 'movie', progress: { watched: { 1: [1, 2] } } }),
+    )!;
+
+    expect(media.progress).toBeUndefined();
+  });
+
+  it('limpia el progreso: sin repetidos, ordenado y sin episodios inválidos', () => {
+    const media = parseMedia(
+      v1Media({
+        mediaType: 'tv',
+        progress: { watched: { 1: [3, 1, 1, 2, 0, -5, 'x'] } },
+      }),
+    )!;
+
+    expect(media.progress!.watched[1]).toEqual([1, 2, 3]);
+  });
+
+  it('lee las temporadas tanto en nuestra forma como en la cruda de TMDB', () => {
+    const nuestra = parseMedia(
+      v1Media({
+        mediaType: 'tv',
+        seasons: [{ seasonNumber: 1, name: 'T1', episodeCount: 8 }],
+      }),
+    )!;
+    const deTmdb = parseMedia(
+      v1Media({
+        mediaType: 'tv',
+        seasons: [{ season_number: 1, name: 'T1', episode_count: 8 }],
+      }),
+    )!;
+
+    expect(nuestra.seasons).toEqual(deTmdb.seasons);
+    expect(deTmdb.seasons![0].episodeCount).toBe(8);
+  });
+});
+
+describe('parseMediaList', () => {
+  it('cuenta lo que descarta en vez de fallar', () => {
+    const { media, skipped } = parseMediaList([v1Media(), { basura: true }, null]);
+
+    expect(media).toHaveLength(1);
+    expect(skipped).toBe(2);
+  });
+});
+
+describe('parseCollection', () => {
+  it('acepta una colección bien formada', () => {
+    const collection = parseCollection({
+      id: 'abc',
+      name: 'Maratón',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+    })!;
+
+    expect(collection.name).toBe('Maratón');
+  });
+
+  it('rechaza las que no tienen id o nombre', () => {
+    expect(parseCollection({ name: 'Sin id' })).toBeNull();
+    expect(parseCollection({ id: 'abc', name: '   ' })).toBeNull();
+  });
+});
+
+describe('lecturas del historial', () => {
+  const media = parseMedia({
+    ...v1Media(),
+    review: undefined,
+    history: [
+      { id: 'nueva', rating: 5, completedAt: '2025-01-01T00:00:00.000Z' },
+      { id: 'vieja', rating: 2, completedAt: '2020-01-01T00:00:00.000Z' },
+    ],
+  })!;
+
+  it('devuelve el visionado más reciente', () => {
+    expect(latestWatch(media)?.id).toBe('nueva');
+    expect(latestRating(media)).toBe(5);
+  });
+
+  it('cuenta las veces que se vio', () => {
+    expect(watchCount(media)).toBe(2);
+  });
+
+  it('sobre un título sin historial no rompe', () => {
+    const sinVer = parseMedia(v1Media({ review: undefined }))!;
+    expect(latestWatch(sinVer)).toBeUndefined();
+    expect(latestRating(sinVer)).toBeUndefined();
+    expect(watchCount(sinVer)).toBe(0);
+  });
+});

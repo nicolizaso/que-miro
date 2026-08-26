@@ -17,6 +17,9 @@ const PARAMS = {
   query: 'q',
   genre: 'genero',
   type: 'tipo',
+  provider: 'plataforma',
+  collection: 'lista',
+  tag: 'tag',
   sort: 'orden',
 } as const;
 
@@ -41,6 +44,9 @@ export function useLibraryFilters() {
       query: searchParams.get(PARAMS.query) ?? '',
       genre: searchParams.get(PARAMS.genre) || null,
       type: type === 'movie' || type === 'tv' ? type : null,
+      provider: searchParams.get(PARAMS.provider) || null,
+      collection: searchParams.get(PARAMS.collection) || null,
+      tag: searchParams.get(PARAMS.tag) || null,
       sort: SORT_OPTIONS.some((option) => option.value === sort)
         ? (sort as SortOption)
         : DEFAULT_SORT,
@@ -76,7 +82,15 @@ export function useLibraryFilters() {
   );
 
   const clearFilters = useCallback(() => {
-    setFilters({ query: '', genre: null, type: null, sort: DEFAULT_SORT });
+    setFilters({
+      query: '',
+      genre: null,
+      type: null,
+      provider: null,
+      collection: null,
+      tag: null,
+      sort: DEFAULT_SORT,
+    });
   }, [setFilters]);
 
   return { filters, setFilters, clearFilters };

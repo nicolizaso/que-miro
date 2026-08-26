@@ -5,7 +5,6 @@ import {
   buildBackup,
   mergeLibraries,
   parseBackup,
-  parseMediaEntry,
   toCsv,
 } from './backup';
 import { SavedMedia } from '@/types';
@@ -35,56 +34,48 @@ function serialize(media: unknown[], overrides: Record<string, unknown> = {}) {
   });
 }
 
-describe('parseMediaEntry', () => {
-  it('acepta un título bien formado', () => {
-    expect(parseMediaEntry(makeMedia())?.title).toBe('Matrix');
-  });
-
-  it('descarta lo que no tiene id, tipo o título válidos', () => {
-    expect(parseMediaEntry(null)).toBeNull();
-    expect(parseMediaEntry({ ...makeMedia(), tmdbId: 'abc' })).toBeNull();
-    expect(parseMediaEntry({ ...makeMedia(), tmdbId: -3 })).toBeNull();
-    expect(parseMediaEntry({ ...makeMedia(), mediaType: 'libro' })).toBeNull();
-    expect(parseMediaEntry({ ...makeMedia(), title: '   ' })).toBeNull();
-  });
-
-  it('cae en valores por defecto cuando un campo opcional viene mal', () => {
-    const parsed = parseMediaEntry({
-      ...makeMedia(),
-      status: 'inventado',
-      genres: ['Drama', 42],
-      posterPath: 12,
+describe('parseBackup', () => {
+  it('acepta y migra un backup de la versión 1 del schema', () => {
+    const v1 = JSON.stringify({
+      app: 'que-miro',
+      version: 1,
+      exportedAt: '2024-01-01T00:00:00.000Z',
+      media: [
+        {
+          ...makeMedia(),
+          status: 'completada',
+          review: { rating: 4, completedAt: '2024-01-01T00:00:00.000Z' },
+        },
+      ],
     });
 
-    expect(parsed?.status).toBe('por_ver');
-    expect(parsed?.genres).toEqual(['Drama']);
-    expect(parsed?.posterPath).toBeNull();
+    const { media } = parseBackup(v1);
+    expect(media[0].history).toHaveLength(1);
+    expect(media[0].history![0].rating).toBe(4);
   });
 
-  it('marca como completada cualquier entrada que traiga reseña', () => {
-    const parsed = parseMediaEntry(
-      makeMedia({
-        status: 'por_ver',
-        review: { rating: 4, completedAt: '2024-02-01T00:00:00.000Z' },
-      }),
-    );
+  it('lee las colecciones del backup', () => {
+    const withCollections = JSON.stringify({
+      app: 'que-miro',
+      version: SCHEMA_VERSION,
+      exportedAt: '2024-01-01T00:00:00.000Z',
+      media: [],
+      collections: [
+        {
+          id: 'abc',
+          name: 'Maratón',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-01T00:00:00.000Z',
+        },
+        { name: 'sin id' },
+      ],
+    });
 
-    expect(parsed?.status).toBe('completada');
-    expect(parsed?.review?.rating).toBe(4);
+    const { collections } = parseBackup(withCollections);
+    expect(collections).toHaveLength(1);
+    expect(collections[0].name).toBe('Maratón');
   });
 
-  it('ignora una reseña con puntaje fuera de rango', () => {
-    const parsed = parseMediaEntry(
-      makeMedia({
-        review: { rating: 42, completedAt: '2024-02-01T00:00:00.000Z' },
-      }),
-    );
-
-    expect(parsed?.review).toBeUndefined();
-  });
-});
-
-describe('parseBackup', () => {
   it('lee un backup válido', () => {
     const { media, skipped } = parseBackup(serialize([makeMedia()]));
     expect(media).toHaveLength(1);
@@ -158,11 +149,14 @@ describe('toCsv', () => {
   it('escapa las comillas del comentario', () => {
     const csv = toCsv([
       makeMedia({
-        review: {
-          rating: 5,
-          text: 'Dijo "hola" y se fue',
-          completedAt: '2024-01-01T00:00:00.000Z',
-        },
+        history: [
+          {
+            id: 'a',
+            rating: 5,
+            text: 'Dijo "hola" y se fue',
+            completedAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
       }),
     ]);
 
@@ -172,5 +166,25 @@ describe('toCsv', () => {
   it('arranca con el BOM y la fila de encabezados', () => {
     const csv = toCsv([]);
     expect(csv.startsWith('\uFEFFtitulo,tipo,anio')).toBe(true);
+  });
+
+  it('aplana el historial y el progreso', () => {
+    const csv = toCsv([
+      makeMedia({
+        mediaType: 'tv',
+        seasons: [{ seasonNumber: 1, name: 'T1', episodeCount: 4 }],
+        progress: { watched: { 1: [1, 2] } },
+        providers: ['Netflix'],
+        history: [
+          { id: 'b', rating: 5, completedAt: '2025-01-01T00:00:00.000Z' },
+          { id: 'a', rating: 3, completedAt: '2020-01-01T00:00:00.000Z' },
+        ],
+      }),
+    ]);
+
+    // Dos visionados, el puntaje del más reciente, y el progreso en porcentaje.
+    expect(csv).toContain('"2","5"');
+    expect(csv).toContain('"Netflix"');
+    expect(csv).toContain('"50%"');
   });
 });

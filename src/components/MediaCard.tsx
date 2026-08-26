@@ -3,7 +3,9 @@ import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
 import { SavedMedia, MediaStatus } from '@/types';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
-import { Check, Tv, Film, Trash2, Star } from 'lucide-react';
+import { latestRating, watchCount } from '@/lib/schema';
+import { progressPercent, watchedEpisodes } from '@/lib/progress';
+import { Check, Tv, Film, Repeat, Trash2, Star } from 'lucide-react';
 import { ReviewDrawer } from './ReviewDrawer';
 import { TitleDetailModal } from './TitleDetailModal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -36,6 +38,14 @@ export function MediaCard({
     }
     updateStatus(media.tmdbId, newStatus);
   };
+
+  const rating = latestRating(media);
+  const times = watchCount(media);
+  // El progreso solo se muestra en series empezadas y sin terminar: al 0% no
+  // dice nada y al 100% lo dice el puntaje.
+  const percent = media.mediaType === 'tv' ? progressPercent(media) : 0;
+  const showProgress =
+    media.mediaType === 'tv' && watchedEpisodes(media) > 0 && percent < 100;
 
   const handleDelete = async () => {
     await removeMedia(media.tmdbId);
@@ -76,15 +86,23 @@ export function MediaCard({
             )}
             <span className="absolute inset-0 bg-gradient-to-t from-bg-card to-transparent" />
 
-            {media.review && (
+            {rating !== undefined && (
               <span className="absolute top-3 right-3 flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold">
-                {media.review.rating}
+                {rating}
                 <Star size={12} className="fill-accent text-accent" aria-hidden="true" />
                 <span className="sr-only">de 5 estrellas</span>
               </span>
             )}
 
-            <span className="absolute bottom-3 left-3 right-3 flex flex-col gap-1">
+            {times > 1 && (
+              <span className="absolute top-3 left-3 flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-medium">
+                <Repeat size={11} aria-hidden="true" />
+                {times}
+                <span className="sr-only">veces vista</span>
+              </span>
+            )}
+
+            <span className="absolute bottom-3 left-3 right-3 flex flex-col gap-1.5">
               <span className="font-serif italic font-bold text-lg leading-tight line-clamp-2">
                 {media.title}
               </span>
@@ -97,10 +115,28 @@ export function MediaCard({
                   </>
                 )}
               </span>
+
+              {showProgress && (
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="h-1 flex-1 bg-border-card rounded-full overflow-hidden"
+                  >
+                    <span
+                      className="block h-full bg-accent rounded-full"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </span>
+                  <span className="text-[10px] text-text-muted tabular-nums">
+                    {percent}%
+                  </span>
+                </span>
+              )}
             </span>
           </span>
           <span className="sr-only">
             Ver detalle de {media.title}. Estado: {STATUS_LABELS[media.status]}.
+            {showProgress && ` Progreso: ${percent}%.`}
           </span>
         </button>
 
@@ -169,6 +205,7 @@ export function MediaCard({
         <TitleDetailModal
           id={media.tmdbId}
           mediaType={media.mediaType}
+          media={media}
           isOpen={isDetailOpen}
           onClose={() => setIsDetailOpen(false)}
         />

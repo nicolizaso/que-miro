@@ -8,6 +8,8 @@ import { useLibraryFilters } from '@/hooks/useLibraryFilters';
 import {
   SORT_OPTIONS,
   collectGenres,
+  collectProviders,
+  collectTags,
   filterLibrary,
   hasActiveFilters,
 } from '@/lib/library';
@@ -39,6 +41,9 @@ export function ListView() {
     [mediaList, filters.status],
   );
   const genres = useMemo(() => collectGenres(inStatus), [inStatus]);
+  const providers = useMemo(() => collectProviders(inStatus), [inStatus]);
+  const tags = useMemo(() => collectTags(inStatus), [inStatus]);
+  const collections = useMediaStore((state) => state.collections);
 
   const filteredList = useMemo(
     () => filterLibrary(mediaList, filters),
@@ -112,7 +117,7 @@ export function ListView() {
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <select
                 value={filters.type ?? ''}
                 onChange={(e) =>
@@ -139,6 +144,58 @@ export function ListView() {
                   {genres.map((genre) => (
                     <option key={genre} value={genre}>
                       {genre}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Cada desplegable aparece solo si hay más de un valor entre el
+                  cual elegir: un filtro con una sola opción no filtra nada. */}
+              {providers.length > 1 && (
+                <select
+                  value={filters.provider ?? ''}
+                  onChange={(e) => setFilters({ provider: e.target.value || null })}
+                  aria-label="Filtrar por plataforma"
+                  className={selectClass}
+                >
+                  <option value="">Todas las plataformas</option>
+                  {providers.map((provider) => (
+                    <option key={provider} value={provider}>
+                      {provider}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {collections.length > 0 && (
+                <select
+                  value={filters.collection ?? ''}
+                  onChange={(e) =>
+                    setFilters({ collection: e.target.value || null })
+                  }
+                  aria-label="Filtrar por lista"
+                  className={selectClass}
+                >
+                  <option value="">Todas mis listas</option>
+                  {collections.map((collection) => (
+                    <option key={collection.id} value={collection.id}>
+                      {collection.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {tags.length > 1 && (
+                <select
+                  value={filters.tag ?? ''}
+                  onChange={(e) => setFilters({ tag: e.target.value || null })}
+                  aria-label="Filtrar por etiqueta"
+                  className={selectClass}
+                >
+                  <option value="">Cualquier ánimo</option>
+                  {tags.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
                     </option>
                   ))}
                 </select>
