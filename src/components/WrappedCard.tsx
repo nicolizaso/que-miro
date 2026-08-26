@@ -76,7 +76,10 @@ export function WrappedCard() {
 
         <dl className="grid grid-cols-3 gap-4">
           {highlights.map(({ value, label }) => (
-            <div key={label}>
+            // `justify-between` con `h-full`: en el teléfono "2 días y 9 h"
+            // ocupa dos renglones y los otros dos uno, y sin esto las
+            // etiquetas quedaban a tres alturas distintas.
+            <div key={label} className="flex h-full flex-col justify-between">
               <dt className="sr-only">{label}</dt>
               <dd className="font-serif italic font-bold text-2xl text-accent">
                 {value}
