@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import {
   getMediaDetail,
   TMDB_IMAGE_BASE_URL,
@@ -7,6 +7,16 @@ import {
 import { TMDbDetail } from '@/types';
 import { X, Play, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Dialog } from '@/components/ui/Dialog';
+import { getRegionName, usePreferences } from '@/preferences';
+
+/**
+ * Regiones a las que se recurre si la elegida no tiene catálogo para el título.
+ *
+ * Mostrar plataformas de otro país es peor que no mostrar nada solo si no se
+ * aclara: por eso, cuando se usa un fallback, la UI dice de qué país son.
+ */
+const FALLBACK_REGIONS = ['ES', 'US'];
 
 interface Props {
   id: number;
@@ -15,13 +25,12 @@ interface Props {
   onClose: () => void;
 }
 
-/** Región preferida para las plataformas de streaming, con fallback. */
-const PROVIDER_REGIONS = ['AR', 'ES', 'US'];
-
 export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
   const [detail, setDetail] = useState<TMDbDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const preferredRegion = usePreferences((state) => state.region);
+  const titleId = useId();
 
   useEffect(() => {
     if (!isOpen || !id) {
@@ -57,26 +66,20 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
     };
   }, [id, mediaType, isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
   const trailer = detail?.videos?.results?.find(
     (v) => v.type === 'Trailer' && v.site === 'YouTube',
   );
   const cast = detail?.credits?.cast?.slice(0, 5) ?? [];
 
   const providerResults = detail?.['watch/providers']?.results;
-  const providers = providerResults
-    ? PROVIDER_REGIONS.map((region) => providerResults[region]).find(Boolean)
+  // Se busca primero la región elegida y recién después los fallbacks, para
+  // poder avisar cuál se terminó mostrando.
+  const shownRegion = providerResults
+    ? [preferredRegion, ...FALLBACK_REGIONS].find(
+        (region) => providerResults[region],
+      )
     : undefined;
+  const providers = shownRegion ? providerResults?.[shownRegion] : undefined;
 
   // TMDB puede repetir la misma plataforma en flatrate/rent/buy: se deduplica.
   const allProviders = [
@@ -94,11 +97,12 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
   const title = detail?.title || detail?.name || '';
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-bg-main/90 backdrop-blur-md overflow-y-auto"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title || 'Detalle del título'}
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      label={title || 'Detalle del título'}
+      labelledBy={detail ? titleId : undefined}
+      className="z-[60] flex items-center justify-center p-4 sm:p-6 bg-overlay backdrop-blur-md overflow-y-auto"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
@@ -109,15 +113,17 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
         <button
           onClick={onClose}
           aria-label="Cerrar"
-          className="absolute top-4 right-4 z-10 p-2 bg-bg-main/50 backdrop-blur-md rounded-full text-white hover:bg-bg-main transition-colors"
+          className="absolute top-4 right-4 z-10 p-2 bg-bg-main/60 backdrop-blur-md rounded-full text-text-main hover:bg-bg-main transition-colors"
         >
-          <X size={20} />
+          <X size={20} aria-hidden="true" />
         </button>
 
         {error ? (
           <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
-            <AlertCircle className="text-accent" size={32} />
-            <p className="text-text-main/70 text-sm max-w-xs">{error}</p>
+            <AlertCircle className="text-accent" size={32} aria-hidden="true" />
+            <p role="alert" className="text-text-muted text-sm max-w-xs">
+              {error}
+            </p>
             <button
               onClick={onClose}
               className="mt-2 px-4 py-2 rounded-xl border border-border-card text-sm hover:bg-border-card transition-colors"
@@ -140,20 +146,23 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
                   className="w-full h-full object-cover"
                 />
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/20 to-transparent" />
+              {/* El degradado va siempre a negro y el texto siempre en blanco:
+                  van sobre una imagen, no sobre el fondo del tema. */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
               {detail && (
                 <div className="absolute bottom-6 left-6 right-6">
-                  <h2 className="font-serif italic font-bold text-3xl sm:text-4xl text-white drop-shadow-lg line-clamp-2">
+                  <h2
+                    id={titleId}
+                    className="font-serif italic font-bold text-3xl sm:text-4xl text-white drop-shadow-lg line-clamp-2"
+                  >
                     {title}
                   </h2>
                   <div className="flex flex-wrap gap-2 text-sm text-white/80 mt-2">
                     <span>
-                      {(
-                        detail.release_date ||
-                        detail.first_air_date ||
-                        ''
-                      ).split('-')[0]}
+                      {(detail.release_date || detail.first_air_date || '').split(
+                        '-',
+                      )[0]}
                     </span>
                     {detail.genres?.slice(0, 3).map((g) => (
                       <span key={g.id}>• {g.name}</span>
@@ -163,10 +172,10 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
               )}
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8 custom-scrollbar">
+            <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8">
               {loading ? (
-                <div className="flex items-center justify-center gap-2 py-10 text-text-main/50">
-                  <Loader2 className="animate-spin" size={20} />
+                <div className="flex items-center justify-center gap-2 py-10 text-text-muted">
+                  <Loader2 className="animate-spin" size={20} aria-hidden="true" />
                   <span className="text-sm">Cargando detalles...</span>
                 </div>
               ) : (
@@ -176,17 +185,18 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
                       href={`https://www.youtube.com/watch?v=${trailer.key}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full py-4 bg-accent text-white rounded-xl font-medium hover:bg-accent/90 transition-colors shrink-0"
+                      className="flex items-center justify-center gap-2 w-full py-4 bg-accent text-accent-contrast rounded-xl font-medium hover:opacity-90 transition-opacity shrink-0"
                     >
-                      <Play size={20} className="fill-white" />
+                      <Play size={20} className="fill-current" aria-hidden="true" />
                       Ver Tráiler
+                      <span className="sr-only">(se abre en YouTube)</span>
                     </a>
                   )}
 
                   {detail?.overview && (
                     <div>
                       <h3 className="text-lg font-bold mb-2">Sinopsis</h3>
-                      <p className="text-text-main/70 text-sm leading-relaxed">
+                      <p className="text-text-muted text-sm leading-relaxed">
                         {detail.overview}
                       </p>
                     </div>
@@ -194,15 +204,10 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
 
                   {cast.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-bold mb-3">
-                        Reparto Principal
-                      </h3>
-                      <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                      <h3 className="text-lg font-bold mb-3">Reparto Principal</h3>
+                      <ul className="flex gap-4 overflow-x-auto pb-2">
                         {cast.map((c) => (
-                          <div
-                            key={c.id}
-                            className="flex flex-col gap-2 w-20 shrink-0"
-                          >
+                          <li key={c.id} className="flex flex-col gap-2 w-20 shrink-0">
                             <div className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0">
                               {c.profile_path && (
                                 <img
@@ -216,18 +221,26 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
                             <span className="text-xs text-center font-medium leading-tight truncate">
                               {c.name}
                             </span>
-                          </div>
+                          </li>
                         ))}
-                      </div>
+                      </ul>
                     </div>
                   )}
 
-                  {allProviders.length > 0 && (
+                  {allProviders.length > 0 && shownRegion && (
                     <div>
-                      <h3 className="text-lg font-bold mb-3">Dónde Ver</h3>
-                      <div className="flex gap-3">
+                      <h3 className="text-lg font-bold mb-1">
+                        Dónde Ver en {getRegionName(shownRegion)}
+                      </h3>
+                      {shownRegion !== preferredRegion && (
+                        <p className="text-xs text-text-subtle mb-3">
+                          No hay datos para {getRegionName(preferredRegion)}. Podés
+                          cambiar el país en tu perfil.
+                        </p>
+                      )}
+                      <ul className="flex gap-3 mt-3">
                         {allProviders.map((p) => (
-                          <div
+                          <li
                             key={p.provider_name}
                             className="w-12 h-12 rounded-xl bg-border-card overflow-hidden shrink-0"
                             title={p.provider_name}
@@ -238,10 +251,17 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
                               loading="lazy"
                               className="w-full h-full object-cover"
                             />
-                          </div>
+                          </li>
                         ))}
-                      </div>
+                      </ul>
                     </div>
+                  )}
+
+                  {!loading && allProviders.length === 0 && detail && (
+                    <p className="text-sm text-text-subtle">
+                      No encontramos plataformas para este título en{' '}
+                      {getRegionName(preferredRegion)}.
+                    </p>
                   )}
                 </>
               )}
@@ -249,6 +269,6 @@ export function TitleDetailModal({ id, mediaType, isOpen, onClose }: Props) {
           </>
         )}
       </motion.div>
-    </div>
+    </Dialog>
   );
 }

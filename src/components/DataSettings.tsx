@@ -1,0 +1,283 @@
+import { useRef, useState } from 'react';
+import { Download, FileUp, Trash2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+import { useMediaActions } from '@/hooks/useMediaActions';
+import { AccountDeletionError, useAccountActions } from '@/hooks/useAccountActions';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useMediaStore } from '@/store';
+import type { ParsedBackup } from '@/lib/backup';
+import {
+  ImportError,
+  backupFilename,
+  buildBackup,
+  downloadFile,
+  mergeLibraries,
+  parseBackup,
+  toCsv,
+} from '@/lib/backup';
+
+type PendingDialog = 'import' | 'clear' | 'delete' | null;
+
+/**
+ * Bloque de "tus datos": exportar, importar y borrar.
+ *
+ * La contraparte de guardar todo en la nube es poder llevárselo y poder
+ * borrarlo. Sin esto la biblioteca es rehén de la app.
+ */
+export function DataSettings() {
+  const { mediaList } = useMediaStore();
+  const { authState } = useAuth();
+  const { showToast } = useToast();
+  const { saveMany } = useMediaActions();
+  const { clearLibrary, deleteAccount } = useAccountActions();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dialog, setDialog] = useState<PendingDialog>(null);
+  const [isPending, setIsPending] = useState(false);
+  // Se guarda el archivo elegido para confirmarlo antes de tocar la biblioteca.
+  const [pendingImport, setPendingImport] = useState<ParsedBackup | null>(null);
+
+  const isEmpty = mediaList.length === 0;
+  const isDemo = authState === 'demo';
+
+  const handleExportJson = () => {
+    downloadFile(
+      backupFilename('json'),
+      JSON.stringify(buildBackup(mediaList), null, 2),
+      'application/json',
+    );
+    showToast('Descargamos tu biblioteca en JSON.');
+  };
+
+  const handleExportCsv = () => {
+    downloadFile(backupFilename('csv'), toCsv(mediaList), 'text/csv');
+    showToast('Descargamos tu biblioteca en CSV.');
+  };
+
+  const handleFileChosen = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // El input se limpia siempre: si no, elegir el mismo archivo dos veces
+    // seguidas no dispara el evento la segunda.
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const parsed = parseBackup(await file.text());
+      if (parsed.media.length === 0) {
+        showToast('El archivo no tiene títulos para importar.', 'error');
+        return;
+      }
+      setPendingImport(parsed);
+      setDialog('import');
+    } catch (error) {
+      showToast(
+        error instanceof ImportError
+          ? error.message
+          : 'No pudimos leer el archivo.',
+        'error',
+      );
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!pendingImport) return;
+    setIsPending(true);
+    try {
+      const { media, added, updated } = mergeLibraries(
+        mediaList,
+        pendingImport.media,
+      );
+      // Solo se re-escriben los que cambian: importar un backup casi idéntico
+      // no debería costar una escritura por título.
+      const touched = media.filter((item) => {
+        const existing = mediaList.find((m) => m.tmdbId === item.tmdbId);
+        return !existing || existing.updatedAt !== item.updatedAt;
+      });
+      await saveMany(touched);
+
+      showToast(
+        added || updated
+          ? `Importamos ${added} título${added === 1 ? '' : 's'} nuevo${
+              added === 1 ? '' : 's'
+            }${updated ? ` y actualizamos ${updated}` : ''}.`
+          : 'Tu biblioteca ya estaba al día: no hubo cambios.',
+      );
+    } finally {
+      setIsPending(false);
+      setPendingImport(null);
+      setDialog(null);
+    }
+  };
+
+  const runDestructive = async (action: () => Promise<void>, done: string) => {
+    setIsPending(true);
+    try {
+      await action();
+      showToast(done);
+      setDialog(null);
+    } catch (error) {
+      showToast(
+        error instanceof AccountDeletionError
+          ? error.message
+          : 'No pudimos completar la operación.',
+        'error',
+      );
+      setDialog(null);
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div>
+        <h3 className="font-bold text-lg">Tus datos</h3>
+        <p className="text-sm text-text-muted">
+          Tu biblioteca es tuya: llevatela cuando quieras.
+        </p>
+      </div>
+
+      <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            onClick={handleExportJson}
+            disabled={isEmpty}
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Download size={16} aria-hidden="true" />
+            Exportar JSON
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={isEmpty}
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Download size={16} aria-hidden="true" />
+            Exportar CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isDemo}
+            title={isDemo ? 'No disponible mientras estás en el demo' : undefined}
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <FileUp size={16} aria-hidden="true" />
+            Importar
+          </button>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={handleFileChosen}
+          className="sr-only"
+          aria-label="Elegir archivo de backup"
+        />
+
+        <p className="text-xs text-text-subtle">
+          El JSON se puede volver a importar; el CSV es para abrir en una
+          planilla.
+        </p>
+      </div>
+
+      <div className="bg-bg-card border border-border-card rounded-2xl p-4 flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => setDialog('clear')}
+          disabled={isEmpty || isDemo}
+          className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-card text-sm font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Trash2 size={16} aria-hidden="true" />
+          Vaciar mi biblioteca
+        </button>
+
+        {authState === 'authenticated' && (
+          <button
+            type="button"
+            onClick={() => setDialog('delete')}
+            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-accent/40 text-sm font-medium text-accent hover:bg-accent/10 transition-colors"
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            Eliminar mi cuenta
+          </button>
+        )}
+      </div>
+
+      <ConfirmDialog
+        isOpen={dialog === 'import'}
+        title="Importar biblioteca"
+        confirmLabel="Importar"
+        isPending={isPending}
+        onConfirm={confirmImport}
+        onClose={() => {
+          setPendingImport(null);
+          setDialog(null);
+        }}
+        description={
+          <>
+            <p>
+              El archivo tiene{' '}
+              <strong className="text-text-main">
+                {pendingImport?.media.length ?? 0} título
+                {pendingImport?.media.length === 1 ? '' : 's'}
+              </strong>
+              . Se suman a tu biblioteca; ante un repetido queda el que se
+              modificó más tarde.
+            </p>
+            {!!pendingImport?.skipped && (
+              <p className="mt-2">
+                {pendingImport.skipped} entrada
+                {pendingImport.skipped === 1 ? '' : 's'} del archivo{' '}
+                {pendingImport.skipped === 1 ? 'está' : 'están'} incompleta
+                {pendingImport.skipped === 1 ? '' : 's'} y se{' '}
+                {pendingImport.skipped === 1 ? 'descarta' : 'descartan'}.
+              </p>
+            )}
+          </>
+        }
+      />
+
+      <ConfirmDialog
+        isOpen={dialog === 'clear'}
+        title="Vaciar la biblioteca"
+        confirmLabel="Vaciar"
+        destructive
+        isPending={isPending}
+        onConfirm={() =>
+          runDestructive(clearLibrary, 'Tu biblioteca quedó vacía.')
+        }
+        onClose={() => setDialog(null)}
+        description={
+          <p>
+            Se borran los {mediaList.length} títulos que tenés guardados, con sus
+            reseñas. Esto no se puede deshacer — si querés conservarlos,
+            exportalos antes.
+          </p>
+        }
+      />
+
+      <ConfirmDialog
+        isOpen={dialog === 'delete'}
+        title="Eliminar la cuenta"
+        confirmLabel="Eliminar cuenta"
+        destructive
+        isPending={isPending}
+        onConfirm={() =>
+          runDestructive(deleteAccount, 'Eliminamos tu cuenta y todos sus datos.')
+        }
+        onClose={() => setDialog(null)}
+        description={
+          <p>
+            Se elimina tu cuenta junto con toda tu biblioteca y tus reseñas, en
+            este dispositivo y en la nube. No hay vuelta atrás.
+          </p>
+        }
+      />
+    </section>
+  );
+}

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useMediaStore } from '@/store';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
 import { Search, Plus, Check, Tv, Film, AlertCircle, X } from 'lucide-react';
 import { searchMulti, getGenreNames, TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
+import { Dialog } from '@/components/ui/Dialog';
 import { TMDbResult } from '@/types';
 
 const DEBOUNCE_MS = 400;
@@ -35,6 +36,8 @@ export function SearchModal({
   const { mediaList } = useMediaStore();
   const { addMedia } = useMediaActions();
   const { showToast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const statusId = useId();
 
   const trimmedQuery = query.trim();
 
@@ -75,17 +78,10 @@ export function SearchModal({
     };
   }, [trimmedQuery]);
 
-  // Cerrar con Escape, que es lo que espera cualquiera en un modal de búsqueda.
+  // Al cerrar se limpia la búsqueda: reabrir con ⌘K tiene que empezar de cero.
   useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+    if (!isOpen) setQuery('');
+  }, [isOpen]);
 
   const handleAdd = async (result: TMDbResult) => {
     const title = result.title || result.name || '';
@@ -108,35 +104,48 @@ export function SearchModal({
     !isSearching && !error && trimmedQuery !== '' && results.length === 0;
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-bg-main/90 backdrop-blur-sm p-4 flex flex-col pt-16"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Buscar títulos"
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      label="Buscar títulos"
+      initialFocusRef={inputRef}
+      className="bg-overlay backdrop-blur-sm p-4 flex flex-col pt-16"
     >
       <div className="relative max-w-2xl w-full mx-auto flex flex-col gap-4 h-full">
         <button
           onClick={onClose}
-          aria-label="Cerrar búsqueda"
           className="absolute -top-12 right-0 text-text-main p-2 flex items-center gap-2 text-sm"
         >
-          <X size={18} /> Cerrar
+          <X size={18} aria-hidden="true" /> Cerrar
         </button>
 
         <div className="relative">
           <Search
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-text-subtle pointer-events-none"
             size={20}
+            aria-hidden="true"
           />
           <input
-            type="text"
-            autoFocus
+            ref={inputRef}
+            type="search"
             placeholder="Buscar películas o series..."
+            aria-label="Buscar películas o series"
+            aria-describedby={statusId}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-bg-card border border-border-card rounded-2xl py-4 pl-12 pr-4 text-text-main focus:outline-none focus:border-accent"
+            className="w-full bg-bg-card border border-border-card rounded-2xl py-4 pl-12 pr-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
           />
         </div>
+
+        {/* Cambios de estado anunciados por el lector de pantalla: sin esto, la
+            búsqueda es silenciosa para quien no ve la lista actualizarse. */}
+        <p id={statusId} role="status" aria-live="polite" className="sr-only">
+          {isSearching
+            ? 'Buscando...'
+            : error
+              ? error
+              : trimmedQuery && `${results.length} resultados`}
+        </p>
 
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 pb-20">
           {isSearching &&
@@ -147,13 +156,13 @@ export function SearchModal({
               role="alert"
               className="flex items-start gap-3 p-4 bg-accent/10 border border-accent/20 rounded-2xl text-accent text-sm"
             >
-              <AlertCircle size={18} className="shrink-0 mt-0.5" />
+              <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
               <span>{error}</span>
             </div>
           )}
 
           {showEmptyState && (
-            <div className="text-center text-text-main/50 py-12">
+            <div className="text-center text-text-muted py-12">
               <p>No encontramos nada para "{trimmedQuery}".</p>
               <p className="text-sm mt-2">Probá con otro título.</p>
             </div>
@@ -181,19 +190,21 @@ export function SearchModal({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-500">
-                        {result.media_type === 'movie' ? <Film /> : <Tv />}
+                      <div className="w-full h-full flex items-center justify-center text-text-subtle">
+                        {result.media_type === 'movie' ? (
+                          <Film aria-hidden="true" />
+                        ) : (
+                          <Tv aria-hidden="true" />
+                        )}
                       </div>
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-text-main truncate">
-                      {title}
-                    </h4>
-                    <div className="text-sm text-gray-400 flex items-center gap-2">
+                    <h4 className="font-bold text-text-main truncate">{title}</h4>
+                    <div className="text-sm text-text-muted flex items-center gap-2">
                       <span>{year}</span>
-                      <span>•</span>
+                      <span aria-hidden="true">•</span>
                       <span>
                         {result.media_type === 'movie' ? 'Película' : 'Serie'}
                       </span>
@@ -202,10 +213,11 @@ export function SearchModal({
 
                   {isAdded ? (
                     <span
-                      className="p-3 bg-border-card rounded-xl text-gray-400 flex items-center justify-center"
+                      className="p-3 bg-border-card rounded-xl text-text-muted flex items-center justify-center"
                       title="Ya está en tu biblioteca"
                     >
-                      <Check size={20} />
+                      <Check size={20} aria-hidden="true" />
+                      <span className="sr-only">Ya está en tu biblioteca</span>
                     </span>
                   ) : (
                     <button
@@ -214,7 +226,7 @@ export function SearchModal({
                       aria-label={`Agregar "${title}" a Por Ver`}
                       title="Agregar a Por Ver"
                     >
-                      <Plus size={20} />
+                      <Plus size={20} aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -222,6 +234,6 @@ export function SearchModal({
             })}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

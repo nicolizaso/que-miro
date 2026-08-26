@@ -15,11 +15,19 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
+import { enterDemoMode, exitDemoMode } from '@/lib/demo';
 import { useMediaStore } from '@/store';
 
-type AuthState = 'loading' | 'authenticated' | 'guest' | 'unauthenticated';
+type AuthState =
+  | 'loading'
+  | 'authenticated'
+  | 'guest'
+  /** Biblioteca de ejemplo, sin cuenta y sin escribir en Firestore. */
+  | 'demo'
+  | 'unauthenticated';
 
 const GUEST_STORAGE_KEY = 'que-miro-guest';
+const DEMO_STORAGE_KEY = 'que-miro-demo';
 
 interface AuthContextType {
   user: User | null;
@@ -28,6 +36,10 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
   continueAsGuest: () => void;
+  /** Carga la biblioteca de ejemplo para poder recorrer la app sin registrarse. */
+  startDemo: () => void;
+  /** Sale del demo y devuelve la biblioteca que hubiera antes. */
+  stopDemo: () => void;
   /** Sale del modo invitado para volver a la pantalla de login, sin borrar datos. */
   exitGuestMode: () => void;
   logout: () => Promise<void>;
@@ -43,7 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!isFirebaseConfigured) {
       // Sin Firebase la app sigue siendo usable: todo queda en localStorage.
       console.warn('Firebase no está configurado. Activando modo invitado.');
-      setAuthState('guest');
+      setAuthState(
+        localStorage.getItem(DEMO_STORAGE_KEY) === 'true' ? 'demo' : 'guest',
+      );
       return;
     }
 
@@ -52,10 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (currentUser) {
         setAuthState('authenticated');
         localStorage.removeItem(GUEST_STORAGE_KEY);
+        localStorage.removeItem(DEMO_STORAGE_KEY);
         return;
       }
       // Se lee acá y no fuera del callback para no quedarse con un valor viejo
       // si el usuario entra y sale del modo invitado en la misma sesión.
+      if (localStorage.getItem(DEMO_STORAGE_KEY) === 'true') {
+        setAuthState('demo');
+        return;
+      }
       const isGuest = localStorage.getItem(GUEST_STORAGE_KEY) === 'true';
       setAuthState(isGuest ? 'guest' : 'unauthenticated');
     });
@@ -90,6 +109,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthState('guest');
     };
 
+    const startDemo = () => {
+      enterDemoMode();
+      localStorage.setItem(DEMO_STORAGE_KEY, 'true');
+      localStorage.removeItem(GUEST_STORAGE_KEY);
+      setAuthState('demo');
+    };
+
+    const stopDemo = () => {
+      exitDemoMode();
+      localStorage.removeItem(DEMO_STORAGE_KEY);
+      setAuthState('unauthenticated');
+    };
+
     const exitGuestMode = () => {
       // Los títulos guardados como invitado se conservan a propósito: si la
       // persona después inicia sesión, SyncManager los migra a su cuenta.
@@ -102,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await signOut(auth);
       }
       localStorage.removeItem(GUEST_STORAGE_KEY);
+      localStorage.removeItem(DEMO_STORAGE_KEY);
       // Se limpia la biblioteca para que no quede visible en el dispositivo
       // después de cerrar sesión. En Firestore sigue intacta.
       useMediaStore.getState().reset();
@@ -116,6 +149,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithEmail,
       registerWithEmail,
       continueAsGuest,
+      startDemo,
+      stopDemo,
       exitGuestMode,
       logout,
     };
