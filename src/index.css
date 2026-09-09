@@ -49,7 +49,31 @@
   /* Un solo radio por rol, y siempre el mismo (ver `@utility` más abajo). */
   --radius-control: 0.75rem;
   --radius-surface: 1rem;
+
+  /*
+   * Elevación
+   * ---------
+   * Tres pasos y ninguno más: apoyado (`card`), levantado por el cursor
+   * (`lift`) y flotando sobre el resto (`pop`).
+   *
+   * La sombra va teñida del color del fondo, no negra: un negro puro sobre el
+   * crema del tema claro se ve gris sucio, y sobre el casi-negro del oscuro no
+   * se ve nada. Por eso el color sale de `--qm-shadow-*`, que cambia con el
+   * tema como cualquier otro token.
+   */
+  --shadow-card: 0 1px 2px var(--qm-shadow-weak), 0 2px 6px -2px var(--qm-shadow-weak);
+  --shadow-lift: 0 2px 4px -2px var(--qm-shadow-weak),
+    0 12px 24px -10px var(--qm-shadow-strong);
+  --shadow-pop: 0 24px 56px -20px var(--qm-shadow-strong),
+    0 4px 12px -6px var(--qm-shadow-weak);
 }
+
+/*
+ * En un dispositivo con mouse el hover existe; en uno táctil, no.
+ * Esta variante es la que deja esconder un control hasta que el cursor pasa por
+ * encima sin que en el celular quede escondido para siempre.
+ */
+@custom-variant hover-device (@media (hover: hover) and (pointer: fine));
 
 /* Tema claro (por defecto). */
 :root {
@@ -71,6 +95,14 @@
   --qm-status-viendo: #12776c;
   --qm-status-por-ver: #9a6f10;
   --qm-status-completada: #7024b8;
+
+  /* Sombras teñidas del marrón del fondo crema, no negras. */
+  --qm-shadow-weak: rgb(74 60 44 / 0.10);
+  --qm-shadow-strong: rgb(74 60 44 / 0.22);
+
+  /* La barra de scroll, del mismo gris cálido que los bordes. */
+  --qm-scroll-thumb: rgb(120 112 100 / 0.38);
+  --qm-scroll-thumb-hover: rgb(120 112 100 / 0.62);
 }
 
 /* Tema oscuro: explícito y también cuando el sistema lo pide y no hay una
@@ -97,6 +129,14 @@
   --qm-status-viendo: #2a9d8f;
   --qm-status-por-ver: #e9c46a;
   --qm-status-completada: #ab55f1;
+
+  /* Sobre un fondo casi negro la sombra tiene que ser más profunda que en
+     claro para leerse como separación y no como suciedad. */
+  --qm-shadow-weak: rgb(0 0 0 / 0.34);
+  --qm-shadow-strong: rgb(0 0 0 / 0.58);
+
+  --qm-scroll-thumb: rgb(160 172 186 / 0.22);
+  --qm-scroll-thumb-hover: rgb(160 172 186 / 0.42);
 }
 
 /* El selector de arriba con `:not([data-theme='light'])` aplica siempre que no
@@ -121,12 +161,59 @@
     --qm-status-viendo: #12776c;
     --qm-status-por-ver: #9a6f10;
     --qm-status-completada: #7024b8;
+
+    --qm-shadow-weak: rgb(74 60 44 / 0.10);
+    --qm-shadow-strong: rgb(74 60 44 / 0.22);
+
+    --qm-scroll-thumb: rgb(120 112 100 / 0.38);
+    --qm-scroll-thumb-hover: rgb(120 112 100 / 0.62);
   }
 }
 
 @layer base {
   body {
     @apply bg-bg-main text-text-main font-sans antialiased;
+  }
+
+  /*
+   * Barras de scroll
+   * ----------------
+   * Por defecto las pinta el sistema operativo, y en Windows y Linux eso es una
+   * canaleta gris clara de 15px con dos botones: sobre el tema oscuro se ve como
+   * un tajo blanco, y debajo de cada fila de pósters se veía directamente mal.
+   *
+   * Acá pasan a ser del mismo gris que los bordes de la app y de la mitad del
+   * ancho. `scrollbar-*` cubre Firefox; las reglas `::-webkit-*`, todo lo demás.
+   * El `border` transparente con `background-clip: content-box` es lo que deja
+   * aire alrededor del pulgar sin dibujar la canaleta.
+   *
+   * Las filas horizontales de pósters no usan nada de esto: esconden la barra y
+   * ponen flechas en su lugar (ver la utilidad `rail`).
+   */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--qm-scroll-thumb) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--qm-scroll-thumb);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--qm-scroll-thumb-hover);
   }
 
   /*
@@ -232,4 +319,76 @@
  */
 @utility select-control {
   @apply bg-bg-card border border-border-control rounded-control py-2.5 pl-3 pr-9 text-sm text-text-main focus:outline-none focus:border-accent transition-colors;
+}
+
+/**
+ * Fila que se desplaza en horizontal (pósters, reparto).
+ *
+ * Esconde la barra de scroll —para eso están las flechas de `ScrollRail`— y
+ * suma dos cosas que la fila no tenía: imanta cada tarjeta al borde izquierdo,
+ * así nunca queda una cortada por la mitad al terminar de arrastrar, y corta el
+ * `overscroll` para que llegar al final de la fila no arrastre la página entera
+ * ni dispare el "atrás" del navegador.
+ *
+ * `proximity` y no `mandatory`: con `mandatory` un arrastre corto salta a la
+ * tarjeta siguiente aunque la persona haya querido moverse dos píxeles.
+ */
+@utility rail {
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 1rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility rail-item {
+  scroll-snap-align: start;
+}
+
+/**
+ * Botones
+ * -------
+ * `btn` es la forma y el comportamiento: alineación, radio, el hundido al
+ * apretar y qué hace cuando está deshabilitado. Las variantes de abajo solo
+ * eligen el color.
+ *
+ * A propósito no define ni `padding` ni tamaño de texto: eso lo sigue poniendo
+ * cada botón con utilidades sueltas. Dos utilidades que declaran la misma
+ * propiedad se pisan según el orden en que Tailwind las emite, no según el
+ * orden en que se las escribe en el `class`, así que un `btn` con padding
+ * propio volvería impredecible cualquier `py-4` puesto al lado.
+ *
+ * El hundido no es decoración: es la única respuesta inmediata que tiene un
+ * botón cuyo efecto tarda en verse.
+ */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow,opacity,transform] duration-150 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+}
+
+/** La acción principal de una pantalla. Una sola por vista. */
+@utility btn-primary {
+  @apply bg-accent text-accent-contrast shadow-card hover:opacity-90 hover:shadow-lift;
+}
+
+/** Una acción secundaria, con el mismo peso visual que una tarjeta. */
+@utility btn-secondary {
+  @apply bg-bg-card border border-border-card text-text-main hover:bg-border-card;
+}
+
+/** Una acción de tercer orden: sin caja hasta que se la toca. */
+@utility btn-ghost {
+  @apply text-text-muted hover:bg-border-card hover:text-text-main;
+}
+
+/**
+ * Botón de solo ícono. El tamaño lo pone cada uno —por el mismo motivo que
+ * `btn` no define el suyo—, pero que no baje de 40px: es el mínimo con el que
+ * un dedo acierta.
+ */
+@utility btn-icon {
+  @apply inline-flex items-center justify-center shrink-0 rounded-control transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:scale-[0.94] disabled:opacity-50 disabled:pointer-events-none;
 }

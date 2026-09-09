@@ -97,7 +97,7 @@ export function CollectionsSettings() {
                       <button
                         type="submit"
                         aria-label="Guardar nombre"
-                        className="p-2 rounded-control bg-accent text-accent-contrast hover:opacity-90 transition-opacity"
+                        className="btn-icon w-10 h-10 bg-accent text-accent-contrast hover:opacity-90"
                       >
                         <Check size={16} aria-hidden="true" />
                       </button>

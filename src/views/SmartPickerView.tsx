@@ -39,7 +39,7 @@ export function SmartPickerView() {
         </p>
         <Link
           to="/explorar"
-          className="px-4 py-2.5 rounded-control bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity"
+          className="btn btn-primary px-4 py-2.5 text-sm"
         >
           Explorar títulos
         </Link>

@@ -43,7 +43,7 @@ export function AppLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-bg-main text-text-main font-sans selection:bg-accent/30 flex flex-col">
+    <div className="min-h-[100dvh] bg-bg-main text-text-main font-sans selection:bg-accent/30 flex flex-col">
       <SyncManager />
 
       {/* Primer elemento tabulable de la página: deja saltar el header y la
@@ -98,10 +98,10 @@ export function AppLayout() {
           <div className="flex items-center gap-2 sm:gap-3 ml-auto">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="hidden sm:flex items-center gap-2 bg-bg-card border border-border-card px-3 py-2 rounded-control text-text-subtle hover:bg-border-card hover:text-text-main transition-colors"
+              className="btn btn-secondary hidden sm:flex px-3 py-2 text-text-subtle hover:text-text-main"
             >
               <Search size={16} aria-hidden="true" />
-              <span className="text-sm">Buscar...</span>
+              <span className="text-sm font-normal">Buscar...</span>
               <kbd className="hidden lg:inline-flex items-center gap-1 bg-bg-main px-1.5 py-0.5 rounded border border-border-card text-[10px] font-medium uppercase ml-3">
                 <span className="text-xs">⌘</span>K
               </kbd>
@@ -110,9 +110,9 @@ export function AppLayout() {
             <button
               onClick={() => setIsSearchOpen(true)}
               aria-label="Buscar títulos"
-              className="sm:hidden p-2 text-text-main hover:bg-border-card rounded-full"
+              className="btn-icon w-10 h-10 sm:hidden rounded-full text-text-main hover:bg-border-card"
             >
-              <Search size={24} aria-hidden="true" />
+              <Search size={22} aria-hidden="true" />
             </button>
 
             <ThemeToggle />
@@ -179,7 +179,8 @@ export function AppLayout() {
                       {isCenter ? (
                         <span
                           className={cn(
-                            'w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-lg',
+                            'w-14 h-14 rounded-full flex items-center justify-center shadow-pop',
+                            'transition-[background-color,color,transform] duration-200 group-active:scale-95',
                             isActive
                               ? 'bg-accent text-accent-contrast scale-110'
                               : 'bg-bg-card border border-border-card text-text-main group-hover:scale-105',

@@ -101,7 +101,7 @@ export function CollectionPicker({ media }: { media: SavedMedia }) {
           <button
             type="submit"
             disabled={!name.trim() || isSaving}
-            className="px-4 py-2 rounded-control bg-accent text-accent-contrast text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center gap-2"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             {isSaving && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
             Crear

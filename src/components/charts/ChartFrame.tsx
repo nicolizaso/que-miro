@@ -46,7 +46,7 @@ export function ChartFrame({
           onClick={() => setShowTable((open) => !open)}
           aria-expanded={showTable}
           aria-controls={tableId}
-          className="flex items-center gap-1.5 shrink-0 text-xs text-text-muted hover:text-text-main transition-colors px-2 py-1 rounded-lg hover:bg-border-card"
+          className="btn btn-ghost shrink-0 px-2 py-1 text-xs"
         >
           <Table2 size={14} aria-hidden="true" />
           {showTable ? 'Ver gráfico' : 'Ver tabla'}

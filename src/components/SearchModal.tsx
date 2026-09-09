@@ -133,7 +133,7 @@ export function SearchModal({
             aria-describedby={statusId}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-bg-card border border-border-control rounded-surface py-4 pl-12 pr-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
+            className="w-full bg-bg-card border border-border-control rounded-surface shadow-pop py-4 pl-12 pr-4 text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent transition-colors"
           />
         </div>
 

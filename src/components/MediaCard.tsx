@@ -9,6 +9,7 @@ import { Check, Tv, Film, Repeat, Trash2, Star } from 'lucide-react';
 import { ReviewDrawer } from './ReviewDrawer';
 import { TitleDetailModal } from './TitleDetailModal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { cn } from '@/lib/utils';
 
 const STATUS_LABELS: Record<MediaStatus, string> = {
   por_ver: 'Por Ver',
@@ -55,7 +56,16 @@ export function MediaCard({
 
   return (
     <>
-      <article className="group relative surface overflow-hidden hover:border-text-subtle transition-colors flex flex-col h-full">
+      <article
+        className={cn(
+          'group relative surface overflow-hidden flex flex-col h-full',
+          // La tarjeta se levanta al pasarle el cursor por encima. Antes el
+          // único cambio era el color del borde, que a un metro de distancia no
+          // se ve: la sombra sí.
+          'shadow-card transition-[border-color,box-shadow,transform] duration-200',
+          'hover:border-text-subtle hover:shadow-lift hover:-translate-y-0.5',
+        )}
+      >
         {/* Un botón de verdad y no un div con onClick: es la única forma de que
             la tarjeta se pueda abrir con teclado. Los botones de acción quedan
             afuera porque no se pueden anidar dentro de otro botón. */}
@@ -96,7 +106,10 @@ export function MediaCard({
                 )}
               </span>
             )}
-            <span className="absolute inset-0 bg-gradient-to-t from-bg-card to-transparent" />
+            {/* El velo va solo al pie y no sobre el póster entero: cubriéndolo
+                todo, cada portada terminaba lavada del color de la tarjeta. Acá
+                oscurece lo justo para que el título se lea encima. */}
+            <span className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-bg-card via-bg-card/80 to-transparent" />
 
             {rating !== undefined && (
               <span className="absolute top-3 right-3 flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold">
@@ -150,37 +163,38 @@ export function MediaCard({
             su estado, así que repetirlo solo servía para robarle ancho a los
             botones y dejar el texto cortado en "P..". Para lectores de pantalla
             el estado sigue estando, en el nombre accesible del botón de arriba. */}
-        <div className="p-3 flex items-center justify-end gap-2 border-t border-border-card mt-auto shrink-0">
-          <div className="flex items-center gap-1 shrink-0">
-            {media.status === 'por_ver' && (
-              <button
-                onClick={() => handleStatusChange('viendo')}
-                className="w-10 h-10 rounded-control bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-text-muted"
-                aria-label={`Mover "${media.title}" a Viendo`}
-                title="Mover a Viendo"
-              >
-                <Tv size={16} aria-hidden="true" />
-              </button>
-            )}
-            {media.status !== 'completada' && (
-              <button
-                onClick={() => handleStatusChange('completada')}
-                className="w-10 h-10 rounded-control bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-status-completada"
-                aria-label={`Marcar "${media.title}" como completada`}
-                title="Marcar Completada"
-              >
-                <Check size={16} aria-hidden="true" />
-              </button>
-            )}
+        {/* Los botones se reparten todo el ancho en lugar de apretarse contra
+            la derecha: quedaban tres cuadraditos flotando al final de una fila
+            vacía, y con el dedo son un blanco más chico de lo que hace falta. */}
+        <div className="p-3 mt-auto shrink-0 border-t border-border-card grid grid-flow-col auto-cols-fr gap-2">
+          {media.status === 'por_ver' && (
             <button
-              onClick={() => setIsConfirmingDelete(true)}
-              className="w-10 h-10 rounded-control bg-bg-main border border-border-card flex items-center justify-center hover:bg-border-card text-text-muted hover:text-accent transition-colors"
-              aria-label={`Eliminar "${media.title}" de la biblioteca`}
-              title="Eliminar de mi biblioteca"
+              onClick={() => handleStatusChange('viendo')}
+              className="btn-icon w-full h-10 bg-bg-main border border-border-card text-text-muted hover:bg-border-card hover:text-text-main"
+              aria-label={`Mover "${media.title}" a Viendo`}
+              title="Mover a Viendo"
             >
-              <Trash2 size={16} aria-hidden="true" />
+              <Tv size={16} aria-hidden="true" />
             </button>
-          </div>
+          )}
+          {media.status !== 'completada' && (
+            <button
+              onClick={() => handleStatusChange('completada')}
+              className="btn-icon w-full h-10 bg-bg-main border border-border-card text-status-completada hover:bg-border-card"
+              aria-label={`Marcar "${media.title}" como completada`}
+              title="Marcar Completada"
+            >
+              <Check size={16} aria-hidden="true" />
+            </button>
+          )}
+          <button
+            onClick={() => setIsConfirmingDelete(true)}
+            className="btn-icon w-full h-10 bg-bg-main border border-border-card text-text-muted hover:bg-border-card hover:text-accent"
+            aria-label={`Eliminar "${media.title}" de la biblioteca`}
+            title="Eliminar de mi biblioteca"
+          >
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
         </div>
       </article>
 
