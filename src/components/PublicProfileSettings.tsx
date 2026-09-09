@@ -130,7 +130,7 @@ export function PublicProfileSettings() {
                     type="button"
                     onClick={handlePublish}
                     disabled={isSaving || !draft}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-control bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    className="btn btn-primary flex-1 py-2.5 px-4 text-sm"
                   >
                     {isSaving ? (
                       <Loader2 size={16} className="animate-spin" aria-hidden="true" />
@@ -195,7 +195,7 @@ export function PublicProfileSettings() {
                 type="button"
                 onClick={handlePublish}
                 disabled={isSaving || !draft}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-control bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                className="btn btn-primary py-2.5 px-4 text-sm"
               >
                 {isSaving ? (
                   <Loader2 size={16} className="animate-spin" aria-hidden="true" />

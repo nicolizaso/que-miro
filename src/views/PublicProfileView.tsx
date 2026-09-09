@@ -2,6 +2,7 @@ import { Film, Star, UserX } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { usePublicProfileBySlug } from '@/hooks/usePublicProfile';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { ScrollRail } from '@/components/ui/ScrollRail';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { formatWatchDate } from '@/lib/dates';
 
@@ -17,7 +18,7 @@ export function PublicProfileView() {
   const { profile, isLoading, error } = usePublicProfileBySlug(slug);
 
   return (
-    <div className="min-h-screen bg-bg-main text-text-main flex flex-col">
+    <div className="min-h-[100dvh] bg-bg-main text-text-main flex flex-col">
       <header className="border-b border-border-card">
         {/* Mismo ancho que el contenido: el logo cae en la vertical del título. */}
         <div className="w-full max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -31,7 +32,7 @@ export function PublicProfileView() {
             <ThemeToggle />
             <Link
               to="/"
-              className="text-sm px-4 py-2 rounded-control bg-accent text-accent-contrast font-medium hover:opacity-90 transition-opacity"
+              className="btn btn-primary px-4 py-2 text-sm"
             >
               Armá la tuya
             </Link>
@@ -115,12 +116,17 @@ export function PublicProfileView() {
             )}
 
             {profile.favorites.length > 0 && (
-              <section className="flex flex-col gap-3">
-                <h2 className="text-section">Sus favoritas</h2>
-                <ul className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+              <section>
+                <ScrollRail
+                  label="Sus favoritas"
+                  header={<h2 className="text-section">Sus favoritas</h2>}
+                >
                   {profile.favorites.map((favorite) => (
-                    <li key={favorite.tmdbId} className="w-28 sm:w-32 shrink-0">
-                      <div className="aspect-[2/3] w-full rounded-control overflow-hidden bg-border-card">
+                    <li
+                      key={favorite.tmdbId}
+                      className="rail-item w-28 sm:w-32 shrink-0"
+                    >
+                      <div className="relative aspect-[2/3] w-full rounded-control overflow-hidden bg-border-card shadow-card">
                         {favorite.posterPath ? (
                           <img
                             src={`${TMDB_IMAGE_BASE_URL}${favorite.posterPath}`}
@@ -133,8 +139,9 @@ export function PublicProfileView() {
                             <Film size={28} aria-hidden="true" />
                           </div>
                         )}
+                        <span className="absolute inset-0 rounded-control ring-1 ring-inset ring-text-main/10" />
                       </div>
-                      <p className="text-sm font-medium mt-2 line-clamp-2 leading-tight">
+                      <p className="text-sm font-medium mt-3 line-clamp-2 leading-tight min-h-[2.5em]">
                         {favorite.title}
                       </p>
                       <p className="text-xs text-text-subtle flex items-center gap-1">
@@ -148,7 +155,7 @@ export function PublicProfileView() {
                       </p>
                     </li>
                   ))}
-                </ul>
+                </ScrollRail>
               </section>
             )}
 

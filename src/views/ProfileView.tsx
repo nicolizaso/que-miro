@@ -37,7 +37,7 @@ function SessionCard() {
           // `exitGuestMode` y no `logout`: conserva los títulos guardados sin
           // cuenta para poder migrarlos cuando la persona inicie sesión.
           onClick={exitGuestMode}
-          className="flex items-center gap-2 bg-accent text-accent-contrast px-4 py-2 rounded-control text-sm font-medium hover:opacity-90 transition-opacity whitespace-nowrap"
+          className="btn btn-primary px-4 py-2 text-sm"
         >
           <LogIn size={16} aria-hidden="true" /> Ingresar
         </button>
@@ -59,7 +59,7 @@ function SessionCard() {
       </div>
       <button
         onClick={() => logout()}
-        className="flex items-center gap-2 border border-border-card text-text-muted px-4 py-2 rounded-control text-sm font-medium hover:bg-border-card hover:text-text-main transition-colors whitespace-nowrap"
+        className="btn btn-secondary bg-transparent px-4 py-2 text-sm text-text-muted hover:text-text-main"
       >
         <LogOut size={16} aria-hidden="true" /> Salir
       </button>

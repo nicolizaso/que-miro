@@ -30,7 +30,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-label={`Tema: ${current.label}. Cambiar a ${next.label.toLowerCase()}`}
       title={`Tema: ${current.label}`}
       className={cn(
-        'p-2 rounded-full text-text-muted hover:text-text-main hover:bg-border-card transition-colors',
+        'btn-icon w-10 h-10 rounded-full text-text-muted hover:text-text-main hover:bg-border-card',
         className,
       )}
     >

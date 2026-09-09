@@ -64,7 +64,7 @@ export function LoginView() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-main flex flex-col items-center justify-center p-4">
+    <div className="min-h-[100dvh] bg-bg-main flex flex-col items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
@@ -86,7 +86,7 @@ export function LoginView() {
         <button
           type="button"
           onClick={startDemo}
-          className="w-full flex items-center justify-center gap-2 bg-accent text-accent-contrast font-medium py-3 rounded-control hover:opacity-90 transition-opacity mb-3"
+          className="btn btn-primary w-full py-3 mb-3"
         >
           <Sparkles size={18} aria-hidden="true" />
           Ver el demo
@@ -154,7 +154,7 @@ export function LoginView() {
             <button
               type="submit"
               disabled={isBusy}
-              className="w-full bg-accent text-accent-contrast font-medium py-3 rounded-control hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+              className="btn btn-primary w-full py-3"
             >
               {pendingAction === 'form' && (
                 <Loader2 size={16} className="animate-spin" />

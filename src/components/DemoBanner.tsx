@@ -31,13 +31,16 @@ export function DemoBanner() {
         <Sparkles size={16} className="text-accent shrink-0" aria-hidden="true" />
         <p className="flex-1 text-text-main/90">
           <span className="font-medium">Estás viendo el demo.</span>{' '}
-          <span className="text-text-muted">
+          {/* La aclaración se esconde en pantalla angosta: ahí el cartel
+              entero le come tres renglones a la vista, y lo que hay que
+              entender —que esto es el demo— ya lo dice la primera frase. */}
+          <span className="text-text-muted hidden sm:inline">
             Los títulos son de ejemplo y nada se guarda en la nube.
           </span>
         </p>
         <button
           onClick={stopDemo}
-          className="flex items-center gap-1.5 shrink-0 text-text-muted hover:text-text-main transition-colors"
+          className="btn btn-ghost shrink-0 px-2 py-1 text-sm"
         >
           <X size={14} aria-hidden="true" />
           Salir del demo

@@ -8,6 +8,7 @@ import { SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
 import { X, Play, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
+import { ScrollRail } from '@/components/ui/ScrollRail';
 import { SeriesProgress } from '@/components/SeriesProgress';
 import { CollectionPicker } from '@/components/CollectionPicker';
 import { WatchHistory } from '@/components/WatchHistory';
@@ -132,7 +133,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2 }}
-        className="relative w-full max-w-2xl bg-bg-card border border-border-card rounded-3xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
+        className="relative w-full max-w-2xl bg-bg-card border border-border-card rounded-3xl shadow-pop overflow-hidden flex flex-col my-auto max-h-[90vh]"
       >
         <button
           onClick={onClose}
@@ -241,7 +242,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                       href={`https://www.youtube.com/watch?v=${trailer.key}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full py-4 bg-accent text-accent-contrast rounded-control font-medium hover:opacity-90 transition-opacity shrink-0"
+                      className="btn btn-primary w-full py-4 shrink-0"
                     >
                       <Play size={20} className="fill-current" aria-hidden="true" />
                       Ver Tráiler
@@ -289,28 +290,32 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                   )}
 
                   {cast.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-bold mb-3">Reparto Principal</h3>
-                      <ul className="flex gap-4 overflow-x-auto pb-2">
-                        {cast.map((c) => (
-                          <li key={c.id} className="flex flex-col gap-2 w-20 shrink-0">
-                            <div className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0">
-                              {c.profile_path && (
-                                <img
-                                  src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`}
-                                  alt=""
-                                  loading="lazy"
-                                  className="w-full h-full object-cover"
-                                />
-                              )}
-                            </div>
-                            <span className="text-xs text-center font-medium leading-tight truncate">
-                              {c.name}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <ScrollRail
+                      label="Reparto Principal"
+                      fadeFrom="card"
+                      header={<h3 className="text-lg font-bold">Reparto Principal</h3>}
+                    >
+                      {cast.map((c) => (
+                        <li
+                          key={c.id}
+                          className="rail-item flex flex-col gap-2 w-20 shrink-0"
+                        >
+                          <div className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0 shadow-card">
+                            {c.profile_path && (
+                              <img
+                                src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`}
+                                alt=""
+                                loading="lazy"
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+                          <span className="text-xs text-center font-medium leading-tight truncate">
+                            {c.name}
+                          </span>
+                        </li>
+                      ))}
+                    </ScrollRail>
                   )}
 
                   {allProviders.length > 0 && picked && (

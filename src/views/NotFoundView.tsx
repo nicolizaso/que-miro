@@ -13,7 +13,7 @@ export function NotFoundView() {
       </p>
       <Link
         to="/"
-        className="bg-accent text-accent-contrast px-6 py-3 rounded-control font-medium hover:opacity-90 transition-opacity"
+        className="btn btn-primary px-6 py-3"
       >
         Volver a mis listas
       </Link>

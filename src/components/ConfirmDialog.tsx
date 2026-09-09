@@ -38,7 +38,7 @@ export function ConfirmDialog({
       initialFocusRef={cancelRef}
       className="z-[70] flex items-center justify-center p-4 bg-overlay backdrop-blur-sm"
     >
-      <div className="w-full max-w-md bg-bg-card border border-border-card rounded-3xl p-6 flex flex-col gap-4">
+      <div className="w-full max-w-md bg-bg-card border border-border-card rounded-3xl shadow-pop p-6 flex flex-col gap-4">
         <h2 id={titleId} className="font-serif italic font-bold text-2xl">
           {title}
         </h2>

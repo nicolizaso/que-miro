@@ -297,7 +297,7 @@ export function ListView() {
                 </p>
                 <Link
                   to="/explorar"
-                  className="mt-6 flex items-center gap-2 px-4 py-2.5 rounded-control bg-accent text-accent-contrast text-sm font-medium hover:opacity-90 transition-opacity"
+                  className="btn btn-primary mt-6 px-4 py-2.5 text-sm"
                 >
                   <Compass size={16} aria-hidden="true" />
                   Explorar títulos
@@ -308,7 +308,7 @@ export function ListView() {
                 {mediaList.length === 0 && authState !== 'demo' && (
                   <button
                     onClick={startDemo}
-                    className="mt-3 flex items-center gap-2 px-4 py-2.5 rounded-control border border-border-card text-sm font-medium text-text-main hover:bg-border-card transition-colors"
+                    className="btn btn-secondary bg-transparent mt-3 px-4 py-2.5 text-sm"
                   >
                     <Sparkles size={16} aria-hidden="true" />
                     Ver una biblioteca de ejemplo

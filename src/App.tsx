@@ -21,7 +21,7 @@ import { SmartPickerView } from '@/views/SmartPickerView';
 function Splash() {
   return (
     <div
-      className="min-h-screen bg-bg-main flex items-center justify-center"
+      className="min-h-[100dvh] bg-bg-main flex items-center justify-center"
       role="status"
       aria-label="Cargando"
     >

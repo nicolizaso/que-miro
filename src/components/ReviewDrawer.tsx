@@ -162,7 +162,7 @@ export function ReviewDrawer({
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="bg-bg-card border border-border-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 flex flex-col gap-6 my-auto"
+        className="bg-bg-card border border-border-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-pop p-6 flex flex-col gap-6 my-auto"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -251,7 +251,7 @@ export function ReviewDrawer({
           <button
             onClick={handleSave}
             disabled={rating === 0 || isSaving}
-            className="flex-1 py-4 rounded-control bg-accent text-accent-contrast font-medium disabled:opacity-50 transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+            className="btn btn-primary flex-1 py-4"
           >
             {isSaving && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
             Guardar Reseña
