@@ -65,8 +65,31 @@ export function ListView() {
       <div
         role="tablist"
         aria-label="Estado de los títulos"
-        className="flex bg-bg-card p-1 rounded-control border border-border-card"
+        className="relative flex bg-bg-card p-1 rounded-control border border-border-card"
       >
+        {/*
+          La pastilla de la pestaña activa es un solo elemento que se desplaza,
+          y no un `layoutId` que aparece y desaparece dentro de cada botón.
+
+          Con `layoutId`, cada cambio de pestaña desmonta la pastilla de un
+          botón y monta otra en el siguiente, y motion tiene que animar entre
+          las dos midiendo un nodo que ya salió del documento. Un `transform`
+          con transición de CSS hace lo mismo a la vista, sin nada que medir
+          —y `prefers-reduced-motion` ya lo desactiva desde `index.css`.
+        */}
+        <span
+          aria-hidden="true"
+          className="absolute top-1 bottom-1 left-1 bg-border-card rounded-lg transition-transform duration-300 ease-out"
+          style={{
+            // El contenedor tiene `p-1` de cada lado: el ancho útil es el
+            // total menos esos dos cuartos de rem.
+            width: `calc((100% - 0.5rem) / ${TABS.length})`,
+            transform: `translateX(${
+              TABS.findIndex((tab) => tab.id === filters.status) * 100
+            }%)`,
+          }}
+        />
+
         {TABS.map((tab) => {
           const isActive = filters.status === tab.id;
           const count = mediaList.filter((m) => m.status === tab.id).length;
@@ -91,13 +114,6 @@ export function ListView() {
                   : 'text-text-muted hover:text-text-main',
               )}
             >
-              {isActive && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute inset-0 bg-border-card rounded-lg"
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                />
-              )}
               {/* `whitespace-nowrap`: "Completadas (6)" partía en dos renglones
                   en pantallas angostas y descuadraba toda la fila. */}
               <span className="relative z-10 flex items-center justify-center gap-1.5 whitespace-nowrap text-[13px] sm:text-sm font-medium">
@@ -270,13 +286,31 @@ export function ListView() {
         </div>
       )}
 
-      <AnimatePresence mode="popLayout">
+      {/*
+        `mode="wait"`, y con una llave en cada rama.
+
+        Antes era `popLayout` y la rama de la grilla no llevaba `key`, que son
+        dos maneras de pedirle a AnimatePresence lo que no sabe hacer:
+        `popLayout` saca de flujo a lo que sale —lo reposiciona en absoluto
+        para medirlo— y sirve entre hermanos de una lista, no entre dos
+        pantallas que se reemplazan; y sin llave no puede distinguir una rama
+        de la otra, así que la salida queda mal contabilizada y termina
+        animando nodos que ya no están en el documento. De ahí el
+        `Cannot read properties of undefined (reading 'startTime')` al entrar
+        a una lista: motion intenta resolver los fotogramas de un elemento
+        que ya se fue.
+
+        Con `wait` la saliente termina antes de que entre la otra: una sola
+        pantalla viva a la vez y nada que medir fuera de flujo.
+      */}
+      <AnimatePresence mode="wait" initial={false}>
         {filteredList.length === 0 ? (
           <motion.div
-            key="empty"
+            key="vacio"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             className="flex flex-col items-center justify-center py-20 text-text-muted text-center"
           >
             {isFiltered ? (
@@ -319,7 +353,15 @@ export function ListView() {
           </motion.div>
         ) : (
           <motion.div
-            layout
+            // La grilla no lleva `layout`: es una grilla de CSS, su alto sale
+            // del contenido y proyectarla solo agregaba medición a cada
+            // cambio de lista. El `layout` que importa es el de cada tarjeta,
+            // que es lo que se reordena al cambiar el orden.
+            key="grilla"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
           >
             {filteredList.map((media) => (
@@ -328,7 +370,6 @@ export function ListView() {
                 layout
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.2 }}
               >
                 <MediaCard media={media} />
