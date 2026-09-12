@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMissingDatabaseError } from './firebase';
+import { isMissingDatabaseError, isPermissionDeniedError } from './firebase';
 
 /**
  * El clasificador decide entre dos carteles muy distintos —"esperá a que
@@ -43,5 +43,22 @@ describe('isMissingDatabaseError', () => {
     expect(isMissingDatabaseError(null)).toBe(false);
     expect(isMissingDatabaseError('not-found')).toBe(false);
     expect(isMissingDatabaseError(undefined)).toBe(false);
+  });
+});
+
+describe('isPermissionDeniedError', () => {
+  it('reconoce el rechazo de las reglas', () => {
+    expect(
+      isPermissionDeniedError({
+        code: 'permission-denied',
+        message: 'Missing or insufficient permissions.',
+      }),
+    ).toBe(true);
+  });
+
+  it('no marca como rechazo lo que es falta de base o de red', () => {
+    expect(isPermissionDeniedError({ code: 'not-found' })).toBe(false);
+    expect(isPermissionDeniedError({ code: 'unavailable' })).toBe(false);
+    expect(isPermissionDeniedError(null)).toBe(false);
   });
 });

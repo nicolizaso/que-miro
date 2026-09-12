@@ -87,6 +87,18 @@ export function isMissingDatabaseError(error: unknown): boolean {
   );
 }
 
+/**
+ * Las reglas de Firestore rechazan lo que la app pide.
+ *
+ * Se separa de un error de red por lo mismo que el anterior: esto no mejora
+ * esperando. O las reglas no se publicaron en este proyecto, o no cubren las
+ * rutas que la app usa.
+ */
+export function isPermissionDeniedError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  return (error as { code?: string }).code === 'permission-denied';
+}
+
 // Inicialización de servicios con el proyecto real
 export const app = isFirebaseConfigured
   ? initializeApp(firebaseConfig)

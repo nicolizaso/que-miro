@@ -113,6 +113,17 @@ modo invitado.
    navegador y *parece* andar, pero nada llega al servidor y los dispositivos
    nunca se ven entre sí. Si tu proyecto tiene una base con nombre en vez de la
    `(default)`, poné ese nombre en `VITE_FIREBASE_DATABASE_ID`.
+
+   Las reglas del repositorio no se publican solas: copiarlas en la pestaña
+   **Reglas** de la consola y darle *Publicar*, o desplegarlas desde acá, que
+   es lo reproducible (usa [`firebase.json`](firebase.json)):
+
+   ```bash
+   npx firebase-tools deploy --only firestore:rules --project TU_PROJECT_ID
+   ```
+
+   Si quedan sin publicar, Firestore contesta
+   `Missing or insufficient permissions` y la app avisa con un cartel.
 4. En **Authentication → Settings → Authorized domains**, agregá tu dominio de
    producción (si no, el login con Google falla con `auth/unauthorized-domain`).
 5. Copiá las credenciales del proyecto a tu `.env.local`.
