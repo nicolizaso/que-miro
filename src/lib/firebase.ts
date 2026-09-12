@@ -30,6 +30,18 @@ const firebaseConfig = {
  */
 const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID?.trim() || undefined;
 
+/**
+ * Proyecto contra el que está hablando esta copia de la app.
+ *
+ * Se exporta para poder mostrarlo cuando la sincronización falla: el valor
+ * vive en una variable de entorno del deploy, que desde el navegador no se
+ * puede leer, y sin él no hay forma de saber si las reglas se publicaron en
+ * el proyecto correcto. Es público por diseño, como el resto de la config web
+ * de Firebase.
+ */
+export const firebaseProjectId: string =
+  firebaseConfig.projectId || 'sin configurar';
+
 // Validación de presencia de la API Key
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== '',

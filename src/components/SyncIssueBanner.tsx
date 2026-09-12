@@ -1,6 +1,7 @@
 import { DatabaseZap } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useSyncStatus } from '@/lib/syncStatus';
+import { firebaseProjectId } from '@/lib/firebase';
 
 /**
  * Aviso de que la sincronización está rota del lado del servidor.
@@ -47,7 +48,12 @@ export function SyncIssueBanner() {
             Tus cambios no se están sincronizando.
           </span>{' '}
           <span className="text-text-muted">
-            Tus títulos quedan guardados solo en este dispositivo. {causa}
+            Tus títulos quedan guardados solo en este dispositivo. {causa}{' '}
+            {/* El proyecto, acá: es el dato que hace falta para saber dónde
+                publicar las reglas, y desde el navegador no hay otra forma
+                de verlo. */}
+            Esta copia de la app habla con el proyecto{' '}
+            <code className="font-mono text-text-main">{firebaseProjectId}</code>.
           </span>
         </p>
       </div>
