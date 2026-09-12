@@ -1,6 +1,7 @@
 import { DatabaseZap } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useSyncStatus } from '@/lib/syncStatus';
+import { firebaseProjectId } from '@/lib/firebase';
 
 /**
  * Aviso de que la sincronización está rota del lado del servidor.
@@ -14,13 +15,22 @@ import { useSyncStatus } from '@/lib/syncStatus';
  * A diferencia del de "sin conexión", este no se arregla solo: dice qué hay
  * que tocar en la consola de Firebase.
  */
+/** Qué explicar según lo que esté rompiendo la sincronización. */
+const CAUSAS = {
+  'missing-database':
+    'El proyecto de Firebase no tiene una base de Firestore. Creala en la consola (Firestore Database → Crear base de datos) y publicá las reglas del proyecto.',
+  'permission-denied':
+    'Las reglas de Firestore están rechazando tu cuenta. Revisá que las reglas del proyecto estén publicadas en la consola (Firestore Database → Reglas) y que sean las de firestore.rules.',
+} as const;
+
 export function SyncIssueBanner() {
   const issue = useSyncStatus((state) => state.issue);
   const isOnline = useOnlineStatus();
 
   // Sin red ya avisa `OfflineBanner`, y ese aviso es el correcto: al volver la
   // conexión se sincroniza solo. Dos carteles de lo mismo son ruido.
-  if (issue !== 'missing-database' || !isOnline) return null;
+  const causa = issue === 'unreachable' || issue === null ? null : CAUSAS[issue];
+  if (!causa || !isOnline) return null;
 
   return (
     <div
@@ -38,10 +48,12 @@ export function SyncIssueBanner() {
             Tus cambios no se están sincronizando.
           </span>{' '}
           <span className="text-text-muted">
-            El proyecto de Firebase no tiene una base de Firestore, así que todo
-            queda guardado solo en este dispositivo. Creala en la consola de
-            Firebase (Firestore Database → Crear base de datos) y publicá las
-            reglas del proyecto.
+            Tus títulos quedan guardados solo en este dispositivo. {causa}{' '}
+            {/* El proyecto, acá: es el dato que hace falta para saber dónde
+                publicar las reglas, y desde el navegador no hay otra forma
+                de verlo. */}
+            Esta copia de la app habla con el proyecto{' '}
+            <code className="font-mono text-text-main">{firebaseProjectId}</code>.
           </span>
         </p>
       </div>

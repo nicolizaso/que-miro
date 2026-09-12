@@ -15,6 +15,15 @@ interface MediaState {
    * siguiente que inicie sesión en el mismo dispositivo.
    */
   ownerUid: string | null;
+  /**
+   * UID cuya biblioteca ya bajamos del servidor al menos una vez.
+   *
+   * Es la diferencia entre "el servidor dice que no tenés nada" y "todavía no
+   * hablamos con el servidor". Mientras no coincida con el usuario actual, lo
+   * que hay en el dispositivo es la única copia que existe y no se puede
+   * pisar con lo que llegue de Firestore.
+   */
+  syncedUid: string | null;
 
   addMedia: (media: Omit<SavedMedia, 'updatedAt'>) => void;
   updateStatus: (tmdbId: number, status: MediaStatus) => void;
@@ -32,6 +41,8 @@ interface MediaState {
   removeCollection: (id: string) => void;
 
   setOwnerUid: (uid: string | null) => void;
+  /** Marca que la biblioteca de este UID ya llegó desde el servidor. */
+  setSyncedUid: (uid: string | null) => void;
   /** Vacía la biblioteca local. Se usa al cerrar sesión y al cambiar de cuenta. */
   reset: () => void;
 }
@@ -55,9 +66,17 @@ export const useMediaStore = create<MediaState>()(
       mediaList: [],
       collections: [],
       ownerUid: null,
+      syncedUid: null,
       setMediaList: (list) => set({ mediaList: list }),
       setOwnerUid: (uid) => set({ ownerUid: uid }),
-      reset: () => set({ mediaList: [], collections: [], ownerUid: null }),
+      setSyncedUid: (uid) => set({ syncedUid: uid }),
+      reset: () =>
+        set({
+          mediaList: [],
+          collections: [],
+          ownerUid: null,
+          syncedUid: null,
+        }),
 
       addMedia: (media) =>
         set((state) => {

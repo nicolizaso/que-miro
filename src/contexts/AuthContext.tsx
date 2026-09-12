@@ -17,6 +17,7 @@ import {
 import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
 import { enterDemoMode, exitDemoMode } from '@/lib/demo';
 import { useMediaStore } from '@/store';
+import { saveRescue } from '@/lib/rescue';
 
 type AuthState =
   | 'loading'
@@ -135,9 +136,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       localStorage.removeItem(GUEST_STORAGE_KEY);
       localStorage.removeItem(DEMO_STORAGE_KEY);
+
       // Se limpia la biblioteca para que no quede visible en el dispositivo
-      // después de cerrar sesión. En Firestore sigue intacta.
-      useMediaStore.getState().reset();
+      // después de cerrar sesión. En Firestore sigue intacta... salvo que
+      // nunca haya llegado. Si el servidor todavía no confirmó esta
+      // biblioteca, se guarda una copia de rescate antes de vaciar: si no,
+      // salir borraría la única que existe.
+      const { mediaList, collections, ownerUid, syncedUid, reset } =
+        useMediaStore.getState();
+      if (syncedUid !== ownerUid) {
+        saveRescue(mediaList, collections);
+      }
+      reset();
       setUser(null);
       setAuthState('unauthenticated');
     };

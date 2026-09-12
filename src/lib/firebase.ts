@@ -30,6 +30,18 @@ const firebaseConfig = {
  */
 const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID?.trim() || undefined;
 
+/**
+ * Proyecto contra el que está hablando esta copia de la app.
+ *
+ * Se exporta para poder mostrarlo cuando la sincronización falla: el valor
+ * vive en una variable de entorno del deploy, que desde el navegador no se
+ * puede leer, y sin él no hay forma de saber si las reglas se publicaron en
+ * el proyecto correcto. Es público por diseño, como el resto de la config web
+ * de Firebase.
+ */
+export const firebaseProjectId: string =
+  firebaseConfig.projectId || 'sin configurar';
+
 // Validación de presencia de la API Key
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== '',
@@ -85,6 +97,18 @@ export function isMissingDatabaseError(error: unknown): boolean {
     code === 'not-found' ||
     /database .*not (be )?found|does not exist/i.test(message)
   );
+}
+
+/**
+ * Las reglas de Firestore rechazan lo que la app pide.
+ *
+ * Se separa de un error de red por lo mismo que el anterior: esto no mejora
+ * esperando. O las reglas no se publicaron en este proyecto, o no cubren las
+ * rutas que la app usa.
+ */
+export function isPermissionDeniedError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  return (error as { code?: string }).code === 'permission-denied';
 }
 
 // Inicialización de servicios con el proyecto real

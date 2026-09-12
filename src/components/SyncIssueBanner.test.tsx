@@ -33,6 +33,13 @@ describe('SyncIssueBanner', () => {
     );
   });
 
+  it('avisa cuando las reglas rechazan la cuenta, y dice dónde mirar', () => {
+    setOnline(true);
+    useSyncStatus.setState({ issue: 'permission-denied' });
+    render(<SyncIssueBanner />);
+    expect(screen.getByRole('alert')).toHaveTextContent(/reglas de Firestore/i);
+  });
+
   it('calla si el problema es la red, que ya avisa el otro cartel', () => {
     setOnline(true);
     useSyncStatus.setState({ issue: 'unreachable' });

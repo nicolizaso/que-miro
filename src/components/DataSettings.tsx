@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Download, FileUp, Trash2 } from 'lucide-react';
+import { Download, FileUp, LifeBuoy, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useMediaActions } from '@/hooks/useMediaActions';
@@ -16,6 +16,8 @@ import {
   parseBackup,
   toCsv,
 } from '@/lib/backup';
+import { clearRescue, readRescue } from '@/lib/rescue';
+import { formatWatchDate } from '@/lib/dates';
 
 type PendingDialog = 'import' | 'clear' | 'delete' | null;
 
@@ -37,6 +39,9 @@ export function DataSettings() {
   const [isPending, setIsPending] = useState(false);
   // Se guarda el archivo elegido para confirmarlo antes de tocar la biblioteca.
   const [pendingImport, setPendingImport] = useState<ParsedBackup | null>(null);
+  // Se lee una sola vez: es localStorage y no cambia sola mientras la pantalla
+  // está abierta.
+  const [rescue, setRescue] = useState(() => readRescue());
 
   const isEmpty = mediaList.length === 0;
   const isDemo = authState === 'demo';
@@ -53,6 +58,23 @@ export function DataSettings() {
   const handleExportCsv = () => {
     downloadFile(backupFilename('csv'), toCsv(mediaList), 'text/csv');
     showToast('Descargamos tu biblioteca en CSV.');
+  };
+
+  /** Vuelve a poner en la biblioteca la copia que quedó de una sesión anterior. */
+  const restoreRescue = () => {
+    if (!rescue) return;
+    setPendingImport({
+      media: rescue.media,
+      collections: rescue.collections,
+      skipped: 0,
+    });
+    setDialog('import');
+  };
+
+  const discardRescue = () => {
+    clearRescue();
+    setRescue(null);
+    showToast('Descartamos la copia guardada en este dispositivo.');
   };
 
   const handleFileChosen = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,6 +125,12 @@ export function DataSettings() {
             }${updated ? ` y actualizamos ${updated}` : ''}.`
           : 'Tu biblioteca ya estaba al día: no hubo cambios.',
       );
+
+      // La copia de rescate cumplió: ya está de vuelta en la biblioteca.
+      if (rescue) {
+        clearRescue();
+        setRescue(null);
+      }
     } finally {
       setIsPending(false);
       setPendingImport(null);
@@ -137,6 +165,48 @@ export function DataSettings() {
           Tu biblioteca es tuya: llevatela cuando quieras.
         </p>
       </div>
+
+      {rescue && (
+        <div className="bg-accent/10 border border-accent/40 rounded-surface p-4 flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <LifeBuoy
+              size={18}
+              className="text-accent shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
+            <div>
+              <h3 className="text-section text-accent">
+                Hay una biblioteca guardada en este dispositivo
+              </h3>
+              <p className="text-sm text-text-muted">
+                Son {rescue.media.length} título
+                {rescue.media.length === 1 ? '' : 's'} de una sesión anterior
+                que nunca llegaron al servidor, del{' '}
+                {formatWatchDate(rescue.savedAt)}. Se pueden sumar a la
+                biblioteca actual.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={restoreRescue}
+              disabled={isDemo}
+              title={isDemo ? 'No disponible mientras estás en el demo' : undefined}
+              className="btn btn-primary flex-1 py-3 px-4 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Recuperar esos títulos
+            </button>
+            <button
+              type="button"
+              onClick={discardRescue}
+              className="flex-1 py-3 px-4 rounded-control border border-border-card text-sm font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors"
+            >
+              Descartar la copia
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="surface p-4 flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row gap-2">
