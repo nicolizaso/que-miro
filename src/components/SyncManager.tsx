@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaStore } from '@/store';
-import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { db, isFirebaseConfigured, isMissingDatabaseError } from '@/lib/firebase';
+import { useSyncStatus } from '@/lib/syncStatus';
 import { collection, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 import { Collection, SavedMedia } from '@/types';
 import { parseCollection, parseMedia } from '@/lib/schema';
@@ -47,8 +48,21 @@ export function SyncManager() {
     const collectionsRef = collection(db, `users/${user.uid}/collections`);
     let migrated = false;
 
+    const { setIssue } = useSyncStatus.getState();
+
     const onError = (error: unknown) => {
       console.error('[sync] Error de conexión con Firestore:', error);
+
+      // Que falte la base no es un corte de red: no se reintenta hasta
+      // arreglarlo, así que en vez de un aviso que se va a los 5 segundos deja
+      // un cartel fijo explicando qué pasa. Un toast acá miente por omisión:
+      // hace creer que los cambios están a salvo esperando la red.
+      if (isMissingDatabaseError(error)) {
+        setIssue('missing-database');
+        return;
+      }
+
+      setIssue('unreachable');
       showToast(
         'Perdimos la conexión con el servidor. Tus cambios pueden no guardarse.',
         'error',
@@ -58,6 +72,12 @@ export function SyncManager() {
     const unsubscribeMedia = onSnapshot(
       savedMediaRef,
       async (snapshot) => {
+        // Solo las emisiones que vienen del servidor prueban que hay
+        // sincronización: con caché persistente, Firestore emite igual desde
+        // IndexedDB aunque el servidor no conteste, y limpiar el cartel con
+        // eso sería justo el engaño que el cartel viene a evitar.
+        if (!snapshot.metadata.fromCache) setIssue(null);
+
         const remote = snapshot.docs
           .map((d) => parseMedia(d.data()))
           .filter((media): media is SavedMedia => media !== null);
@@ -124,6 +144,9 @@ export function SyncManager() {
     return () => {
       unsubscribeMedia();
       unsubscribeCollections();
+      // Sin listeners no hay nada que sincronizar: el cartel dejaría de
+      // describir el estado de la app.
+      setIssue(null);
     };
   }, [user, authState, showToast]);
 

@@ -108,6 +108,11 @@ modo invitado.
 1. Creá un proyecto en la [consola de Firebase](https://console.firebase.google.com/).
 2. En **Authentication**, habilitá los proveedores *Email/Password* y *Google*.
 3. En **Firestore**, creá la base y publicá las reglas de [`firestore.rules`](firestore.rules).
+   Este paso no es opcional: sin base, el SDK falla con
+   `Database '(default)' not found`, la app guarda todo en la caché local del
+   navegador y *parece* andar, pero nada llega al servidor y los dispositivos
+   nunca se ven entre sí. Si tu proyecto tiene una base con nombre en vez de la
+   `(default)`, poné ese nombre en `VITE_FIREBASE_DATABASE_ID`.
 4. En **Authentication → Settings → Authorized domains**, agregá tu dominio de
    producción (si no, el login con Google falla con `auth/unauthorized-domain`).
 5. Copiá las credenciales del proyecto a tu `.env.local`.
