@@ -5,15 +5,18 @@ import { SearchModal } from '@/components/SearchModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DemoBanner } from '@/components/DemoBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { SyncIssueBanner } from '@/components/SyncIssueBanner';
 import { SyncManager } from '@/components/SyncManager';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
+// El Picker va al medio a propósito: es el botón destacado de la barra
+// inferior, y un destacado descentrado deja la barra despareja. El perfil no
+// está acá — vive en el avatar del header, que es donde se lo busca.
 const NAV_ITEMS = [
-  { to: '/', label: 'Mis Listas', Icon: LayoutGrid, end: true },
   { to: '/explorar', label: 'Explorar', Icon: Compass, end: false },
   { to: '/picker', label: 'Picker', Icon: Shuffle, end: false },
-  { to: '/perfil', label: 'Perfil', Icon: User, end: false },
+  { to: '/', label: 'Mis Listas', Icon: LayoutGrid, end: true },
 ] as const;
 
 /**
@@ -117,30 +120,51 @@ export function AppLayout() {
 
             <ThemeToggle />
 
-            {authState === 'authenticated' ? (
-              <div className="w-8 h-8 rounded-full bg-border-card border border-border-card flex items-center justify-center overflow-hidden shrink-0">
-                {user?.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-xs font-bold uppercase">
-                    {user?.email?.[0] || 'U'}
-                  </span>
-                )}
-              </div>
-            ) : (
+            {authState !== 'authenticated' && (
               <span className="hidden sm:flex items-center justify-center bg-border-card rounded-full px-3 py-1 text-xs font-medium text-text-muted">
                 {authState === 'demo' ? 'Demo' : 'Modo Invitado'}
               </span>
             )}
+
+            {/* La foto de perfil *es* la entrada al perfil: sacamos ese destino
+                de la navegación —donde quedaba de más y dejaba la barra
+                despareja— y lo pusimos donde la gente ya lo busca. El anillo
+                marca que se está en esa sección, igual que el subrayado marca
+                las otras. */}
+            <NavLink
+              to="/perfil"
+              aria-label="Perfil"
+              title="Perfil"
+              className={({ isActive }) =>
+                cn(
+                  'w-8 h-8 rounded-full bg-border-card border flex items-center justify-center overflow-hidden shrink-0 transition-[box-shadow,border-color]',
+                  isActive
+                    ? 'border-accent ring-2 ring-accent'
+                    : 'border-border-card hover:border-text-subtle',
+                )
+              }
+            >
+              {authState === 'authenticated' && user?.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : authState === 'authenticated' ? (
+                <span className="text-xs font-bold uppercase">
+                  {user?.email?.[0] || 'U'}
+                </span>
+              ) : (
+                <User size={18} className="text-text-muted" aria-hidden="true" />
+              )}
+            </NavLink>
           </div>
         </div>
       </header>
 
       <OfflineBanner />
+
+      <SyncIssueBanner />
 
       <DemoBanner />
 
