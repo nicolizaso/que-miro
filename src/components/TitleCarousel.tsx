@@ -152,6 +152,33 @@ function ResultCard({ result }: { result: TMDbResult }) {
   );
 }
 
+/** La cara de quien protagoniza la fila, o sus iniciales si TMDB no la tiene. */
+function Avatar({ name, profilePath }: { name: string; profilePath?: string | null }) {
+  const initials = name
+    .split(' ')
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('');
+
+  return (
+    <span
+      className="shrink-0 w-11 h-11 rounded-full overflow-hidden bg-border-card flex items-center justify-center text-sm font-medium text-text-muted ring-1 ring-inset ring-text-main/10"
+      aria-hidden="true"
+    >
+      {profilePath ? (
+        <img
+          src={`${TMDB_IMAGE_BASE_URL}${profilePath}`}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        initials
+      )}
+    </span>
+  );
+}
+
 /**
  * Fila horizontal de títulos.
  *
@@ -163,12 +190,15 @@ function ResultCard({ result }: { result: TMDbResult }) {
 export function TitleCarousel({
   title,
   subtitle,
+  avatar,
   results,
   isLoading,
   error,
 }: {
   title: string;
   subtitle?: string;
+  /** Cuando la fila habla de alguien, su cara al lado del título. */
+  avatar?: { name: string; profilePath?: string | null };
   results: TMDbResult[];
   isLoading?: boolean;
   error?: string;
@@ -176,9 +206,12 @@ export function TitleCarousel({
   if (!isLoading && !error && results.length === 0) return null;
 
   const header = (
-    <div className="min-w-0">
-      <h2 className="text-section">{title}</h2>
-      {subtitle && <p className="text-sm text-text-muted mt-0.5">{subtitle}</p>}
+    <div className="min-w-0 flex items-center gap-3">
+      {avatar && <Avatar {...avatar} />}
+      <div className="min-w-0">
+        <h2 className="text-section">{title}</h2>
+        {subtitle && <p className="text-sm text-text-muted mt-0.5">{subtitle}</p>}
+      </div>
     </div>
   );
 

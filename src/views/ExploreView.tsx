@@ -1,38 +1,148 @@
-import { Compass, Sparkles } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Compass, Shuffle } from 'lucide-react';
 import { TitleCarousel } from '@/components/TitleCarousel';
 import { useTmdbList } from '@/hooks/useTmdbList';
-import { useRecommendations } from '@/hooks/useRecommendations';
-import { getList, getTrending } from '@/lib/tmdb';
+import { useExploreFeed } from '@/hooks/useExploreFeed';
+import { usePeopleBackfill } from '@/hooks/usePeopleBackfill';
+import { MIN_RESULTS, TitleRegistry } from '@/lib/feed';
+import { FeedBlock } from '@/lib/recipes';
+import { useMediaStore } from '@/store';
+
+/** Cómo terminó una fila: es lo único que la vista necesita saber de adentro. */
+type RowStatus = 'ok' | 'error';
+
+/**
+ * Una fila del feed.
+ *
+ * Pide sus títulos recién cuando se monta —o sea, cuando la tanda a la que
+ * pertenece entró en pantalla—, y los reclama contra el registro para no
+ * mostrar lo que otra fila ya mostró.
+ *
+ * Una fila que falla o que queda flaca no se dibuja. Es deliberado: el feed
+ * tiene veinte filas más para poner en su lugar, y una fila con dos pósters o
+ * con un mensaje de error adentro es peor que una fila menos.
+ */
+function FeedRow({
+  block,
+  registry,
+  onSettled,
+}: {
+  block: FeedBlock;
+  registry: TitleRegistry;
+  onSettled: (id: string, status: RowStatus) => void;
+}) {
+  const { results, isLoading, error } = useTmdbList(block.fetch, [block.id]);
+
+  const claimed = useMemo(
+    () => registry.claim(block.id, results, block.local),
+    [registry, block.id, block.local, results],
+  );
+
+  useEffect(() => {
+    if (isLoading) return;
+    onSettled(block.id, error ? 'error' : 'ok');
+  }, [isLoading, error, block.id, onSettled]);
+
+  if (!isLoading && claimed.length < (block.minResults ?? MIN_RESULTS)) {
+    return null;
+  }
+
+  return (
+    <TitleCarousel
+      title={block.title}
+      subtitle={block.subtitle}
+      avatar={block.avatar}
+      results={claimed}
+      isLoading={isLoading}
+    />
+  );
+}
 
 /**
  * Punto de entrada para descubrir qué mirar.
  *
- * Existe porque la app arrancaba en frío: sin buscar algo a mano, la primera
- * pantalla eran tres listas vacías. Acá siempre hay contenido, incluso el
- * primer día.
+ * Antes eran cuatro filas fijas y una sola idea —"porque viste X"—, iguales en
+ * cada visita por más que la biblioteca cambiara. Ahora hay veinticinco recetas
+ * que se arman con lo que la biblioteca sabe de vos: qué puntuaste alto, quién
+ * dirigió eso, con quién te cruzaste dos veces, qué género venís mirando, qué
+ * dejaste por la mitad. Las que no tienen con qué armarse no aparecen.
  *
- * El orden no es casual: primero lo que puede interesarte a vos, después lo que
- * está mirando el resto. Las recomendaciones aparecen recién cuando hay con qué
- * calcularlas.
+ * El orden se baraja en cada visita y las filas entran de a tandas mientras se
+ * scrollea, así que la pestaña no se termina nunca de la misma manera.
  */
 export function ExploreView() {
-  const trending = useTmdbList(() => getTrending('week'), []);
-  const popularMovies = useTmdbList(() => getList('movie', 'popular'), []);
-  const topRatedSeries = useTmdbList(() => getList('tv', 'top_rated'), []);
-  const { groups, isLoading: loadingRecs, hasSeeds } = useRecommendations();
+  const mediaList = useMediaStore((state) => state.mediaList);
+  usePeopleBackfill(mediaList);
 
+  const { blocks, hasMore, loadMore, shuffle, registry, isPersonal } =
+    useExploreFeed();
+
+  const [statuses, setStatuses] = useState<Record<string, RowStatus>>({});
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const handleSettled = useCallback((id: string, status: RowStatus) => {
+    setStatuses((current) =>
+      current[id] === status ? current : { ...current, [id]: status },
+    );
+  }, []);
+
+  const handleShuffle = () => {
+    setStatuses({});
+    shuffle();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Scroll infinito. El margen generoso hace que la tanda siguiente empiece a
+  // cargar antes de que se vea el final, así el scroll no se frena nunca.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) return;
+    if (typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadMore();
+      },
+      { rootMargin: '800px' },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore, blocks.length]);
+
+  const settled = Object.values(statuses);
+  // Solo si todo lo que terminó, terminó mal: con una sola fila viva —incluidas
+  // las que salen de la propia biblioteca— no hay nada que avisar.
   const everythingFailed =
-    Boolean(trending.error) &&
-    Boolean(popularMovies.error) &&
-    Boolean(topRatedSeries.error);
+    settled.length > 0 && settled.every((status) => status === 'error');
 
   return (
-    <div className="flex flex-col gap-10 w-full max-w-5xl mx-auto px-4 pt-8">
-      <header>
-        <h1 className="text-display mb-1">Explorar</h1>
-        <p className="text-text-muted">
-          Qué se está viendo, y qué podría gustarte a vos.
-        </p>
+    <div className="flex flex-col gap-10 w-full max-w-5xl mx-auto px-4 pt-8 pb-4">
+      <header className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-display mb-1">Explorar</h1>
+          <p className="text-text-muted">
+            {isPersonal
+              ? 'Armado con lo que viste, lo que puntuaste y lo que dejaste a medias.'
+              : 'Qué se está viendo, y qué podría gustarte a vos.'}
+          </p>
+          {!isPersonal && (
+            <p className="text-sm text-text-subtle mt-2 max-w-md">
+              Puntuá lo que ya viste y esta pestaña se rearma sola: otras
+              películas del director, de los actores y de los géneros que te
+              gustan.
+            </p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleShuffle}
+          className="shrink-0 flex items-center gap-2 px-3 h-10 rounded-control border border-border-control text-sm font-medium hover:bg-bg-card transition-colors active:scale-95"
+        >
+          <Shuffle size={16} aria-hidden="true" />
+          Barajar
+        </button>
       </header>
 
       {everythingFailed && (
@@ -48,49 +158,32 @@ export function ExploreView() {
         </div>
       )}
 
-      {(hasSeeds || loadingRecs) && (
-        <div className="flex flex-col gap-8">
-          <div className="flex items-center gap-2 text-accent">
-            <Sparkles size={18} aria-hidden="true" />
-            <h2 className="text-eyebrow text-accent">Para vos</h2>
-          </div>
+      {blocks.map((block) => (
+        <FeedRow
+          key={block.id}
+          block={block}
+          registry={registry}
+          onSettled={handleSettled}
+        />
+      ))}
 
-          {loadingRecs && groups.length === 0 && (
-            <TitleCarousel title="Buscando algo que te guste" results={[]} isLoading />
-          )}
-
-          {groups.map(({ seed, results }) => (
-            <TitleCarousel
-              key={seed.tmdbId}
-              title={`Porque viste ${seed.title}`}
-              results={results}
-            />
-          ))}
-        </div>
-      )}
-
-      <TitleCarousel
-        title="Tendencias de la semana"
-        subtitle="Lo que está mirando todo el mundo."
-        results={trending.results}
-        isLoading={trending.isLoading}
-        error={trending.error}
-      />
-
-      <TitleCarousel
-        title="Películas populares"
-        results={popularMovies.results}
-        isLoading={popularMovies.isLoading}
-        error={popularMovies.error}
-      />
-
-      <TitleCarousel
-        title="Series mejor puntuadas"
-        subtitle="Según la comunidad de TMDB."
-        results={topRatedSeries.results}
-        isLoading={topRatedSeries.isLoading}
-        error={topRatedSeries.error}
-      />
+      {/* El observador dispara la tanda siguiente al acercarse; el botón hace
+          lo mismo con el teclado y cuando el navegador no tiene observador. */}
+      <div ref={sentinelRef} className="flex flex-col items-center gap-2 pb-6">
+        {hasMore ? (
+          <button
+            type="button"
+            onClick={loadMore}
+            className="px-4 h-10 rounded-control border border-border-control text-sm font-medium hover:bg-bg-card transition-colors"
+          >
+            Cargar más filas
+          </button>
+        ) : (
+          <p className="text-sm text-text-subtle">
+            Hasta acá llegamos. Probá barajar, o puntuá algo más y volvé.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

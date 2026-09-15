@@ -1,6 +1,8 @@
 import {
+  Keyword,
   MediaStatus,
   MediaType,
+  Person,
   SavedMedia,
   SeasonInfo,
   SeriesProgress,
@@ -159,6 +161,52 @@ function parseProgress(value: unknown): SeriesProgress | undefined {
   };
 }
 
+/**
+ * El reparto y la dirección guardados con el título.
+ *
+ * Un array vacío no es lo mismo que `undefined`: el vacío significa "TMDB no
+ * tenía reparto para esto", y `undefined`, "nunca le preguntamos". Explorar usa
+ * esa diferencia para completar solo los títulos que le faltan y no repetir el
+ * pedido para siempre.
+ */
+function parsePeople(value: unknown): Person[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  return value
+    .map((person): Person | null => {
+      if (!isRecord(person)) return null;
+      const id = Number(person.id);
+      const name = typeof person.name === 'string' ? person.name.trim() : '';
+      if (!Number.isInteger(id) || id <= 0 || !name) return null;
+
+      return {
+        id,
+        name,
+        role: person.role === 'direccion' ? 'direccion' : 'reparto',
+        profilePath:
+          typeof person.profilePath === 'string' ? person.profilePath : null,
+      };
+    })
+    .filter((person): person is Person => person !== null);
+}
+
+/** Los temas de TMDB guardados con el título. */
+function parseKeywords(value: unknown): Keyword[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const keywords = value
+    .map((keyword): Keyword | null => {
+      if (!isRecord(keyword)) return null;
+      const id = Number(keyword.id);
+      const name = typeof keyword.name === 'string' ? keyword.name.trim() : '';
+      if (!Number.isInteger(id) || id <= 0 || !name) return null;
+      return { id, name };
+    })
+    .filter((keyword): keyword is Keyword => keyword !== null);
+
+  return keywords.length > 0 ? keywords : undefined;
+}
+
 /** Un número finito, o `undefined` si no lo es. Admite el cero y los negativos. */
 function parseFiniteNumber(value: unknown): number | undefined {
   if (value === null || value === undefined) return undefined;
@@ -219,6 +267,17 @@ export function parseMedia(value: unknown): SavedMedia | null {
       : undefined,
     providerRegion:
       typeof value.providerRegion === 'string' ? value.providerRegion : undefined,
+
+    people: parsePeople(value.people),
+    keywords: parseKeywords(value.keywords),
+    sagaId: parseNullableNumber(value.sagaId) ?? null,
+    sagaName: typeof value.sagaName === 'string' && value.sagaName
+      ? value.sagaName
+      : undefined,
+    originalLanguage:
+      typeof value.originalLanguage === 'string' && value.originalLanguage
+        ? value.originalLanguage
+        : undefined,
 
     progress: mediaType === 'tv' ? parseProgress(value.progress) : undefined,
     history: history.length > 0 ? history : undefined,
