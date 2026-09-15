@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { enrichFromDetail, isStale } from './enrich';
+import { enrichFromDetail, isStale, needsPeople } from './enrich';
 import { SavedMedia, TMDbDetail } from '@/types';
 
 function makeDetail(overrides: Partial<TMDbDetail> = {}): TMDbDetail {
@@ -128,5 +128,124 @@ describe('isStale', () => {
   it('un título sin plataformas en su región no se vuelve a pedir', () => {
     // `providerRegion` marca que ya se consultó, aunque no haya dado resultado.
     expect(isStale(makeMedia({ providerRegion: 'AR' }), 'AR')).toBe(false);
+  });
+});
+
+describe('la gente que se guarda con el título', () => {
+  it('toma el reparto principal y a quien dirigió', () => {
+    const enrichment = enrichFromDetail(
+      makeDetail({
+        credits: {
+          cast: [
+            { id: 1, name: 'Keanu Reeves', character: 'Neo', profile_path: '/k.jpg' },
+          ],
+          crew: [
+            {
+              id: 2,
+              name: 'Lana Wachowski',
+              job: 'Director',
+              department: 'Directing',
+              profile_path: null,
+            },
+            {
+              id: 3,
+              name: 'Alguien',
+              job: 'Gaffer',
+              department: 'Lighting',
+              profile_path: null,
+            },
+          ],
+        },
+      }),
+      'AR',
+    );
+
+    expect(enrichment.people).toEqual([
+      { id: 2, name: 'Lana Wachowski', role: 'direccion', profilePath: null },
+      { id: 1, name: 'Keanu Reeves', role: 'reparto', profilePath: '/k.jpg' },
+    ]);
+  });
+
+  it('en series, quien la creó cuenta como dirección', () => {
+    const enrichment = enrichFromDetail(
+      makeDetail({
+        media_type: 'tv',
+        created_by: [{ id: 9, name: 'Baran bo Odar', profile_path: null }],
+      }),
+      'AR',
+    );
+
+    expect(enrichment.people?.[0]).toMatchObject({
+      id: 9,
+      role: 'direccion',
+    });
+  });
+
+  it('no repite a quien dirigió y además actuó', () => {
+    const enrichment = enrichFromDetail(
+      makeDetail({
+        credits: {
+          cast: [{ id: 1, name: 'Greta Gerwig', character: 'Ella', profile_path: null }],
+          crew: [
+            {
+              id: 1,
+              name: 'Greta Gerwig',
+              job: 'Director',
+              department: 'Directing',
+              profile_path: null,
+            },
+          ],
+        },
+      }),
+      'AR',
+    );
+
+    expect(enrichment.people).toHaveLength(1);
+    expect(enrichment.people?.[0].role).toBe('direccion');
+  });
+
+  it('sin reparto en TMDB guarda una lista vacía, no un vacío', () => {
+    // La diferencia importa: `[]` es "ya preguntamos", `undefined` es "todavía
+    // no". Es lo que evita que el completado en segundo plano pregunte para
+    // siempre por un título que no tiene reparto cargado.
+    const enrichment = enrichFromDetail(makeDetail(), 'AR');
+
+    expect(enrichment.people).toEqual([]);
+    expect(needsPeople(makeMedia({ people: enrichment.people }))).toBe(false);
+  });
+
+  it('toma los temas vengan como vengan de TMDB', () => {
+    const pelicula = enrichFromDetail(
+      makeDetail({ keywords: { keywords: [{ id: 4379, name: 'viajes en el tiempo' }] } }),
+      'AR',
+    );
+    const serie = enrichFromDetail(
+      makeDetail({ keywords: { results: [{ id: 9, name: 'distopía' }] } }),
+      'AR',
+    );
+
+    expect(pelicula.keywords?.[0].name).toBe('viajes en el tiempo');
+    expect(serie.keywords?.[0].name).toBe('distopía');
+  });
+
+  it('guarda la saga y el idioma original', () => {
+    const enrichment = enrichFromDetail(
+      makeDetail({
+        belongs_to_collection: { id: 230, name: 'El Padrino', poster_path: null },
+        original_language: 'it',
+      }),
+      'AR',
+    );
+
+    expect(enrichment.sagaId).toBe(230);
+    expect(enrichment.sagaName).toBe('El Padrino');
+    expect(enrichment.originalLanguage).toBe('it');
+  });
+});
+
+describe('needsPeople', () => {
+  it('marca los títulos guardados antes de que existiera el reparto', () => {
+    expect(needsPeople(makeMedia())).toBe(true);
+    expect(needsPeople(makeMedia({ people: [] }))).toBe(false);
   });
 });

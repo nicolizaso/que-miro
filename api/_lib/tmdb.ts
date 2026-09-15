@@ -23,6 +23,13 @@ export type MediaType = 'movie' | 'tv';
  */
 export const TRENDING_TTL = 60 * 60;
 export const RECOMMENDATIONS_TTL = 60 * 60 * 24;
+/**
+ * Las filas armadas por criterio (género, década, idioma, plataforma) cambian
+ * más seguido que la filmografía de nadie, pero tampoco de un día para el otro.
+ */
+export const DISCOVER_TTL = 60 * 60 * 6;
+/** La filmografía de una persona y las partes de una saga: un día entero. */
+export const PERSON_TTL = 60 * 60 * 24;
 
 /** Error con el status HTTP que le corresponde devolver al cliente. */
 export class TmdbError extends Error {
@@ -171,7 +178,10 @@ export async function getRecommendations(mediaType: MediaType, id: number) {
 /** Detalle de un título, con trailers, reparto y plataformas en una sola llamada. */
 export async function getMediaDetail(mediaType: MediaType, id: number) {
   return fetchTMDB(`/${mediaType}/${id}`, {
-    append_to_response: 'videos,credits,watch/providers',
+    // `keywords` entra en la misma llamada: es lo que después habilita las
+    // filas por tema de Explorar, y pedirlo aparte sería una request más por
+    // cada título que alguien agrega.
+    append_to_response: 'videos,credits,keywords,watch/providers',
   });
 }
 
@@ -200,4 +210,382 @@ export function toErrorResponse(error: unknown): {
   }
   console.error('[tmdb] Error inesperado:', error);
   return { status: 500, body: { error: 'Error interno del servidor.' } };
+}
+
+// ---------------------------------------------------------------------------
+// Descubrimiento: filas armadas por criterio, filmografías y sagas.
+//
+// Son la materia prima de Explorar. Igual que las recomendaciones, ninguna de
+// estas respuestas depende de quién pregunta: el servidor no sabe —ni necesita
+// saber— qué vio nadie. El front pide "películas de terror bien puntuadas" o
+// "qué más dirigió esta persona", y cruza lo que recibe con su propia
+// biblioteca.
+// ---------------------------------------------------------------------------
+
+/** Cómo se ordena una fila de descubrimiento. */
+export type DiscoverSort = 'popular' | 'rating' | 'recent';
+
+/**
+ * Los criterios que acepta `/api/tmdb/discover`.
+ *
+ * Es una lista blanca y no un passthrough a TMDB a propósito: la ruta es
+ * pública y sin ella cualquiera podría usar nuestra API key para consultar
+ * TMDB con parámetros arbitrarios.
+ */
+export interface DiscoverQuery {
+  mediaType: MediaType;
+  /** Se piden todos juntos: `28,35` es "acción **y** comedia". */
+  genres: number[];
+  withoutGenres: number[];
+  /** Años, inclusive. */
+  from?: number;
+  to?: number;
+  /** Idioma original, ISO 639-1. */
+  language?: string;
+  keyword?: number;
+  /** Nombre de la plataforma, tal como lo guarda la biblioteca. */
+  provider?: string;
+  /** País cuyo catálogo se consulta. Obligatorio si hay `provider`. */
+  region?: string;
+  maxRuntime?: number;
+  minRuntime?: number;
+  sort: DiscoverSort;
+}
+
+/** Cuántos votos pedimos según el orden, para que no salga cualquier cosa. */
+const MIN_VOTES: Record<DiscoverSort, number> = {
+  // Ordenar por puntaje sin piso devuelve títulos con cuatro votos y un 10.
+  rating: 300,
+  popular: 50,
+  recent: 20,
+};
+
+const MAX_GENRES = 3;
+
+function parseIntParam(value: unknown, name: string): number {
+  const num = Number(value);
+  if (!Number.isInteger(num) || num <= 0) {
+    throw new TmdbError(`El parámetro '${name}' debe ser un entero positivo.`, 400);
+  }
+  return num;
+}
+
+function parseGenreList(value: unknown, name: string): number[] {
+  if (value === undefined || value === '') return [];
+  const ids = String(value)
+    .split(',')
+    .map((part) => parseIntParam(part.trim(), name));
+
+  if (ids.length > MAX_GENRES) {
+    throw new TmdbError(
+      `El parámetro '${name}' admite hasta ${MAX_GENRES} géneros.`,
+      400,
+    );
+  }
+  return ids;
+}
+
+function parseYear(value: unknown, name: string): number | undefined {
+  if (value === undefined || value === '') return undefined;
+  const year = Number(value);
+  if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+    throw new TmdbError(`El parámetro '${name}' debe ser un año válido.`, 400);
+  }
+  return year;
+}
+
+function parseDiscoverSort(value: unknown): DiscoverSort {
+  if (value === undefined || value === 'popular') return 'popular';
+  if (value === 'rating' || value === 'recent') return value;
+  throw new TmdbError(
+    "El parámetro 'sort' debe ser 'popular', 'rating' o 'recent'.",
+    400,
+  );
+}
+
+/** Valida los criterios que llegan por la request. */
+export function parseDiscoverQuery(
+  query: Record<string, unknown>,
+): DiscoverQuery {
+  const language =
+    query.lang === undefined || query.lang === ''
+      ? undefined
+      : String(query.lang);
+  if (language !== undefined && !/^[a-z]{2,3}$/.test(language)) {
+    throw new TmdbError("El parámetro 'lang' debe ser un código ISO 639-1.", 400);
+  }
+
+  const region =
+    query.region === undefined || query.region === ''
+      ? undefined
+      : String(query.region);
+  if (region !== undefined && !/^[A-Z]{2}$/.test(region)) {
+    throw new TmdbError("El parámetro 'region' debe ser un código ISO 3166-1.", 400);
+  }
+
+  const provider =
+    query.provider === undefined || query.provider === ''
+      ? undefined
+      : String(query.provider).slice(0, 60);
+  if (provider !== undefined && region === undefined) {
+    throw new TmdbError(
+      "El parámetro 'provider' necesita también 'region': un catálogo de streaming es distinto en cada país.",
+      400,
+    );
+  }
+
+  return {
+    mediaType: parseMediaType(query.type),
+    genres: parseGenreList(query.genre, 'genre'),
+    withoutGenres: parseGenreList(query.without, 'without'),
+    from: parseYear(query.from, 'from'),
+    to: parseYear(query.to, 'to'),
+    language,
+    keyword:
+      query.keyword === undefined || query.keyword === ''
+        ? undefined
+        : parseIntParam(query.keyword, 'keyword'),
+    provider,
+    region,
+    maxRuntime:
+      query.maxRuntime === undefined || query.maxRuntime === ''
+        ? undefined
+        : parseIntParam(query.maxRuntime, 'maxRuntime'),
+    minRuntime:
+      query.minRuntime === undefined || query.minRuntime === ''
+        ? undefined
+        : parseIntParam(query.minRuntime, 'minRuntime'),
+    sort: parseDiscoverSort(query.sort),
+  };
+}
+
+/** Clave de caché estable: los mismos criterios, en el mismo orden, siempre. */
+function discoverCacheKey(query: DiscoverQuery): string {
+  return [
+    'discover',
+    query.mediaType,
+    query.genres.join('+'),
+    query.withoutGenres.join('-'),
+    query.from ?? '',
+    query.to ?? '',
+    query.language ?? '',
+    query.keyword ?? '',
+    query.provider ?? '',
+    query.region ?? '',
+    query.minRuntime ?? '',
+    query.maxRuntime ?? '',
+    query.sort,
+  ].join(':');
+}
+
+/**
+ * El id que TMDB le da a una plataforma, a partir de su nombre.
+ *
+ * La biblioteca guarda "Netflix", no el 8: el nombre es lo que se muestra en la
+ * ficha. Resolverlo acá contra la lista real de TMDB evita una tabla de ids
+ * escrita a mano que envejece mal — las plataformas se fusionan y se renombran
+ * seguido, y un id equivocado no falla: devuelve títulos de otra plataforma,
+ * que es peor.
+ */
+async function getProviderId(
+  mediaType: MediaType,
+  region: string,
+  name: string,
+): Promise<number | null> {
+  const providers = await withCache(
+    `providers:${mediaType}:${region}`,
+    PERSON_TTL,
+    async () => {
+      const data = await fetchTMDB<{
+        results?: { provider_id: number; provider_name: string }[];
+      }>(`/watch/providers/${mediaType}`, { watch_region: region });
+      return data.results ?? [];
+    },
+  );
+
+  const wanted = name.trim().toLowerCase();
+  return (
+    providers.find((provider) => provider.provider_name.toLowerCase() === wanted)
+      ?.provider_id ?? null
+  );
+}
+
+/** Los parámetros de TMDB que salen de unos criterios ya validados. */
+function discoverParams(
+  query: DiscoverQuery,
+  providerId: number | null,
+): Record<string, string> {
+  const isMovie = query.mediaType === 'movie';
+  const dateField = isMovie ? 'primary_release_date' : 'first_air_date';
+  const today = new Date().toISOString().slice(0, 10);
+
+  const sortBy: Record<DiscoverSort, string> = {
+    popular: 'popularity.desc',
+    rating: 'vote_average.desc',
+    recent: `${dateField}.desc`,
+  };
+
+  const params: Record<string, string> = {
+    sort_by: sortBy[query.sort],
+    include_adult: 'false',
+    'vote_count.gte': String(MIN_VOTES[query.sort]),
+  };
+
+  if (query.genres.length > 0) params.with_genres = query.genres.join(',');
+  if (query.withoutGenres.length > 0) {
+    params.without_genres = query.withoutGenres.join(',');
+  }
+  if (query.from) params[`${dateField}.gte`] = `${query.from}-01-01`;
+  // Nada de estrenos que todavía no estrenaron: con `recent` serían la lista
+  // entera, y son títulos que nadie puede mirar esta noche.
+  const upperDate = query.to ? `${query.to}-12-31` : today;
+  params[`${dateField}.lte`] = upperDate < today ? upperDate : today;
+
+  if (query.language) params.with_original_language = query.language;
+  if (query.keyword) params.with_keywords = String(query.keyword);
+  if (query.minRuntime) params['with_runtime.gte'] = String(query.minRuntime);
+  if (query.maxRuntime) params['with_runtime.lte'] = String(query.maxRuntime);
+  if (providerId !== null && query.region) {
+    params.with_watch_providers = String(providerId);
+    params.watch_region = query.region;
+  }
+
+  return params;
+}
+
+/**
+ * Títulos que cumplen un criterio: de terror, de los 90, en tu plataforma.
+ *
+ * Si se pidió una plataforma que TMDB no conoce con ese nombre, devuelve vacío
+ * en vez de fallar: quien llama esconde la fila y no pasa nada. Un error 500
+ * por una plataforma renombrada sería mucho ruido para tan poco.
+ */
+export async function getDiscover(query: DiscoverQuery) {
+  return withCache(discoverCacheKey(query), DISCOVER_TTL, async () => {
+    let providerId: number | null = null;
+    if (query.provider && query.region) {
+      providerId = await getProviderId(
+        query.mediaType,
+        query.region,
+        query.provider,
+      );
+      if (providerId === null) return [];
+    }
+
+    const data = await fetchTMDB<{ results?: Record<string, unknown>[] }>(
+      `/discover/${query.mediaType}`,
+      discoverParams(query, providerId),
+    );
+
+    // `/discover` no devuelve `media_type` —el tipo está en la ruta—, igual que
+    // `/popular` y `/top_rated`.
+    return (data.results ?? []).map((result) => ({
+      ...result,
+      media_type: query.mediaType,
+    }));
+  });
+}
+
+/** Qué se le pide a la filmografía de alguien: lo que actuó o lo que dirigió. */
+export type PersonRole = 'reparto' | 'direccion';
+
+export function parsePersonRole(value: unknown): PersonRole {
+  if (value === undefined || value === 'reparto') return 'reparto';
+  if (value === 'direccion') return 'direccion';
+  throw new TmdbError("El parámetro 'role' debe ser 'reparto' o 'direccion'.", 400);
+}
+
+/** Cuántos trabajos devolvemos de una persona. Una fila no muestra más. */
+const MAX_CREDITS = 40;
+
+/** Un crédito de `combined_credits`, con lo poco que se mira para ordenarlo. */
+type Credit = Record<string, unknown> & {
+  media_type?: string;
+  id?: number;
+  vote_count?: number;
+  popularity?: number;
+};
+
+/**
+ * Qué más hizo alguien: su filmografía, de lo más conocido a lo menos.
+ *
+ * Se usa `combined_credits` y no `/discover` porque `/discover/tv` no filtra
+ * por persona: sembrando desde una serie, un actor no tendría con qué
+ * responder. Acá vienen las películas y las series en la misma lista.
+ *
+ * El orden es por cantidad de votos y no por popularidad: la popularidad de
+ * TMDB premia lo reciente, y la pregunta que responde esta fila es "qué más
+ * hizo que valga la pena", no "qué hizo último".
+ */
+export async function getPersonCredits(id: number, role: PersonRole) {
+  return withCache(`person:${id}:${role}`, PERSON_TTL, async () => {
+    const data = await fetchTMDB<{
+      cast?: Record<string, unknown>[];
+      crew?: Record<string, unknown>[];
+    }>(`/person/${id}/combined_credits`);
+
+    const credits =
+      role === 'direccion'
+        ? (data.crew ?? []).filter(
+            (credit) => credit.job === 'Director' || credit.job === 'Creator',
+          )
+        : (data.cast ?? []);
+
+    return onlyMoviesAndShows<Credit>(credits as Credit[])
+      .filter(
+        (credit, index, list) =>
+          // `combined_credits` repite un título por cada papel o tarea: quien
+          // dirigió y además escribió aparece dos veces.
+          list.findIndex((other) => other.id === credit.id) === index,
+      )
+      .sort(
+        (a, b) =>
+          Number(b.vote_count ?? 0) - Number(a.vote_count ?? 0) ||
+          Number(b.popularity ?? 0) - Number(a.popularity ?? 0),
+      )
+      .slice(0, MAX_CREDITS);
+  });
+}
+
+/**
+ * Las partes de una saga, de la primera a la última.
+ *
+ * Es lo que permite decirte que viste la segunda y la tercera pero nunca la
+ * primera.
+ */
+export async function getSaga(id: number) {
+  return withCache(`saga:${id}`, PERSON_TTL, async () => {
+    const data = await fetchTMDB<{ parts?: Record<string, unknown>[] }>(
+      `/collection/${id}`,
+    );
+    return (data.parts ?? [])
+      .sort((a, b) =>
+        String(a.release_date ?? '').localeCompare(String(b.release_date ?? '')),
+      )
+      .map((part) => ({ ...part, media_type: 'movie' as const }));
+  });
+}
+
+/**
+ * Títulos parecidos a uno dado, por la otra puerta.
+ *
+ * `/recommendations` es colaborativo —lo arma quien mira qué— y `/similar` es
+ * por metadatos: género, palabras clave, época. Devuelven cosas distintas para
+ * el mismo título, y eso es justamente lo que se busca: dos filas sembradas
+ * con la misma película que no sean la misma fila.
+ */
+export async function getSimilar(mediaType: MediaType, id: number) {
+  return withCache(
+    `similar:${mediaType}:${id}`,
+    RECOMMENDATIONS_TTL,
+    async () => {
+      const data = await fetchTMDB<{ results?: Record<string, unknown>[] }>(
+        `/${mediaType}/${id}/similar`,
+      );
+      return (data.results ?? []).map((result) => ({
+        media_type: mediaType,
+        ...result,
+      }));
+    },
+  );
 }

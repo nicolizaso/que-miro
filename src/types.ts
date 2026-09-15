@@ -40,6 +40,29 @@ export interface SeriesProgress {
   lastWatchedAt?: string; // ISO
 }
 
+/**
+ * Alguien del reparto o de la dirección, como lo identifica TMDB.
+ *
+ * Se guarda con el título porque es lo que hace posibles las filas de Explorar
+ * que hablan de gente: "otros trabajos de este director", "si te gustó esta
+ * actriz". Calcularlas pidiendo la ficha de la biblioteca entera cada vez que
+ * alguien abre la pestaña no es viable — el mismo motivo por el que ya se
+ * cachean plataformas y duración.
+ */
+export interface Person {
+  id: number;
+  name: string;
+  /** `direccion` incluye a quienes crearon una serie: es el mismo rol. */
+  role: 'reparto' | 'direccion';
+  profilePath?: string | null;
+}
+
+/** Un tema de TMDB: "viajes en el tiempo", "distopía", "vampiros". */
+export interface Keyword {
+  id: number;
+  name: string;
+}
+
 export interface SavedMedia {
   tmdbId: number;
   mediaType: MediaType;
@@ -67,6 +90,16 @@ export interface SavedMedia {
   providers?: string[];
   /** Región cuyo catálogo se consultó al guardar. */
   providerRegion?: string;
+
+  /** Reparto principal y dirección, para las recomendaciones por gente. */
+  people?: Person[];
+  /** Temas de TMDB, para las recomendaciones por tema. */
+  keywords?: Keyword[];
+  /** Saga de TMDB a la que pertenece: *El Padrino*, *Alien*. Solo en películas. */
+  sagaId?: number | null;
+  sagaName?: string;
+  /** Idioma original, en ISO 639-1. Distingue lo que ves doblado de lo que no. */
+  originalLanguage?: string;
 
   /** Episodios vistos. Solo en series. */
   progress?: SeriesProgress;
@@ -107,6 +140,9 @@ export interface TMDbResult {
   first_air_date?: string;
   genre_ids: number[];
   overview: string;
+  vote_average?: number;
+  vote_count?: number;
+  original_language?: string;
 }
 
 export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
@@ -130,7 +166,34 @@ export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
       character: string;
       profile_path: string | null;
     }[];
+    crew?: {
+      id: number;
+      name: string;
+      job: string;
+      department: string;
+      profile_path: string | null;
+    }[];
   };
+  /** Quiénes crearon la serie. En TMDB no vienen en `crew`, vienen acá. */
+  created_by?: {
+    id: number;
+    name: string;
+    profile_path: string | null;
+  }[];
+  /**
+   * Temas del título. TMDB los devuelve bajo `keywords` en películas y bajo
+   * `results` en series — el mismo dato, dos nombres.
+   */
+  keywords?: {
+    keywords?: { id: number; name: string }[];
+    results?: { id: number; name: string }[];
+  };
+  /** La saga a la que pertenece la película, si pertenece a alguna. */
+  belongs_to_collection?: {
+    id: number;
+    name: string;
+    poster_path: string | null;
+  } | null;
   seasons?: {
     season_number: number;
     name: string;

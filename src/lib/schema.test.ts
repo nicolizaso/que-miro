@@ -214,3 +214,64 @@ describe('lecturas del historial', () => {
     expect(watchCount(sinVer)).toBe(0);
   });
 });
+
+describe('la gente y los temas del título', () => {
+  it('valida el reparto y descarta lo que viene roto', () => {
+    const media = parseMedia(
+      v1Media({
+        people: [
+          { id: 1, name: 'Keanu Reeves', role: 'reparto', profilePath: '/k.jpg' },
+          { id: 2, name: 'Lana Wachowski', role: 'direccion' },
+          { id: 0, name: 'Sin id' },
+          { name: 'Sin nada' },
+          'texto suelto',
+        ],
+      }),
+    )!;
+
+    expect(media.people).toEqual([
+      { id: 1, name: 'Keanu Reeves', role: 'reparto', profilePath: '/k.jpg' },
+      { id: 2, name: 'Lana Wachowski', role: 'direccion', profilePath: null },
+    ]);
+  });
+
+  it('distingue "sin reparto" de "todavía no preguntamos"', () => {
+    expect(parseMedia(v1Media({ people: [] }))!.people).toEqual([]);
+    expect(parseMedia(v1Media())!.people).toBeUndefined();
+  });
+
+  it('un rol desconocido cae en reparto', () => {
+    const media = parseMedia(
+      v1Media({ people: [{ id: 1, name: 'Alguien', role: 'sonido' }] }),
+    )!;
+
+    expect(media.people?.[0].role).toBe('reparto');
+  });
+
+  it('valida los temas, la saga y el idioma', () => {
+    const media = parseMedia(
+      v1Media({
+        keywords: [
+          { id: 4379, name: 'viajes en el tiempo' },
+          { id: 'x', name: 'roto' },
+        ],
+        sagaId: 230,
+        sagaName: 'El Padrino',
+        originalLanguage: 'it',
+      }),
+    )!;
+
+    expect(media.keywords).toEqual([{ id: 4379, name: 'viajes en el tiempo' }]);
+    expect(media.sagaId).toBe(230);
+    expect(media.sagaName).toBe('El Padrino');
+    expect(media.originalLanguage).toBe('it');
+  });
+
+  it('un título de antes no trae nada de esto y sigue siendo válido', () => {
+    const media = parseMedia(v1Media())!;
+
+    expect(media.keywords).toBeUndefined();
+    expect(media.sagaId).toBeNull();
+    expect(media.originalLanguage).toBeUndefined();
+  });
+});

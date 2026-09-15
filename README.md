@@ -32,8 +32,11 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Listas propias** — agrupaciones más allá de los tres estados: "maratón del
   finde", "pendientes de terror". Se arman desde la ficha de cualquier título,
   esté o no en tu biblioteca.
-- **Explorar** — tendencias, populares y mejor puntuadas, más recomendaciones
-  armadas a partir de lo que puntuaste alto. Desde la ficha lo guardás en *Por
+- **Explorar** — un feed que se arma con tu biblioteca: otros trabajos del
+  director que puntuaste alto, más de esa actriz que aparece en dos de tus
+  favoritas, el género que venís mirando, la parte de la saga que te falta, la
+  serie que dejaste a medias. Son 25 recetas distintas, barajadas en cada visita
+  y cargadas de a tandas mientras scrolleás. Desde la ficha lo guardás en *Por
   Ver* o en *Completadas* de un clic, o directo en una de tus listas.
 - **Smart Picker** — elige al azar de tu lista *Por Ver*, filtrando por duración,
   tipo, género, plataforma, lista o ánimo.
@@ -157,7 +160,10 @@ api/                  Funciones serverless (Vercel)
   tmdb/search.ts      GET /api/tmdb/search?query=
   tmdb/detail.ts      GET /api/tmdb/detail?type=&id=
   tmdb/trending.ts    GET /api/tmdb/trending (tendencias, populares, top)
-  tmdb/recommendations.ts  GET /api/tmdb/recommendations?type=&id=
+  tmdb/recommendations.ts  GET /api/tmdb/recommendations?type=&id=[&mode=similar]
+  tmdb/discover.ts    GET /api/tmdb/discover?type=&genre=&from=&lang=&provider=…
+  tmdb/person.ts      GET /api/tmdb/person?id=&role=reparto|direccion
+  tmdb/saga.ts        GET /api/tmdb/saga?id=
   u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
 e2e/                  Tests de punta a punta (Playwright)
 src/
@@ -170,6 +176,9 @@ src/
   lib/                Cliente HTTP del front, init de Firebase, tema, schema y
                       migraciones, progreso de series, estadísticas, picker,
                       duelo, backup, filtros de la biblioteca, datos del demo
+  lib/taste.ts        Qué sabe la app de tu gusto, sacado de tu biblioteca
+  lib/recipes.ts      Las 25 formas de armar una fila de Explorar
+  lib/feed.ts         Barajado con semilla y reparto de títulos entre filas
   components/charts/  Piezas del panel de estadísticas
   views/              ListView, ExploreView, SmartPickerView, ProfileView,
                       LoginView, NotFoundView
@@ -200,9 +209,18 @@ pedir la ficha de cada título cada vez que alguien mueve un filtro no es viable
 La contracara es que envejecen, y para eso está `isStale`.
 
 **Las recomendaciones se arman en el cliente.** El servidor le pregunta a TMDB
-qué se parece a qué y cachea la respuesta, porque es igual para todos. Quién
-recibe qué lo decide el navegador, cruzando eso con la biblioteca de esa persona.
-El servidor nunca necesita saber qué vio nadie.
+qué se parece a qué, qué más dirigió alguien o qué hay de terror bien puntuado, y
+cachea la respuesta, porque es igual para todos. Quién recibe qué lo decide el
+navegador: `taste.ts` lee la biblioteca, `recipes.ts` decide qué filas se pueden
+armar con esas señales y `feed.ts` las baraja y reparte los títulos para que
+ninguno aparezca dos veces. El servidor nunca necesita saber qué vio nadie.
+
+**Explorar se congela al entrar y se baraja al volver.** El orden sale de una
+semilla que se estrena en cada visita, así que la pestaña no se ve dos veces
+igual; dentro de una visita, en cambio, no se mueve — es lo que el scroll
+infinito necesita para no reacomodar las filas abajo del dedo. La biblioteca
+también se congela: agregar algo desde una fila cambiaría las semillas y
+rearmaría el feed entero justo cuando la persona está mirando otra cosa.
 
 **El perfil público es una copia, no una ventana.** Abrir la biblioteca entera a
 lectura anónima expondría también lo que no se quiso publicar. Lo que se

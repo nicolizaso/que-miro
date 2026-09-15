@@ -11,15 +11,23 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { cacheHeaders } from './api/_lib/cache.js';
 import {
+  DISCOVER_TTL,
+  PERSON_TTL,
   RECOMMENDATIONS_TTL,
   TRENDING_TTL,
+  getDiscover,
   getList,
   getMediaDetail,
+  getPersonCredits,
   getRecommendations,
+  getSaga,
+  getSimilar,
   getTrending,
+  parseDiscoverQuery,
   parseId,
   parseListKind,
   parseMediaType,
+  parsePersonRole,
   parseTrendingWindow,
   searchMulti,
   toErrorResponse,
@@ -81,10 +89,48 @@ async function startServer() {
       const mediaType = parseMediaType(req.query.type);
       const id = parseId(req.query.id);
 
+      const results =
+        req.query.mode === 'similar'
+          ? await getSimilar(mediaType, id)
+          : await getRecommendations(mediaType, id);
+
       res.set(cacheHeaders(RECOMMENDATIONS_TTL));
-      return res
-        .status(200)
-        .json({ results: await getRecommendations(mediaType, id) });
+      return res.status(200).json({ results });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/discover', async (req, res) => {
+    try {
+      const query = parseDiscoverQuery(req.query as Record<string, unknown>);
+
+      res.set(cacheHeaders(DISCOVER_TTL));
+      return res.status(200).json({ results: await getDiscover(query) });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/person', async (req, res) => {
+    try {
+      const id = parseId(req.query.id);
+      const role = parsePersonRole(req.query.role);
+
+      res.set(cacheHeaders(PERSON_TTL));
+      return res.status(200).json({ results: await getPersonCredits(id, role) });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/saga', async (req, res) => {
+    try {
+      res.set(cacheHeaders(PERSON_TTL));
+      return res.status(200).json({ results: await getSaga(parseId(req.query.id)) });
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);

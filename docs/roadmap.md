@@ -224,6 +224,54 @@ por cómo se ve en escritorio.
 
 ---
 
+## QM-2 — Explorar que cambia con vos
+
+*La pestaña mostraba siempre lo mismo. Ahora se arma con la biblioteca.*
+
+**Qué estaba mal**
+
+Explorar tenía tres filas fijas y una sola idea de recomendación: "porque viste
+X", sembrada con los tres títulos mejor puntuados. Por más que la biblioteca
+creciera, la pestaña se veía igual todos los días, y todo lo que la app ya sabía
+—quién dirigió lo que te gustó, con qué actriz te cruzaste tres veces, qué
+género venís mirando, qué serie dejaste a medias— no aparecía en ninguna parte.
+
+**Cómo quedó implementado**
+
+- **Tres capas, cada una con un solo trabajo.** `taste.ts` mira la biblioteca y
+  saca señales (favoritos, directores, actores, géneros, décadas, idiomas,
+  plataformas, temas, sagas, pendientes olvidados, series a medias).
+  `recipes.ts` tiene las 25 formas de convertir una señal en una fila.
+  `feed.ts` las baraja y reparte los títulos. Agregar una receta nueva es tocar
+  un solo archivo, y ninguna de las tres habla con la red.
+- **La biblioteca aprendió quién es quién.** `SavedMedia` guarda ahora el
+  reparto principal, la dirección, los temas, la saga y el idioma original. Sale
+  de la misma ficha que ya se pedía al agregar un título, así que no cuesta ni
+  una llamada más; los títulos guardados antes se completan de a seis por visita,
+  empezando por los mejor puntuados.
+- **Una fila que no tiene con qué armarse no existe.** Sin director puntuado
+  arriba de 4 no hay fila de director. Sin plataformas guardadas no hay fila de
+  plataformas. Preferimos una pestaña más corta que una fila vacía con una
+  excusa adentro — y con biblioteca vacía siguen estando las de todos.
+- **El azar tiene semilla.** Se estrena en cada visita, así que el orden cambia;
+  dentro de una visita no se mueve, que es lo que el scroll infinito necesita
+  para no reacomodar las filas abajo del dedo. El peso manda sobre el azar: una
+  fila armada con tu biblioteca nunca queda detrás de "películas populares".
+- **Ningún título aparece dos veces.** Las filas piden sus datos en paralelo y
+  varias pueden traer la misma película: la primera que la reclama se la queda.
+  El registro es idempotente por fila, porque en desarrollo React monta todo dos
+  veces.
+- **Tres endpoints nuevos, con lista blanca.** `/discover`, `/person` y `/saga`
+  validan cada parámetro contra valores permitidos en vez de reenviarlos a TMDB:
+  la ruta es pública, y sin eso sería una API key prestada. El nombre de la
+  plataforma se resuelve contra la lista real de TMDB, que se renombra sola cada
+  tanto.
+
+**Resultado:** dos visitas seguidas a Explorar no se parecen, y lo que se ve sale
+de lo que esa persona vio y puntuó.
+
+---
+
 ## Resumen
 
 ```
@@ -232,4 +280,5 @@ T2  Datos ricos    episodios, historial, tags, providers, colecciones
 T3  Descubrir      explorar, recomendaciones, picker 2.0, duelo, stats
 T4  Producción     wrapped, perfil público, compartir, offline, E2E
 UI  Rediseño       navegación, tipografía, formas, contraste AA
+QM2 Explorar       señales de gusto, 25 recetas, feed barajado e infinito
 ```

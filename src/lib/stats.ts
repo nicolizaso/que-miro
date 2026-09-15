@@ -217,31 +217,3 @@ export function topRated(list: SavedMedia[], limit = 5): Watch[] {
     )
     .slice(0, limit);
 }
-
-/**
- * Los títulos que mejor representan tus gustos, para pedirle recomendaciones a
- * TMDB.
- *
- * Se piden solo unos pocos porque cada uno es una llamada a la API. Se mezclan
- * películas y series a propósito: TMDB recomienda dentro del mismo tipo, así
- * que sembrar solo con películas devolvería un muro de películas.
- */
-export function recommendationSeeds(
-  list: SavedMedia[],
-  limit = 4,
-  minimumRating = 3.5,
-): SavedMedia[] {
-  const candidates = topRated(list, 50).filter(
-    ({ entry }) => entry.rating >= minimumRating,
-  );
-
-  const movies = candidates.filter(({ media }) => media.mediaType === 'movie');
-  const series = candidates.filter(({ media }) => media.mediaType === 'tv');
-
-  const picked: SavedMedia[] = [];
-  for (let i = 0; picked.length < limit && (movies[i] || series[i]); i++) {
-    if (movies[i]) picked.push(movies[i].media);
-    if (picked.length < limit && series[i]) picked.push(series[i].media);
-  }
-  return picked;
-}

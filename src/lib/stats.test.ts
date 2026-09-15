@@ -5,7 +5,6 @@ import {
   genreDistribution,
   monthlyActivity,
   ratingDistribution,
-  recommendationSeeds,
   runtimeMinutes,
   summarize,
   topRated,
@@ -292,49 +291,5 @@ describe('topRated', () => {
     expect(best).toHaveLength(2);
     expect(best[0].media.title).toBe('Matrix');
     expect(best[0].entry.rating).toBe(5);
-  });
-});
-
-describe('recommendationSeeds', () => {
-  it('mezcla películas y series', () => {
-    const list = [
-      makeMedia({
-        tmdbId: 1,
-        mediaType: 'movie',
-        history: [watch(5, '2025-01-01T00:00:00.000Z')],
-      }),
-      makeMedia({
-        tmdbId: 2,
-        mediaType: 'movie',
-        history: [watch(4.5, '2025-01-01T00:00:00.000Z')],
-      }),
-      makeMedia({
-        tmdbId: 3,
-        mediaType: 'tv',
-        history: [watch(4, '2025-01-01T00:00:00.000Z')],
-      }),
-    ];
-
-    const seeds = recommendationSeeds(list, 2);
-    expect(seeds.map((m) => m.mediaType)).toEqual(['movie', 'tv']);
-  });
-
-  it('descarta lo que puntuaste bajo', () => {
-    const list = [
-      makeMedia({ history: [watch(1.5, '2025-01-01T00:00:00.000Z')] }),
-    ];
-
-    expect(recommendationSeeds(list)).toHaveLength(0);
-  });
-
-  it('respeta el tope', () => {
-    const list = Array.from({ length: 10 }, (_, i) =>
-      makeMedia({
-        tmdbId: i + 1,
-        history: [watch(5, '2025-01-01T00:00:00.000Z', `w${i}`)],
-      }),
-    );
-
-    expect(recommendationSeeds(list, 3)).toHaveLength(3);
   });
 });
