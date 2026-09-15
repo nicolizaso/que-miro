@@ -30,9 +30,11 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Historial de visionados** — volver a ver algo suma una entrada nueva en vez
   de pisar lo que habías escrito la primera vez.
 - **Listas propias** — agrupaciones más allá de los tres estados: "maratón del
-  finde", "pendientes de terror".
+  finde", "pendientes de terror". Se arman desde la ficha de cualquier título,
+  esté o no en tu biblioteca.
 - **Explorar** — tendencias, populares y mejor puntuadas, más recomendaciones
-  armadas a partir de lo que puntuaste alto.
+  armadas a partir de lo que puntuaste alto. Desde la ficha lo guardás en *Por
+  Ver* o en *Completadas* de un clic, o directo en una de tus listas.
 - **Smart Picker** — elige al azar de tu lista *Por Ver*, filtrando por duración,
   tipo, género, plataforma, lista o ánimo.
 - **Modo duelo** — comparaciones de a dos que arman un ranking de tu lista, con
