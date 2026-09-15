@@ -4,8 +4,8 @@ import {
   TMDB_IMAGE_BASE_URL,
   TMDB_IMAGE_ORIGINAL_URL,
 } from '@/lib/tmdb';
-import { SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
-import { X, Play, AlertCircle, Loader2 } from 'lucide-react';
+import { MediaStatus, SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
+import { X, Play, AlertCircle, Check, Loader2, Plus } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
 import { ScrollRail } from '@/components/ui/ScrollRail';
@@ -14,6 +14,7 @@ import { CollectionPicker } from '@/components/CollectionPicker';
 import { WatchHistory } from '@/components/WatchHistory';
 import { ShareButton } from '@/components/ShareButton';
 import { useMediaActions } from '@/hooks/useMediaActions';
+import { useToast } from '@/contexts/ToastContext';
 import { enrichFromDetail, isStale } from '@/lib/enrich';
 import { pickProviders } from '@/lib/providers';
 import { getRegionName, usePreferences } from '@/preferences';
@@ -21,7 +22,11 @@ import { getRegionName, usePreferences } from '@/preferences';
 interface Props {
   id: number;
   mediaType: 'movie' | 'tv';
-  /** El título guardado, si está en la biblioteca. Habilita progreso y listas. */
+  /**
+   * El título guardado, si está en la biblioteca. Habilita el progreso y el
+   * historial. Sin él la ficha sirve igual para guardarlo, que es como se
+   * abre desde Explorar.
+   */
   media?: SavedMedia;
   isOpen: boolean;
   onClose: () => void;
@@ -38,12 +43,44 @@ function seasonsFromDetail(detail: TMDbDetail | null): SeasonInfo[] {
     }));
 }
 
+const STATUS_LABELS: Record<MediaStatus, string> = {
+  por_ver: 'Por Ver',
+  viendo: 'Viendo',
+  completada: 'Completada',
+};
+
+/**
+ * Las dos listas a las que se llega de un clic desde la ficha.
+ *
+ * Son las dos puntas de lo que se hace desde Explorar: anotar algo para
+ * después, o dejar asentado algo que ya se vio. *Viendo* queda afuera a
+ * propósito: se llega solo al marcar el primer episodio, y sumarla acá era un
+ * tercer botón para el caso más raro de los tres.
+ */
+const QUICK_ADD: { status: MediaStatus; listName: string }[] = [
+  { status: 'por_ver', listName: 'Por Ver' },
+  // El botón dice "Completada" —habla del título— y el aviso "Completadas",
+  // que es como se llama la pestaña a la que fue a parar.
+  { status: 'completada', listName: 'Completadas' },
+];
+
 export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Props) {
   const [detail, setDetail] = useState<TMDbDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const preferredRegion = usePreferences((state) => state.region);
-  const { patchMedia } = useMediaActions();
+  const { addMedia, patchMedia } = useMediaActions();
+  const { showToast } = useToast();
+  /**
+   * Lo que se acaba de guardar desde acá, hasta que el store lo devuelva.
+   *
+   * Sin esto, dos clics seguidos —"Por Ver" y después una lista propia— entran
+   * los dos por la rama de "todavía no está guardado" y el segundo pisa al
+   * primero.
+   */
+  const [justSaved, setJustSaved] = useState<SavedMedia | null>(null);
+  /** Estado que se está guardando, para el spinner del botón que lo pidió. */
+  const [savingStatus, setSavingStatus] = useState<MediaStatus | null>(null);
   const titleId = useId();
   // Un backfill por apertura: sin esto, el patch cambia `media`, el efecto se
   // vuelve a disparar y se escribe en loop.
@@ -107,6 +144,12 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
     if (!isOpen) backfilled.current = null;
   }, [isOpen]);
 
+  // El guardado local vale mientras el modal muestre ese título: al cerrarlo o
+  // al cambiar de id, lo que corresponde es lo que diga el store.
+  useEffect(() => {
+    setJustSaved(null);
+  }, [id, isOpen]);
+
   const trailer = detail?.videos?.results?.find(
     (v) => v.type === 'Trailer' && v.site === 'YouTube',
   );
@@ -115,11 +158,62 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   const picked = pickProviders(detail, preferredRegion);
   const allProviders = picked?.providers.slice(0, 4) ?? [];
 
-  const title = detail?.title || detail?.name || media?.title || '';
+  // El store manda; `justSaved` solo cubre el instante entre guardar y que el
+  // título vuelva desde ahí.
+  const saved = media ?? justSaved;
+
+  const title = detail?.title || detail?.name || saved?.title || '';
   // Las cacheadas ganan: reflejan lo que la persona vio cuando marcó episodios.
-  const seasons = media?.seasons?.length
-    ? media.seasons
+  const seasons = saved?.seasons?.length
+    ? saved.seasons
     : seasonsFromDetail(detail);
+
+  /**
+   * Guarda el título en la biblioteca con lo que ya trajo la ficha.
+   *
+   * Va enriquecido de entrada —plataformas, temporadas, duración— porque la
+   * ficha ya está en pantalla: sin eso el título entraría pelado y habría que
+   * esperar a que alguien lo vuelva a abrir para completarlo.
+   */
+  const saveToLibrary = async (status: MediaStatus, collections?: string[]) => {
+    if (!detail || saved) return;
+
+    const draft: SavedMedia = {
+      tmdbId: id,
+      mediaType,
+      title,
+      posterPath: detail.poster_path,
+      backdropPath: detail.backdrop_path,
+      releaseYear: (detail.release_date || detail.first_air_date || '').split(
+        '-',
+      )[0],
+      genres: detail.genres?.map((genre) => genre.name) ?? [],
+      status,
+      ...(collections?.length ? { collections } : {}),
+      ...enrichFromDetail(detail, preferredRegion),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setJustSaved(draft);
+    await addMedia(draft);
+  };
+
+  const handleQuickAdd = async (status: MediaStatus, listName: string) => {
+    if (savingStatus) return;
+
+    setSavingStatus(status);
+    try {
+      await saveToLibrary(status);
+      showToast(`"${title}" se agregó a ${listName}.`);
+    } finally {
+      setSavingStatus(null);
+    }
+  };
+
+  /** Guarda el título dentro de una lista propia, en un solo paso. */
+  const handleSaveInto = async (collectionId: string) => {
+    await saveToLibrary('por_ver', [collectionId]);
+  };
 
   return (
     <Dialog
@@ -143,7 +237,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
           <X size={20} aria-hidden="true" />
         </button>
 
-        {error && !media ? (
+        {error && !saved ? (
           // Sin el título en la biblioteca no queda nada para mostrar salvo el
           // error. Si está guardado, el modal sigue en pie: el progreso, el
           // historial y las listas son datos propios y no dependen de TMDB.
@@ -170,14 +264,14 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                   rectángulo gris. */}
               {(detail?.backdrop_path ??
                 detail?.poster_path ??
-                media?.backdropPath ??
-                media?.posterPath) && (
+                saved?.backdropPath ??
+                saved?.posterPath) && (
                 <img
                   src={`${TMDB_IMAGE_ORIGINAL_URL}${
                     detail?.backdrop_path ??
                     detail?.poster_path ??
-                    media?.backdropPath ??
-                    media?.posterPath
+                    saved?.backdropPath ??
+                    saved?.posterPath
                   }`}
                   alt=""
                   className="w-full h-full object-cover"
@@ -199,9 +293,9 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                     <span>
                       {(detail?.release_date || detail?.first_air_date || '').split(
                         '-',
-                      )[0] || media?.releaseYear}
+                      )[0] || saved?.releaseYear}
                     </span>
-                    {(detail?.genres?.map((g) => g.name) ?? media?.genres ?? [])
+                    {(detail?.genres?.map((g) => g.name) ?? saved?.genres ?? [])
                       .slice(0, 3)
                       .map((name) => (
                         <span key={name}>• {name}</span>
@@ -212,13 +306,61 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8">
-              {media && mediaType === 'tv' && (
-                <SeriesProgress media={media} seasons={seasons} />
+              {(saved || detail) && (
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-section">Tu biblioteca</h3>
+                  {saved ? (
+                    <p className="text-sm text-text-muted">
+                      Ya está en tu biblioteca, en{' '}
+                      <strong className="text-text-main">
+                        {STATUS_LABELS[saved.status]}
+                      </strong>
+                      .
+                    </p>
+                  ) : (
+                    <ul className="flex flex-wrap gap-2">
+                      {QUICK_ADD.map(({ status, listName }) => (
+                        <li key={status}>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickAdd(status, listName)}
+                            disabled={savingStatus !== null}
+                            aria-label={`Guardar "${title}" en ${STATUS_LABELS[status]}`}
+                            className="btn btn-secondary px-4 py-2.5 text-sm"
+                          >
+                            {savingStatus === status ? (
+                              <Loader2
+                                size={16}
+                                className="animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : status === 'completada' ? (
+                              <Check size={16} aria-hidden="true" />
+                            ) : (
+                              <Plus size={16} aria-hidden="true" />
+                            )}
+                            {STATUS_LABELS[status]}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
 
-              {media && <WatchHistory media={media} />}
+              {saved && mediaType === 'tv' && (
+                <SeriesProgress media={saved} seasons={seasons} />
+              )}
 
-              {media && <CollectionPicker media={media} />}
+              {saved && <WatchHistory media={saved} />}
+
+              {(saved || detail) && (
+                <CollectionPicker
+                  title={title}
+                  media={saved ?? undefined}
+                  onSaveInto={handleSaveInto}
+                />
+              )}
 
               {error && (
                 <p
@@ -256,22 +398,22 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                       title={title}
                       text={`Estoy mirando ${title} en Qué Miro?`}
                       card={{
-                        eyebrow: media?.history?.length
+                        eyebrow: saved?.history?.length
                           ? 'La vi'
                           : 'Anotada para ver',
                         headline: title,
                         subline: [
                           detail?.release_date?.split('-')[0] ??
                             detail?.first_air_date?.split('-')[0] ??
-                            media?.releaseYear,
-                          detail?.genres?.[0]?.name ?? media?.genres[0],
+                            saved?.releaseYear,
+                          detail?.genres?.[0]?.name ?? saved?.genres[0],
                         ]
                           .filter(Boolean)
                           .join(' · '),
-                        stats: media?.history?.[0]
+                        stats: saved?.history?.[0]
                           ? [
                               {
-                                value: String(media.history[0].rating),
+                                value: String(saved.history[0].rating),
                                 label: 'de 5 estrellas',
                               },
                             ]
