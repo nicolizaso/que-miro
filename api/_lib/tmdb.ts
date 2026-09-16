@@ -97,6 +97,72 @@ export async function searchMulti(query: string) {
   return onlyMoviesAndShows(data.results ?? []);
 }
 
+/**
+ * Qué se busca cuando alguien escribe en un campo de búsqueda.
+ *
+ * `multi` es la búsqueda de siempre —títulos—; las otras dos las estrena el
+ * cuestionario de "Contanos de vos", donde hay que poder nombrar a una
+ * directora o a una productora que no están en ninguna biblioteca.
+ */
+export type SearchKind = 'multi' | 'person' | 'company';
+
+export function parseSearchKind(value: unknown): SearchKind {
+  if (value === undefined || value === '' || value === 'multi') return 'multi';
+  if (value === 'person' || value === 'company') return value;
+  throw new TmdbError(
+    "El parámetro 'kind' debe ser 'multi', 'person' o 'company'.",
+    400,
+  );
+}
+
+/** Cuántos resultados devuelve una búsqueda de gente o de productoras. */
+const MAX_SEARCH_RESULTS = 12;
+
+/**
+ * Busca personas por nombre.
+ *
+ * Devuelve solo los cuatro campos que la app usa y no la respuesta cruda: el
+ * `known_for` de TMDB trae la ficha entera de hasta tres títulos por persona,
+ * que acá no mira nadie y multiplica por diez el peso de la respuesta.
+ */
+export async function searchPeople(query: string) {
+  const data = await fetchTMDB<{
+    results?: {
+      id: number;
+      name: string;
+      profile_path: string | null;
+      known_for_department?: string;
+      known_for?: { title?: string; name?: string }[];
+    }[];
+  }>('/search/person', { query, include_adult: 'false' });
+
+  return (data.results ?? []).slice(0, MAX_SEARCH_RESULTS).map((person) => ({
+    id: person.id,
+    name: person.name,
+    profile_path: person.profile_path,
+    known_for_department: person.known_for_department ?? null,
+    // Con qué se la reconoce, para distinguir a dos personas con el mismo
+    // nombre sin tener que abrir nada.
+    known_for: (person.known_for ?? [])
+      .map((credit) => credit.title ?? credit.name ?? '')
+      .filter(Boolean)
+      .slice(0, 2),
+  }));
+}
+
+/** Busca productoras por nombre: A24, Ghibli, Pixar. */
+export async function searchCompanies(query: string) {
+  const data = await fetchTMDB<{
+    results?: { id: number; name: string; logo_path: string | null }[];
+  }>('/search/company', { query });
+
+  return (data.results ?? []).slice(0, MAX_SEARCH_RESULTS).map((company) => ({
+    id: company.id,
+    name: company.name,
+    logo_path: company.logo_path,
+  }));
+}
+
 /** Ventanas de tendencias que acepta TMDB. */
 export type TrendingWindow = 'day' | 'week';
 
@@ -243,6 +309,8 @@ export interface DiscoverQuery {
   /** Idioma original, ISO 639-1. */
   language?: string;
   keyword?: number;
+  /** Id de la productora, para las filas que salen de un estudio. */
+  company?: number;
   /** Nombre de la plataforma, tal como lo guarda la biblioteca. */
   provider?: string;
   /** País cuyo catálogo se consulta. Obligatorio si hay `provider`. */
@@ -345,6 +413,10 @@ export function parseDiscoverQuery(
       query.keyword === undefined || query.keyword === ''
         ? undefined
         : parseIntParam(query.keyword, 'keyword'),
+    company:
+      query.company === undefined || query.company === ''
+        ? undefined
+        : parseIntParam(query.company, 'company'),
     provider,
     region,
     maxRuntime:
@@ -370,6 +442,7 @@ function discoverCacheKey(query: DiscoverQuery): string {
     query.to ?? '',
     query.language ?? '',
     query.keyword ?? '',
+    query.company ?? '',
     query.provider ?? '',
     query.region ?? '',
     query.minRuntime ?? '',
@@ -443,6 +516,7 @@ function discoverParams(
 
   if (query.language) params.with_original_language = query.language;
   if (query.keyword) params.with_keywords = String(query.keyword);
+  if (query.company) params.with_companies = String(query.company);
   if (query.minRuntime) params['with_runtime.gte'] = String(query.minRuntime);
   if (query.maxRuntime) params['with_runtime.lte'] = String(query.maxRuntime);
   if (providerId !== null && query.region) {

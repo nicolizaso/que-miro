@@ -145,6 +145,24 @@ export interface TMDbResult {
   original_language?: string;
 }
 
+/** Una persona, como la devuelve la búsqueda de TMDB. */
+export interface TMDbPerson {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  /** "Acting", "Directing": con qué trabaja TMDB que se la conoce. */
+  known_for_department?: string | null;
+  /** Un par de títulos suyos, para distinguir dos homónimos de un vistazo. */
+  known_for?: string[];
+}
+
+/** Una productora, como la devuelve la búsqueda de TMDB. */
+export interface TMDbCompany {
+  id: number;
+  name: string;
+  logo_path: string | null;
+}
+
 export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
   genres: { id: number; name: string }[];
   /** Minutos. Solo en películas. */
@@ -206,4 +224,57 @@ export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
       buy?: { provider_name: string; logo_path: string }[];
     }>;
   };
+}
+
+/**
+ * Un título elegido a mano en "Contanos de vos".
+ *
+ * Es una copia mínima del resultado de TMDB y no una referencia a la
+ * biblioteca: tu película favorita puede no estar anotada en ninguna lista —de
+ * hecho es lo más probable, porque la viste antes de instalar esto.
+ */
+export interface PickedTitle {
+  tmdbId: number;
+  mediaType: MediaType;
+  title: string;
+  posterPath: string | null;
+  releaseYear: string;
+}
+
+/** Alguien elegido a mano: un actor, una directora. */
+export interface PickedPerson {
+  id: number;
+  name: string;
+  profilePath?: string | null;
+}
+
+/** Una productora elegida a mano: A24, Ghibli, Pixar. */
+export interface PickedStudio {
+  id: number;
+  name: string;
+  logoPath?: string | null;
+}
+
+/**
+ * Lo que la persona dijo de sí misma, en sus propias palabras.
+ *
+ * Es la otra mitad de lo que Explorar sabe de alguien. `taste.ts` deduce el
+ * gusto de la biblioteca —qué puntuaste, con quién te cruzaste dos veces—;
+ * esto, en cambio, no se deduce: se declara. Sirve justo donde la deducción no
+ * llega, que es el primer día, cuando todavía no hay ni una estrella puesta.
+ *
+ * Todos los campos son opcionales a propósito: el cuestionario se puede
+ * contestar de a una pregunta por vez, y con una sola ya hay filas nuevas.
+ */
+export interface TastePicks {
+  movie?: PickedTitle;
+  series?: PickedTitle;
+  /** Nombres de género, como los guarda la biblioteca: "Terror", "Comedia". */
+  genres: string[];
+  actors: PickedPerson[];
+  directors: PickedPerson[];
+  studios: PickedStudio[];
+  /** El primer año de la década: 1990, 2000. */
+  decade?: number;
+  updatedAt: string; // ISO
 }

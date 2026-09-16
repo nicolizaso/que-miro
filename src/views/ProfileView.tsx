@@ -113,6 +113,7 @@ function AppSettings() {
 
 const PROFILE_TABS = [
   { to: '.', label: 'Resumen', end: true },
+  { to: 'gustos', label: 'Contanos de vos', end: false },
   { to: 'ajustes', label: 'Ajustes', end: false },
 ] as const;
 
@@ -122,8 +123,9 @@ const PROFILE_TABS = [
  * Antes esta pantalla era una sola columna de casi cuatro mil píxeles: la
  * sesión, las estadísticas, cuatro bloques de ajustes y el historial, todos
  * seguidos. Nadie baja hasta ahí, y el que baja pierde de vista dónde está.
- * Ahora son dos pestañas —lo que uno mira y lo que uno configura— y cada una
- * tiene su URL, así que "atrás" y "recargar" hacen lo esperado.
+ * Ahora son tres pestañas —lo que uno mira, lo que uno declara y lo que uno
+ * configura— y cada una tiene su URL, así que "atrás" y "recargar" hacen lo
+ * esperado.
  */
 export function ProfileView() {
   return (

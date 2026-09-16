@@ -18,6 +18,13 @@ service cloud.firestore {
       match /collections/{collectionId} {
         allow read, write: if isOwner();
       }
+
+      // "Contanos de vos": un documento con los gustos declarados. Mismo dueño
+      // y mismas reglas que la biblioteca — es dato de la cuenta, no algo
+      // publicado.
+      match /profile/{docId} {
+        allow read, write: if isOwner();
+      }
     }
 
     /**

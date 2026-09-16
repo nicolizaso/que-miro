@@ -84,9 +84,11 @@ vi.mock('@/lib/tmdb', async () => {
   };
 });
 
+const { MemoryRouter } = await import('react-router-dom');
 const { ExploreView } = await import('@/views/ExploreView');
 const { ToastProvider } = await import('@/contexts/ToastContext');
 const { useMediaStore } = await import('@/store');
+const { emptyPicks } = await import('@/lib/picks');
 
 function makeMedia(overrides: Partial<SavedMedia> = {}): SavedMedia {
   return {
@@ -111,12 +113,31 @@ function makeMedia(overrides: Partial<SavedMedia> = {}): SavedMedia {
 }
 
 async function renderExplore() {
+  // Con router: la vista enlaza a "Contanos de vos" cuando el cuestionario
+  // está sin contestar, y un `Link` sin router alrededor no se puede dibujar.
   render(
-    <ToastProvider>
-      <ExploreView />
-    </ToastProvider>,
+    <MemoryRouter>
+      <ToastProvider>
+        <ExploreView />
+      </ToastProvider>
+    </MemoryRouter>,
   );
   await waitFor(() => expect(remote).toHaveBeenCalled());
+}
+
+/**
+ * Pide todas las tandas que queden.
+ *
+ * El orden del feed se baraja con una semilla nueva en cada visita, así que una
+ * fila puede caer en la primera tanda o en la tercera. Un test que busca una
+ * fila concreta tiene que bajar hasta el final, o pasa unas veces sí y otras no.
+ */
+async function loadAllRows() {
+  for (let guard = 0; guard < 12; guard++) {
+    const button = screen.queryByRole('button', { name: 'Cargar más filas' });
+    if (!button) return;
+    await userEvent.click(button);
+  }
 }
 
 /** Los títulos de las filas dibujadas, en orden. */
@@ -152,6 +173,9 @@ describe('ExploreView', () => {
     });
 
     await renderExplore();
+    // Hasta el final del feed: con una biblioteca así hay más filas que tanda,
+    // y cuál entra primero lo decide la semilla de esta visita.
+    await loadAllRows();
 
     await waitFor(() => {
       expect(
@@ -190,6 +214,41 @@ describe('ExploreView', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cargar más filas' }));
 
     await waitFor(() => expect(rowTitles().length).toBeGreaterThan(before));
+  });
+
+  it('arma filas con lo que contestaste en "Contanos de vos"', async () => {
+    // Sin un solo título en la biblioteca: es el caso que el cuestionario viene
+    // a resolver, el del primer día.
+    act(() => {
+      useMediaStore.getState().setPicks({
+        ...emptyPicks(),
+        movie: {
+          tmdbId: 105,
+          mediaType: 'movie',
+          title: 'Volver al futuro',
+          posterPath: null,
+          releaseYear: '1985',
+        },
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    await renderExplore();
+    await loadAllRows();
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Si tu película favorita es Volver al futuro',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('ofrece contestar el cuestionario solo mientras esté en blanco', async () => {
+    await renderExplore();
+    await waitFor(() => expect(rowTitles().length).toBeGreaterThan(0));
+    expect(
+      screen.getByRole('link', { name: /Contanos tus favoritos/ }),
+    ).toBeInTheDocument();
   });
 
   it('avisa si TMDB no contesta nada', async () => {

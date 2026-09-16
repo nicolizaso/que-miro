@@ -287,3 +287,24 @@ test('el tema elegido sobrevive a recargar, sin fogonazo', async ({ page }) => {
   // El script inline de index.html lo aplica antes de que monte React.
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
+
+test('las respuestas de "Contanos de vos" se guardan y sobreviven a una recarga', async ({
+  page,
+}) => {
+  await page.getByRole('link', { name: 'Perfil' }).click();
+  await page.getByRole('link', { name: 'Contanos de vos' }).click();
+  await expect(page).toHaveURL(/\/perfil\/gustos/);
+
+  // El demo viene con el cuestionario contestado: es lo que hace que Explorar
+  // tenga filas personales apenas se entra.
+  await expect(page.getByText(/de 7$/)).toBeVisible();
+
+  const decade = page.getByRole('button', { name: 'Los 80', exact: true });
+  await decade.click();
+  await expect(decade).toHaveAttribute('aria-pressed', 'true');
+
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: 'Los 80', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+});

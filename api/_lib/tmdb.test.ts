@@ -10,8 +10,11 @@ import {
   parseId,
   parseListKind,
   parseMediaType,
+  parseSearchKind,
   parseTrendingWindow,
+  searchCompanies,
   searchMulti,
+  searchPeople,
   toErrorResponse,
 } from './tmdb';
 import { clearCache } from './cache';
@@ -119,6 +122,86 @@ describe('searchMulti', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
 
     await expect(searchMulti('matrix')).rejects.toMatchObject({ status: 502 });
+  });
+});
+
+describe('parseSearchKind', () => {
+  it('sin parámetro busca títulos, como siempre', () => {
+    expect(parseSearchKind(undefined)).toBe('multi');
+    expect(parseSearchKind('')).toBe('multi');
+  });
+
+  it('acepta gente y productoras', () => {
+    expect(parseSearchKind('person')).toBe('person');
+    expect(parseSearchKind('company')).toBe('company');
+  });
+
+  it('rechaza cualquier otra cosa con un 400', () => {
+    expect(() => parseSearchKind('keyword')).toThrow(TmdbError);
+  });
+});
+
+describe('buscar gente y productoras', () => {
+  const originalKey = process.env.TMDB_API_KEY;
+
+  beforeEach(() => {
+    process.env.TMDB_API_KEY = 'test-key';
+  });
+
+  afterEach(() => {
+    process.env.TMDB_API_KEY = originalKey;
+    vi.unstubAllGlobals();
+  });
+
+  it('de una persona devuelve solo lo que la app dibuja', async () => {
+    // `known_for` viene con la ficha entera de hasta tres títulos: si se
+    // reenviara tal cual, la respuesta pesaría diez veces más para mostrar dos
+    // nombres.
+    stubFetch([
+      {
+        id: 525,
+        name: 'Christopher Nolan',
+        profile_path: '/nolan.jpg',
+        known_for_department: 'Directing',
+        known_for: [
+          { title: 'Interestelar', overview: 'Una sinopsis larguísima' },
+          { title: 'El origen' },
+          { title: 'Tenet' },
+        ],
+        adult: false,
+      },
+    ]);
+
+    const [person] = await searchPeople('nolan');
+
+    expect(person).toEqual({
+      id: 525,
+      name: 'Christopher Nolan',
+      profile_path: '/nolan.jpg',
+      known_for_department: 'Directing',
+      known_for: ['Interestelar', 'El origen'],
+    });
+  });
+
+  it('de una serie conocida usa el nombre, que TMDB manda en otro campo', async () => {
+    stubFetch([
+      { id: 1, name: 'Alguien', profile_path: null, known_for: [{ name: 'Fargo' }] },
+    ]);
+
+    const [person] = await searchPeople('alguien');
+
+    expect(person.known_for).toEqual(['Fargo']);
+    expect(person.known_for_department).toBeNull();
+  });
+
+  it('de una productora devuelve el id, el nombre y el logo', async () => {
+    stubFetch([
+      { id: 41077, name: 'A24', logo_path: '/a24.png', origin_country: 'US' },
+    ]);
+
+    expect(await searchCompanies('a24')).toEqual([
+      { id: 41077, name: 'A24', logo_path: '/a24.png' },
+    ]);
   });
 });
 
@@ -293,6 +376,15 @@ describe('parseDiscoverQuery', () => {
     }
   });
 
+  it('acepta el id de una productora', () => {
+    expect(parseDiscoverQuery({ type: 'movie', company: '41077' })).toMatchObject({
+      company: 41077,
+    });
+    expect(() =>
+      parseDiscoverQuery({ type: 'movie', company: 'A24' }),
+    ).toThrow(TmdbError);
+  });
+
   it('pide la región junto con la plataforma', () => {
     // Un catálogo de streaming es distinto en cada país: sin región, la fila
     // diría "está en tu Netflix" mostrando el catálogo de otro lado.
@@ -379,6 +471,24 @@ describe('getDiscover', () => {
     const url = calledUrl(fetchMock, 1);
     expect(url.searchParams.get('with_watch_providers')).toBe('8');
     expect(url.searchParams.get('watch_region')).toBe('AR');
+  });
+
+  it('filtra por productora cuando se pide una', async () => {
+    const fetchMock = stubFetch([]);
+
+    await getDiscover(parseDiscoverQuery({ type: 'movie', company: '41077' }));
+
+    expect(calledUrl(fetchMock).searchParams.get('with_companies')).toBe('41077');
+  });
+
+  it('cachea cada productora por separado', async () => {
+    const fetchMock = stubFetch([]);
+
+    await getDiscover(parseDiscoverQuery({ type: 'movie', company: '41077' }));
+    await getDiscover(parseDiscoverQuery({ type: 'movie', company: '41077' }));
+    await getDiscover(parseDiscoverQuery({ type: 'movie', company: '2' }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('con una plataforma que TMDB no conoce devuelve vacío en vez de fallar', async () => {

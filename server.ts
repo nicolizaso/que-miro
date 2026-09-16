@@ -28,8 +28,11 @@ import {
   parseListKind,
   parseMediaType,
   parsePersonRole,
+  parseSearchKind,
   parseTrendingWindow,
+  searchCompanies,
   searchMulti,
+  searchPeople,
   toErrorResponse,
 } from './api/_lib/tmdb.js';
 
@@ -49,7 +52,15 @@ async function startServer() {
       return res.status(400).json({ error: "Falta el parámetro 'query'." });
     }
     try {
-      return res.status(200).json({ results: await searchMulti(query) });
+      const kind = parseSearchKind(req.query.kind);
+      const results =
+        kind === 'person'
+          ? await searchPeople(query)
+          : kind === 'company'
+            ? await searchCompanies(query)
+            : await searchMulti(query);
+
+      return res.status(200).json({ results });
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);

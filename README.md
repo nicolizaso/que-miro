@@ -32,12 +32,18 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Listas propias** — agrupaciones más allá de los tres estados: "maratón del
   finde", "pendientes de terror". Se arman desde la ficha de cualquier título,
   esté o no en tu biblioteca.
-- **Explorar** — un feed que se arma con tu biblioteca: otros trabajos del
-  director que puntuaste alto, más de esa actriz que aparece en dos de tus
-  favoritas, el género que venís mirando, la parte de la saga que te falta, la
-  serie que dejaste a medias. Son 25 recetas distintas, barajadas en cada visita
-  y cargadas de a tandas mientras scrolleás. Desde la ficha lo guardás en *Por
-  Ver* o en *Completadas* de un clic, o directo en una de tus listas.
+- **Explorar** — un feed que se arma con tu biblioteca y con lo que nos
+  contaste: otros trabajos del director que puntuaste alto, más de esa actriz
+  que aparece en dos de tus favoritas, lo que se parece a tu película favorita,
+  el catálogo de tu productora, el género que venís mirando, la parte de la
+  saga que te falta, la serie que dejaste a medias. Son 34 recetas distintas,
+  barajadas en cada visita y cargadas de a tandas mientras scrolleás. Desde la
+  ficha lo guardás en *Por Ver* o en *Completadas* de un clic, o directo en una
+  de tus listas.
+- **Contanos de vos** — siete preguntas en el perfil —tu película, tu serie,
+  tus géneros, tus actores, tus directores, tus productoras, tu década— que
+  Explorar convierte en filas nuevas. Es lo que hace que la pestaña sea tuya
+  desde el primer día, antes de tener una sola estrella puesta.
 - **Smart Picker** — elige al azar de tu lista *Por Ver*, filtrando por duración,
   tipo, género, plataforma, lista o ánimo.
 - **Modo duelo** — comparaciones de a dos que arman un ranking de tu lista, con
@@ -157,7 +163,7 @@ El modelo de datos está documentado en [`firebase-blueprint.json`](firebase-blu
 api/                  Funciones serverless (Vercel)
   _lib/tmdb.ts        Cliente de TMDB — el único lugar con la API key
   _lib/cache.ts       Caché con TTL para lo que es igual para todos
-  tmdb/search.ts      GET /api/tmdb/search?query=
+  tmdb/search.ts      GET /api/tmdb/search?query=[&kind=person|company]
   tmdb/detail.ts      GET /api/tmdb/detail?type=&id=
   tmdb/trending.ts    GET /api/tmdb/trending (tendencias, populares, top)
   tmdb/recommendations.ts  GET /api/tmdb/recommendations?type=&id=[&mode=similar]
@@ -172,16 +178,17 @@ src/
   contexts/           AuthContext (sesión), ToastContext (avisos)
   hooks/              useMediaActions (escrituras), useCollectionActions (listas),
                       useAccountActions (borrado), useLibraryFilters (filtros
-                      en la URL)
+                      en la URL), useTastePicks (el cuestionario)
   lib/                Cliente HTTP del front, init de Firebase, tema, schema y
                       migraciones, progreso de series, estadísticas, picker,
                       duelo, backup, filtros de la biblioteca, datos del demo
   lib/taste.ts        Qué sabe la app de tu gusto, sacado de tu biblioteca
-  lib/recipes.ts      Las 25 formas de armar una fila de Explorar
+  lib/picks.ts        Qué contaste de vos, y sus topes por pregunta
+  lib/recipes.ts      Las 34 formas de armar una fila de Explorar
   lib/feed.ts         Barajado con semilla y reparto de títulos entre filas
   components/charts/  Piezas del panel de estadísticas
   views/              ListView, ExploreView, SmartPickerView, ProfileView,
-                      LoginView, NotFoundView
+                      TasteProfileView, LoginView, NotFoundView
   store.ts            Biblioteca (Zustand + localStorage)
   preferences.ts      Tema y región, solo de este dispositivo
 server.ts             Server de desarrollo: Vite + las mismas rutas /api
@@ -214,6 +221,15 @@ cachea la respuesta, porque es igual para todos. Quién recibe qué lo decide el
 navegador: `taste.ts` lee la biblioteca, `recipes.ts` decide qué filas se pueden
 armar con esas señales y `feed.ts` las baraja y reparte los títulos para que
 ninguno aparezca dos veces. El servidor nunca necesita saber qué vio nadie.
+
+**El gusto tiene dos fuentes, y no se mezclan.** `taste.ts` lo deduce de la
+biblioteca —qué puntuaste alto, quién dirigió eso, con quién te cruzaste dos
+veces— y `picks.ts` guarda lo que contestaste a mano en *Contanos de vos*. Cada
+receta lee una sola de las dos, y las que leen lo declarado pesan más: lo que
+alguien dice de sí mismo no hay que interpretarlo. Deducir tarda —hasta que no
+hay una docena de títulos puntuados no alcanza para una fila— y hay cosas que
+nunca va a saber, como cuál es *la* película, esa que se vio antes de instalar
+la app y que nunca se va a anotar en *Por Ver*.
 
 **Explorar se congela al entrar y se baraja al volver.** El orden sale de una
 semilla que se estrena en cada visita, así que la pestaña no se ve dos veces

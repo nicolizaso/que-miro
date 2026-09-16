@@ -1,4 +1,4 @@
-import { SavedMedia, TMDbResult } from '@/types';
+import { SavedMedia, TMDbResult, TastePicks } from '@/types';
 import { Taste } from '@/lib/taste';
 import {
   getDiscover,
@@ -56,7 +56,10 @@ export interface FeedBlock {
 }
 
 export interface RecipeContext {
+  /** El gusto deducido de la biblioteca: qué puntuaste, con quién te cruzaste. */
   taste: Taste;
+  /** El gusto declarado: lo que la persona contestó en "Contanos de vos". */
+  picks: TastePicks;
   /** País para el catálogo de plataformas. */
   region: string;
 }
@@ -120,13 +123,34 @@ function topGenreFor(
   return usable[skip];
 }
 
+/**
+ * Los géneros elegidos a mano que existen en este tipo de medio, con su id.
+ *
+ * Mismo problema que arriba: "Terror" no existe en series. El que no está se
+ * cae de la lista en vez de armar una fila con el id equivocado.
+ */
+function pickedGenresFor(
+  picks: TastePicks,
+  mediaType: 'movie' | 'tv',
+): { name: string; id: number }[] {
+  return picks.genres
+    .map((name) => ({ name, id: getGenreId(name, mediaType) }))
+    .filter((genre): genre is { name: string; id: number } => genre.id !== undefined);
+}
+
 // ---------------------------------------------------------------------------
-// Las 25 recetas.
+// Las recetas.
 //
 // Cada una declara con qué señal se activa y de dónde saca los títulos. Si la
 // señal no está —nunca puntuaste nada arriba de 4, no guardaste plataformas—,
 // devuelve cero filas y la fila no existe. Preferimos una pestaña más corta
 // antes que una fila vacía con una excusa adentro.
+//
+// Las señales son de dos clases y las recetas no las mezclan: las primeras
+// veinticinco leen `taste`, que sale de la biblioteca, y las últimas nueve leen
+// `picks`, que es lo que la persona contestó a mano. La diferencia se nota en
+// el peso: lo que alguien declara favorito pesa más que lo que dedujimos de
+// sus estrellas, porque no hay nada que interpretar.
 // ---------------------------------------------------------------------------
 
 export const RECIPES: Recipe[] = [
@@ -682,6 +706,182 @@ export const RECIPES: Recipe[] = [
         fetch: () => getList('tv', 'top_rated'),
       },
     ],
+  },
+
+  // -------------------------------------------------------------------------
+  // Las que salen de "Contanos de vos".
+  //
+  // Nada de acá se deduce: alguien se sentó a contestar que su película
+  // favorita es esa. Por eso pesan más que sus equivalentes de arriba, y por
+  // eso son las únicas que funcionan el primer día, con la biblioteca vacía y
+  // sin una sola estrella puesta.
+  // -------------------------------------------------------------------------
+
+  {
+    // 26. La respuesta a la primera pregunta del cuestionario.
+    id: 'favorita-pelicula',
+    build: ({ picks }) => {
+      const movie = picks.movie;
+      if (!movie) return [];
+
+      return [
+        {
+          id: `favorita-pelicula-${movie.tmdbId}`,
+          family: 'semilla',
+          title: `Si tu película favorita es ${movie.title}`,
+          subtitle: 'Te recomendamos estas otras.',
+          weight: 11,
+          fetch: () => getRecommendations(movie.tmdbId, 'movie'),
+        },
+      ];
+    },
+  },
+  {
+    // 27. Lo mismo con la serie.
+    id: 'favorita-serie',
+    build: ({ picks }) => {
+      const series = picks.series;
+      if (!series) return [];
+
+      return [
+        {
+          id: `favorita-serie-${series.tmdbId}`,
+          family: 'semilla',
+          title: `Si tu serie favorita es ${series.title}`,
+          subtitle: 'Estas van por el mismo camino.',
+          weight: 11,
+          fetch: () => getRecommendations(series.tmdbId, 'tv'),
+        },
+      ];
+    },
+  },
+  {
+    // 28. Las mismas dos semillas por la otra puerta: `/similar` va por
+    // metadatos y no por quién mira qué, así que trae otra cosa.
+    id: 'favorita-similar',
+    build: ({ picks }) =>
+      [picks.movie, picks.series]
+        .filter((title): title is NonNullable<typeof title> => Boolean(title))
+        .map((title) => ({
+          id: `favorita-similar-${title.mediaType}-${title.tmdbId}`,
+          family: 'semilla' as const,
+          title: `Lo más parecido a ${title.title}`,
+          subtitle: 'Mismo género, misma época, mismo clima.',
+          weight: 8,
+          fetch: () => getSimilar(title.tmdbId, title.mediaType),
+        })),
+  },
+  {
+    // 29. Los géneros que eligió, no los que deducimos de sus puntajes.
+    id: 'genero-elegido',
+    build: ({ picks }) =>
+      pickedGenresFor(picks, 'movie')
+        .slice(0, 2)
+        .map((genre) => ({
+          id: `genero-elegido-${genre.id}`,
+          family: 'genero' as const,
+          title: `Lo mejor de ${genre.name.toLowerCase()}`,
+          subtitle: 'Uno de los géneros que elegiste.',
+          weight: 9,
+          fetch: () =>
+            getDiscover({ mediaType: 'movie', genres: [genre.id], sort: 'rating' }),
+        })),
+  },
+  {
+    // 30. El mismo género, pero en serie: son dos catálogos distintos y quien
+    // dijo "terror" no dijo "películas de terror".
+    id: 'genero-elegido-series',
+    build: ({ picks }) =>
+      pickedGenresFor(picks, 'tv')
+        .slice(0, 1)
+        .map((genre) => ({
+          id: `genero-elegido-series-${genre.id}`,
+          family: 'genero' as const,
+          title: `Series de ${genre.name.toLowerCase()}`,
+          subtitle: 'Tu género favorito, en capítulos.',
+          weight: 8,
+          fetch: () =>
+            getDiscover({ mediaType: 'tv', genres: [genre.id], sort: 'rating' }),
+        })),
+  },
+  {
+    // 31. Quien dirige lo que le gusta, dicho por ella misma.
+    id: 'director-elegido',
+    build: ({ picks }) =>
+      picks.directors.slice(0, 2).map((person) => ({
+        id: `director-elegido-${person.id}`,
+        family: 'gente' as const,
+        title: `Todo lo de ${person.name}`,
+        subtitle: 'Está entre tus directores favoritos.',
+        avatar: { name: person.name, profilePath: person.profilePath },
+        weight: 10,
+        fetch: () => getPersonCredits(person.id, 'direccion'),
+      })),
+  },
+  {
+    // 32. Y quien actúa.
+    id: 'actor-elegido',
+    build: ({ picks }) =>
+      picks.actors.slice(0, 2).map((person) => ({
+        id: `actor-elegido-${person.id}`,
+        family: 'gente' as const,
+        title: `Con ${person.name} en pantalla`,
+        subtitle: 'Está entre tus actores favoritos.',
+        avatar: { name: person.name, profilePath: person.profilePath },
+        weight: 10,
+        fetch: () => getPersonCredits(person.id, 'reparto'),
+      })),
+  },
+  {
+    // 33. La productora: la única señal que no es ni un título ni una persona,
+    // y la que mejor describe un gusto cuando existe —quien dice "A24" está
+    // diciendo algo bastante preciso sobre lo que quiere ver.
+    id: 'productora-elegida',
+    build: ({ picks }) =>
+      picks.studios.slice(0, 2).map((studio) => ({
+        id: `productora-elegida-${studio.id}`,
+        family: 'catalogo' as const,
+        title: `Del catálogo de ${studio.name}`,
+        subtitle: 'La productora que elegiste.',
+        weight: 9,
+        // Por popularidad y no por puntaje: el catálogo de una productora ya
+        // está acotado, y pedirle además 300 votos deja afuera justo lo que
+        // alguien todavía no vio.
+        fetch: () =>
+          getDiscover({ mediaType: 'movie', company: studio.id, sort: 'popular' }),
+      })),
+  },
+  {
+    // 34. La década elegida, cruzada con el género elegido si hay los dos:
+    // "terror de los 90" es una fila; "los 90" es un cajón.
+    id: 'decada-elegida',
+    build: ({ picks }) => {
+      const decade = picks.decade;
+      if (decade === undefined) return [];
+
+      const genre = pickedGenresFor(picks, 'movie')[0];
+      const label = decade < 2000 ? `los ${String(decade).slice(2)}` : `los ${decade}`;
+
+      return [
+        {
+          id: `decada-elegida-${decade}${genre ? `-${genre.id}` : ''}`,
+          family: 'epoca',
+          title: genre
+            ? `${genre.name} de ${label}`
+            : `Lo mejor de ${label}`,
+          subtitle: 'Tu década favorita, bien puntuada.',
+          weight: 7,
+          fetch: () =>
+            getDiscover({
+              mediaType: 'movie',
+              genres: genre ? [genre.id] : undefined,
+              from: decade,
+              to: decade + 9,
+              sort: 'rating',
+            }),
+        },
+      ];
+    },
   },
 ];
 

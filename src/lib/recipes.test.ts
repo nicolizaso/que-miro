@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RECIPES, buildBlocks } from './recipes';
 import { tasteProfile } from './taste';
-import { Person, SavedMedia } from '@/types';
+import { emptyPicks } from './picks';
+import { Person, SavedMedia, TastePicks } from '@/types';
 
 vi.mock('@/lib/tmdb', async () => {
   const actual = await vi.importActual<typeof import('@/lib/tmdb')>('@/lib/tmdb');
@@ -17,7 +18,8 @@ vi.mock('@/lib/tmdb', async () => {
   };
 });
 
-const { getDiscover, getPersonCredits } = await import('@/lib/tmdb');
+const { getDiscover, getPersonCredits, getRecommendations, getSimilar } =
+  await import('@/lib/tmdb');
 
 const NOW = new Date('2026-06-01T00:00:00.000Z');
 
@@ -46,16 +48,25 @@ function person(id: number, name: string, role: Person['role']): Person {
 
 /** Las filas que se pueden armar con esta biblioteca. */
 function blocksFor(list: SavedMedia[], region = 'AR') {
-  return buildBlocks({ taste: tasteProfile(list, NOW), region });
+  return buildBlocks({ taste: tasteProfile(list, NOW), picks: emptyPicks(), region });
+}
+
+/** Las filas que se pueden armar con lo que la persona contestó, y nada más. */
+function blocksForPicks(picks: Partial<TastePicks>, region = 'AR') {
+  return buildBlocks({
+    taste: tasteProfile([], NOW),
+    picks: { ...emptyPicks(), ...picks },
+    region,
+  });
 }
 
 describe('el catálogo de recetas', () => {
-  it('tiene 25 recetas, cada una con su id', () => {
-    expect(RECIPES).toHaveLength(25);
-    expect(new Set(RECIPES.map((recipe) => recipe.id)).size).toBe(25);
+  it('tiene 34 recetas, cada una con su id', () => {
+    expect(RECIPES).toHaveLength(34);
+    expect(new Set(RECIPES.map((recipe) => recipe.id)).size).toBe(34);
   });
 
-  it('con la biblioteca vacía deja solo las filas que no hablan de vos', () => {
+  it('con la biblioteca vacía y sin contestar nada deja solo las filas de todos', () => {
     const blocks = blocksFor([]);
 
     // Sigue habiendo pestaña el primer día: tendencias, populares, estrenos y
@@ -248,5 +259,144 @@ describe('la fila de plataformas', () => {
     expect(getDiscover).toHaveBeenCalledWith(
       expect.objectContaining({ provider: 'Netflix', region: 'UY' }),
     );
+  });
+});
+
+describe('las filas que salen de "Contanos de vos"', () => {
+  const favoriteMovie = {
+    tmdbId: 550,
+    mediaType: 'movie' as const,
+    title: 'El club de la pelea',
+    posterPath: '/poster.jpg',
+    releaseYear: '1999',
+  };
+
+  it('recomienda a partir de la película favorita declarada', () => {
+    const blocks = blocksForPicks({ movie: favoriteMovie });
+
+    const row = blocks.find((block) => block.id === 'favorita-pelicula-550');
+    expect(row?.title).toBe('Si tu película favorita es El club de la pelea');
+
+    row?.fetch();
+    expect(getRecommendations).toHaveBeenCalledWith(550, 'movie');
+  });
+
+  it('siembra una segunda fila con la otra puerta de TMDB', () => {
+    const blocks = blocksForPicks({ movie: favoriteMovie });
+
+    const row = blocks.find((block) => block.id === 'favorita-similar-movie-550');
+    expect(row?.title).toBe('Lo más parecido a El club de la pelea');
+
+    row?.fetch();
+    expect(getSimilar).toHaveBeenCalledWith(550, 'movie');
+  });
+
+  it('pide recomendaciones de series para la serie favorita', () => {
+    const blocks = blocksForPicks({
+      series: {
+        tmdbId: 1398,
+        mediaType: 'tv',
+        title: 'Los Soprano',
+        posterPath: null,
+        releaseYear: '1999',
+      },
+    });
+
+    const row = blocks.find((block) => block.id === 'favorita-serie-1398');
+    expect(row?.title).toBe('Si tu serie favorita es Los Soprano');
+
+    row?.fetch();
+    expect(getRecommendations).toHaveBeenCalledWith(1398, 'tv');
+  });
+
+  it('arma una fila por cada género elegido, y una de series con el que exista', () => {
+    // "Terror" no existe como género de series en TMDB y "Comedia" sí: la fila
+    // de series se arma con el segundo, no con el id equivocado del primero.
+    const blocks = blocksForPicks({ genres: ['Terror', 'Comedia'] });
+
+    expect(blocks.find((block) => block.id === 'genero-elegido-27')?.title).toBe(
+      'Lo mejor de terror',
+    );
+    expect(blocks.find((block) => block.id === 'genero-elegido-35')?.title).toBe(
+      'Lo mejor de comedia',
+    );
+    expect(
+      blocks.find((block) => block.id === 'genero-elegido-series-35')?.title,
+    ).toBe('Series de comedia');
+    expect(blocks.some((block) => block.id === 'genero-elegido-series-27')).toBe(
+      false,
+    );
+  });
+
+  it('propone la filmografía de la gente elegida, cada quien por su oficio', () => {
+    const blocks = blocksForPicks({
+      directors: [{ id: 240, name: 'Agnès Varda', profilePath: '/varda.jpg' }],
+      actors: [{ id: 500, name: 'Ricardo Darín', profilePath: null }],
+    });
+
+    const director = blocks.find((block) => block.id === 'director-elegido-240');
+    expect(director?.title).toBe('Todo lo de Agnès Varda');
+    expect(director?.avatar?.profilePath).toBe('/varda.jpg');
+    director?.fetch();
+    expect(getPersonCredits).toHaveBeenCalledWith(240, 'direccion');
+
+    const actor = blocks.find((block) => block.id === 'actor-elegido-500');
+    expect(actor?.title).toBe('Con Ricardo Darín en pantalla');
+    actor?.fetch();
+    expect(getPersonCredits).toHaveBeenCalledWith(500, 'reparto');
+  });
+
+  it('arma el catálogo de la productora elegida', () => {
+    const blocks = blocksForPicks({
+      studios: [{ id: 41077, name: 'A24', logoPath: null }],
+    });
+
+    const row = blocks.find((block) => block.id === 'productora-elegida-41077');
+    expect(row?.title).toBe('Del catálogo de A24');
+
+    row?.fetch();
+    expect(getDiscover).toHaveBeenCalledWith(
+      expect.objectContaining({ company: 41077, mediaType: 'movie' }),
+    );
+  });
+
+  it('cruza la década con el género cuando están las dos respuestas', () => {
+    const blocks = blocksForPicks({ decade: 1990, genres: ['Terror'] });
+
+    const row = blocks.find((block) => block.id === 'decada-elegida-1990-27');
+    expect(row?.title).toBe('Terror de los 90');
+
+    row?.fetch();
+    expect(getDiscover).toHaveBeenCalledWith(
+      expect.objectContaining({ from: 1990, to: 1999, genres: [27] }),
+    );
+  });
+
+  it('con la década sola arma la fila igual', () => {
+    const blocks = blocksForPicks({ decade: 2000 });
+
+    expect(blocks.find((block) => block.id === 'decada-elegida-2000')?.title).toBe(
+      'Lo mejor de los 2000',
+    );
+  });
+
+  it('pesan más que las que se deducen de la biblioteca', () => {
+    // Quien contestó no está siendo interpretado: dijo cuál es su favorita.
+    const declared = blocksForPicks({ movie: favoriteMovie }).find(
+      (block) => block.id === 'favorita-pelicula-550',
+    );
+    const deduced = blocksFor([
+      makeMedia({ tmdbId: 1, history: [watch(5)] }),
+    ]).find((block) => block.id === 'porque-viste-1');
+
+    expect(declared!.weight).toBeGreaterThan(deduced!.weight);
+  });
+
+  it('sin respuestas no arma ninguna de estas filas', () => {
+    const ids = blocksForPicks({}).map((block) => block.id);
+
+    expect(ids.some((id) => id.startsWith('favorita-'))).toBe(false);
+    expect(ids.some((id) => id.endsWith('-elegido'))).toBe(false);
+    expect(ids.some((id) => id.includes('elegida'))).toBe(false);
   });
 });

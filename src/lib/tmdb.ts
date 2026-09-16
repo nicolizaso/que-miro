@@ -3,7 +3,13 @@
 // Cliente del front. No habla con TMDB directamente: pega contra nuestras
 // propias rutas `/api/tmdb/*`, que son las que tienen la API key. Así la key
 // nunca viaja al navegador.
-import { MediaType, TMDbDetail, TMDbResult } from '@/types';
+import {
+  MediaType,
+  TMDbCompany,
+  TMDbDetail,
+  TMDbPerson,
+  TMDbResult,
+} from '@/types';
 
 export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 export const TMDB_IMAGE_ORIGINAL_URL = 'https://image.tmdb.org/t/p/original';
@@ -84,6 +90,30 @@ export function getGenreId(
   return undefined;
 }
 
+/**
+ * Los géneros que se pueden elegir como favoritos, en un solo lugar.
+ *
+ * Sale del mismo mapa que traduce los ids de TMDB, así que el cuestionario no
+ * puede ofrecer un género que después no se sepa buscar. Quedan afuera los que
+ * describen un formato y no un gusto —"Película de TV", "Noticias", "Talk
+ * Show", "Telenovela"—: nadie contesta "reality" cuando le preguntan qué le
+ * gusta mirar, y si lo contestara, `/discover` no tiene con qué responderle.
+ */
+const NOT_A_TASTE = new Set([
+  'Película de TV',
+  'Noticias',
+  'Talk Show',
+  'Telenovela',
+  'Infantil',
+]);
+
+export function genreOptions(): string[] {
+  const names = new Set(
+    Object.values(GENRE_MAP).filter((name) => !NOT_A_TASTE.has(name)),
+  );
+  return Array.from(names).sort((a, b) => a.localeCompare(b, 'es'));
+}
+
 async function fetchApi<T>(path: string): Promise<T> {
   let response: Response;
   try {
@@ -112,6 +142,31 @@ async function fetchApi<T>(path: string): Promise<T> {
 export async function searchMulti(query: string): Promise<TMDbResult[]> {
   const { results } = await fetchApi<{ results: TMDbResult[] }>(
     `/api/tmdb/search?query=${encodeURIComponent(query)}`,
+  );
+  return results;
+}
+
+/**
+ * Busca personas por nombre: actores, actrices, directores.
+ *
+ * La usa el cuestionario de "Contanos de vos", donde hace falta poder nombrar a
+ * alguien que no aparece en ninguna película de la biblioteca.
+ * @throws {TMDbRequestError} si la búsqueda falla.
+ */
+export async function searchPeople(query: string): Promise<TMDbPerson[]> {
+  const { results } = await fetchApi<{ results: TMDbPerson[] }>(
+    `/api/tmdb/search?kind=person&query=${encodeURIComponent(query)}`,
+  );
+  return results;
+}
+
+/**
+ * Busca productoras por nombre.
+ * @throws {TMDbRequestError} si la búsqueda falla.
+ */
+export async function searchCompanies(query: string): Promise<TMDbCompany[]> {
+  const { results } = await fetchApi<{ results: TMDbCompany[] }>(
+    `/api/tmdb/search?kind=company&query=${encodeURIComponent(query)}`,
   );
   return results;
 }
@@ -194,6 +249,8 @@ export interface DiscoverParams {
   /** Idioma original, ISO 639-1. */
   language?: string;
   keyword?: number;
+  /** Id de la productora en TMDB. */
+  company?: number;
   /** Nombre de la plataforma, tal como lo guarda la biblioteca. */
   provider?: string;
   /** País cuyo catálogo se consulta. Va siempre junto a `provider`. */
@@ -220,6 +277,7 @@ export async function getDiscover(
   if (params.to) query.set('to', String(params.to));
   if (params.language) query.set('lang', params.language);
   if (params.keyword) query.set('keyword', String(params.keyword));
+  if (params.company) query.set('company', String(params.company));
   if (params.provider && params.region) {
     query.set('provider', params.provider);
     query.set('region', params.region);
