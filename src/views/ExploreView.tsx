@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Compass, Shuffle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Compass, Shuffle, Sparkles } from 'lucide-react';
 import { TitleCarousel } from '@/components/TitleCarousel';
 import { useTmdbList } from '@/hooks/useTmdbList';
 import { useExploreFeed } from '@/hooks/useExploreFeed';
@@ -62,10 +63,12 @@ function FeedRow({
  * Punto de entrada para descubrir qué mirar.
  *
  * Antes eran cuatro filas fijas y una sola idea —"porque viste X"—, iguales en
- * cada visita por más que la biblioteca cambiara. Ahora hay veinticinco recetas
- * que se arman con lo que la biblioteca sabe de vos: qué puntuaste alto, quién
- * dirigió eso, con quién te cruzaste dos veces, qué género venís mirando, qué
- * dejaste por la mitad. Las que no tienen con qué armarse no aparecen.
+ * cada visita por más que la biblioteca cambiara. Ahora hay treinta y cuatro
+ * recetas que se arman con dos cosas: lo que la biblioteca sabe de vos —qué
+ * puntuaste alto, quién dirigió eso, con quién te cruzaste dos veces, qué
+ * dejaste por la mitad— y lo que contestaste en "Contanos de vos", que es lo
+ * único que funciona el primer día. Las que no tienen con qué armarse no
+ * aparecen.
  *
  * El orden se baraja en cada visita y las filas entran de a tandas mientras se
  * scrollea, así que la pestaña no se termina nunca de la misma manera.
@@ -74,7 +77,7 @@ export function ExploreView() {
   const mediaList = useMediaStore((state) => state.mediaList);
   usePeopleBackfill(mediaList);
 
-  const { blocks, hasMore, loadMore, shuffle, registry, isPersonal } =
+  const { blocks, hasMore, loadMore, shuffle, registry, isPersonal, hasAnswers } =
     useExploreFeed();
 
   const [statuses, setStatuses] = useState<Record<string, RowStatus>>({});
@@ -132,6 +135,19 @@ export function ExploreView() {
               películas del director, de los actores y de los géneros que te
               gustan.
             </p>
+          )}
+
+          {/* El atajo para quien todavía no tiene biblioteca que mirar, y el
+              recordatorio para quien contestó la mitad: es la única forma de
+              enterarse de que el cuestionario existe sin ir a buscarlo. */}
+          {!hasAnswers && (
+            <Link
+              to="/perfil/gustos"
+              className="inline-flex items-center gap-2 mt-3 text-sm font-medium text-accent hover:underline"
+            >
+              <Sparkles size={15} aria-hidden="true" />
+              Contanos tus favoritos y sumamos filas nuevas
+            </Link>
           )}
         </div>
 

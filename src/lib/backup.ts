@@ -1,5 +1,6 @@
-import { Collection, SavedMedia } from '@/types';
+import { Collection, SavedMedia, TastePicks } from '@/types';
 import { SCHEMA_VERSION, parseCollection, parseMediaList } from '@/lib/schema';
+import { hasPicks, parsePicks } from '@/lib/picks';
 import { progressPercent, watchedEpisodes } from '@/lib/progress';
 
 export { SCHEMA_VERSION };
@@ -11,6 +12,8 @@ export interface LibraryBackup {
   exportedAt: string;
   media: SavedMedia[];
   collections?: Collection[];
+  /** Las respuestas de "Contanos de vos", si había alguna. */
+  picks?: TastePicks;
 }
 
 /** Error de importación con un mensaje pensado para mostrarle a la persona. */
@@ -24,6 +27,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function buildBackup(
   media: SavedMedia[],
   collections: Collection[] = [],
+  picks?: TastePicks,
 ): LibraryBackup {
   return {
     app: 'que-miro',
@@ -31,12 +35,18 @@ export function buildBackup(
     exportedAt: new Date().toISOString(),
     media,
     collections,
+    // Un cuestionario en blanco no se escribe: el archivo no gana nada con
+    // siete campos vacíos adentro, y el importador lo trataría como una
+    // respuesta más.
+    ...(picks && hasPicks(picks) ? { picks } : {}),
   };
 }
 
 export interface ParsedBackup {
   media: SavedMedia[];
   collections: Collection[];
+  /** `null` si el archivo no traía cuestionario: un backup de antes de QM-3. */
+  picks: TastePicks | null;
   /** Títulos descartados por estar incompletos o corruptos. */
   skipped: number;
 }
@@ -82,7 +92,9 @@ export function parseBackup(contents: string): ParsedBackup {
         .filter((collection): collection is Collection => collection !== null)
     : [];
 
-  return { media, collections, skipped };
+  const picks = raw.picks === undefined ? null : parsePicks(raw.picks);
+
+  return { media, collections, picks: picks && hasPicks(picks) ? picks : null, skipped };
 }
 
 export interface MergeResult {

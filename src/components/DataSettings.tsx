@@ -17,6 +17,7 @@ import {
   toCsv,
 } from '@/lib/backup';
 import { clearRescue, readRescue } from '@/lib/rescue';
+import { useTastePicks } from '@/hooks/useTastePicks';
 import { formatWatchDate } from '@/lib/dates';
 
 type PendingDialog = 'import' | 'clear' | 'delete' | null;
@@ -28,7 +29,8 @@ type PendingDialog = 'import' | 'clear' | 'delete' | null;
  * borrarlo. Sin esto la biblioteca es rehén de la app.
  */
 export function DataSettings() {
-  const { mediaList } = useMediaStore();
+  const { mediaList, collections } = useMediaStore();
+  const { picks, savePicks } = useTastePicks();
   const { authState } = useAuth();
   const { showToast } = useToast();
   const { saveMany } = useMediaActions();
@@ -49,7 +51,7 @@ export function DataSettings() {
   const handleExportJson = () => {
     downloadFile(
       backupFilename('json'),
-      JSON.stringify(buildBackup(mediaList), null, 2),
+      JSON.stringify(buildBackup(mediaList, collections, picks), null, 2),
       'application/json',
     );
     showToast('Descargamos tu biblioteca en JSON.');
@@ -66,6 +68,7 @@ export function DataSettings() {
     setPendingImport({
       media: rescue.media,
       collections: rescue.collections,
+      picks: null,
       skipped: 0,
     });
     setDialog('import');
@@ -117,6 +120,16 @@ export function DataSettings() {
         return !existing || existing.updatedAt !== item.updatedAt;
       });
       await saveMany(touched);
+
+      // El cuestionario del archivo solo pisa al de acá si es más nuevo, que
+      // es la misma regla con la que se resuelve un título repetido.
+      const incomingPicks = pendingImport.picks;
+      if (
+        incomingPicks &&
+        Date.parse(incomingPicks.updatedAt) > Date.parse(picks.updatedAt)
+      ) {
+        savePicks(incomingPicks);
+      }
 
       showToast(
         added || updated

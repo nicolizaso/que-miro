@@ -2,7 +2,14 @@ import { useMediaStore } from '@/store';
 import { getMediaDetail } from '@/lib/tmdb';
 import { enrichFromDetail } from '@/lib/enrich';
 import { newWatchId } from '@/lib/schema';
-import { MediaStatus, MediaType, SavedMedia, SeriesProgress } from '@/types';
+import { emptyPicks, parsePicks } from '@/lib/picks';
+import {
+  MediaStatus,
+  MediaType,
+  SavedMedia,
+  SeriesProgress,
+  TastePicks,
+} from '@/types';
 
 /**
  * Dueño ficticio de la biblioteca de demostración.
@@ -15,8 +22,42 @@ import { MediaStatus, MediaType, SavedMedia, SeriesProgress } from '@/types';
  */
 export const DEMO_OWNER_UID = 'demo';
 
-/** Copia de la biblioteca de invitado mientras el demo está activo. */
+/** Copia de los datos de invitado mientras el demo está activo. */
 const SNAPSHOT_KEY = 'que-miro-pre-demo';
+
+/**
+ * Las respuestas de "Contanos de vos" de la persona ficticia del demo.
+ *
+ * Sin esto, el demo mostraría el cuestionario en blanco y ninguna de las filas
+ * que salen de él —que son justo las que conviene mostrarle a alguien que está
+ * mirando la app por primera vez—. Son coherentes con su biblioteca: la
+ * película y la serie que puntuó 5, y la gente que aparece en ellas.
+ */
+export function buildDemoPicks(): TastePicks {
+  return {
+    ...emptyPicks(),
+    movie: {
+      tmdbId: 496243,
+      mediaType: 'movie',
+      title: 'Parásitos',
+      posterPath: null,
+      releaseYear: '2019',
+    },
+    series: {
+      tmdbId: 1396,
+      mediaType: 'tv',
+      title: 'Breaking Bad',
+      posterPath: null,
+      releaseYear: '2008',
+    },
+    genres: ['Drama', 'Ciencia Ficción', 'Suspenso'],
+    actors: [{ id: 17604, name: 'Bryan Cranston', profilePath: null }],
+    directors: [{ id: 21684, name: 'Bong Joon-ho', profilePath: null }],
+    studios: [{ id: 10342, name: 'Studio Ghibli', logoPath: null }],
+    decade: 2010,
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 interface DemoSeedEntry {
   tmdbId: number;
@@ -321,34 +362,52 @@ export async function hydrateDemoLibrary(region: string): Promise<void> {
  * para poder devolvérselo al salir.
  */
 export function enterDemoMode(): void {
-  const { mediaList, ownerUid, setMediaList, setOwnerUid } =
+  const { mediaList, picks, ownerUid, setMediaList, setPicks, setOwnerUid } =
     useMediaStore.getState();
 
   if (ownerUid !== DEMO_OWNER_UID) {
     try {
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(mediaList));
+      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ media: mediaList, picks }));
     } catch {
       // Sin storage disponible se pierde el respaldo, pero el demo funciona.
     }
   }
 
   setMediaList(buildDemoLibrary());
+  setPicks(buildDemoPicks());
   setOwnerUid(DEMO_OWNER_UID);
 }
 
-/** Sale del demo y restituye la biblioteca previa. */
+/** Sale del demo y restituye lo que había antes: biblioteca y respuestas. */
 export function exitDemoMode(): void {
-  const { setMediaList, setOwnerUid } = useMediaStore.getState();
+  const { setMediaList, setPicks, setOwnerUid } = useMediaStore.getState();
 
-  let restored: SavedMedia[] = [];
+  let media: SavedMedia[] = [];
+  let picks: TastePicks = emptyPicks();
+
   try {
     const snapshot = localStorage.getItem(SNAPSHOT_KEY);
-    if (snapshot) restored = JSON.parse(snapshot) as SavedMedia[];
+    if (snapshot) {
+      const parsed: unknown = JSON.parse(snapshot);
+      // El respaldo era un array pelado antes de que existiera el
+      // cuestionario: quien entró al demo con la versión anterior y sale con
+      // esta tiene que recuperar igual su biblioteca.
+      if (Array.isArray(parsed)) {
+        media = parsed as SavedMedia[];
+      } else if (parsed && typeof parsed === 'object') {
+        const snapshotObject = parsed as { media?: unknown; picks?: unknown };
+        media = Array.isArray(snapshotObject.media)
+          ? (snapshotObject.media as SavedMedia[])
+          : [];
+        picks = parsePicks(snapshotObject.picks);
+      }
+    }
     localStorage.removeItem(SNAPSHOT_KEY);
   } catch {
-    restored = [];
+    media = [];
   }
 
-  setMediaList(Array.isArray(restored) ? restored : []);
+  setMediaList(media);
+  setPicks(picks);
   setOwnerUid(null);
 }

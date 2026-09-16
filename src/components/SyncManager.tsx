@@ -8,9 +8,11 @@ import {
   isPermissionDeniedError,
 } from '@/lib/firebase';
 import { useSyncStatus } from '@/lib/syncStatus';
-import { collection, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, writeBatch } from 'firebase/firestore';
 import { Collection, SavedMedia } from '@/types';
 import { parseCollection, parseMedia } from '@/lib/schema';
+import { hasPicks, parsePicks } from '@/lib/picks';
+import { picksPath, picksToDocument } from '@/hooks/useTastePicks';
 import { mergeLibraries } from '@/lib/backup';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -27,6 +29,8 @@ import { useToast } from '@/contexts/ToastContext';
  *   le filtraría al siguiente usuario. Los datos del modo demo caen acá: su
  *   `ownerUid` ficticio nunca coincide con un UID real.
  * - Sin sesión, no se toca nada: el modo invitado vive solo en localStorage.
+ * - El cuestionario de "Contanos de vos" viaja con la biblioteca: mismo dueño,
+ *   mismas reglas.
  *
  * Todo lo que llega de Firestore pasa por `parseMedia`, que migra los
  * documentos guardados con versiones viejas del schema.
@@ -49,8 +53,13 @@ export function SyncManager() {
 
     // Se relee después del posible `reset`: leer antes dejaría en la mano la
     // biblioteca que se acaba de descartar y la subiría a la cuenta nueva.
-    const { mediaList, collections: localCollections, syncedUid, setSyncedUid } =
-      useMediaStore.getState();
+    const {
+      mediaList,
+      collections: localCollections,
+      picks: localPicks,
+      syncedUid,
+      setSyncedUid,
+    } = useMediaStore.getState();
 
     /**
      * Nunca bajamos la biblioteca de esta cuenta desde el servidor.
@@ -63,11 +72,13 @@ export function SyncManager() {
     const isFirstSync = syncedUid !== user.uid;
     const localMediaToUpload = isFirstSync ? mediaList : [];
     const localCollectionsToUpload = isFirstSync ? localCollections : [];
+    const localPicksToUpload = isFirstSync ? localPicks : null;
 
     setOwnerUid(user.uid);
 
     const savedMediaRef = collection(db, `users/${user.uid}/saved_media`);
     const collectionsRef = collection(db, `users/${user.uid}/collections`);
+    const picksRef = doc(db, picksPath(user.uid));
     let migrated = false;
 
     const { setIssue } = useSyncStatus.getState();
@@ -249,9 +260,47 @@ export function SyncManager() {
       onError,
     );
 
+    /**
+     * El cuestionario: un documento y no una colección.
+     *
+     * Ante un conflicto gana el más nuevo, que acá alcanza. Son siete campos
+     * que se contestan una vez y se retocan cada tanto, no un historial: si
+     * alguien contestó en el celular y después en la compu, lo último que dijo
+     * es lo que quiso decir.
+     */
+    const unsubscribePicks = onSnapshot(
+      picksRef,
+      (snapshot) => {
+        const remote = snapshot.exists() ? parsePicks(snapshot.data()) : null;
+        const { picks: local, setPicks } = useMediaStore.getState();
+
+        if (
+          localPicksToUpload &&
+          hasPicks(localPicksToUpload) &&
+          (!remote ||
+            Date.parse(remote.updatedAt) < Date.parse(localPicksToUpload.updatedAt))
+        ) {
+          // Contestado sin cuenta, o contestado en este dispositivo mientras
+          // Firestore rechazaba las escrituras: la copia local es la buena.
+          setDoc(picksRef, picksToDocument(localPicksToUpload)).catch(
+            (error: unknown) => {
+              console.error('[sync] No se pudieron subir los gustos:', error);
+            },
+          );
+          return;
+        }
+
+        if (!remote) return;
+        if (Date.parse(remote.updatedAt) < Date.parse(local.updatedAt)) return;
+        setPicks(remote);
+      },
+      onError,
+    );
+
     return () => {
       unsubscribeMedia();
       unsubscribeCollections();
+      unsubscribePicks();
       // Sin listeners no hay nada que sincronizar: el cartel dejaría de
       // describir el estado de la app.
       setIssue(null);

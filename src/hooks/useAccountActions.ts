@@ -9,6 +9,7 @@ import {
 import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaStore } from '@/store';
+import { picksPath } from '@/hooks/useTastePicks';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -74,6 +75,10 @@ export function useAccountActions() {
 
     try {
       await deleteRemoteLibrary(user.uid);
+      // Las respuestas de "Contanos de vos" están fuera de `saved_media`, y
+      // borrar el documento de un usuario no borra sus subcolecciones: sin
+      // esta línea el cuestionario sobreviviría a la cuenta que lo escribió.
+      await deleteDoc(doc(db, picksPath(user.uid)));
     } catch (error) {
       console.error('[cuenta] No se pudieron borrar los datos:', error);
       throw new AccountDeletionError(

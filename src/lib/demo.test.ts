@@ -6,6 +6,7 @@ import {
   enterDemoMode,
   exitDemoMode,
 } from './demo';
+import { emptyPicks } from './picks';
 import { useMediaStore } from '@/store';
 import { SavedMedia } from '@/types';
 
@@ -144,5 +145,38 @@ describe('modo demo', () => {
     exitDemoMode();
 
     expect(useMediaStore.getState().mediaList).toEqual([]);
+  });
+
+  it('trae también su cuestionario contestado', () => {
+    // Es lo que hace que quien entra al demo vea las filas de Explorar que
+    // salen de "Contanos de vos", y no solo las que salen de la biblioteca.
+    enterDemoMode();
+
+    const { picks } = useMediaStore.getState();
+    expect(picks.movie?.title).toBe('Parásitos');
+    expect(picks.genres.length).toBeGreaterThan(0);
+  });
+
+  it('devuelve el cuestionario de invitado al salir', () => {
+    const propio = { ...emptyPicks(), genres: ['Terror'], updatedAt: '2026-01-01T00:00:00.000Z' };
+    useMediaStore.getState().setPicks(propio);
+
+    enterDemoMode();
+    expect(useMediaStore.getState().picks.genres).not.toEqual(['Terror']);
+
+    exitDemoMode();
+    expect(useMediaStore.getState().picks).toEqual(propio);
+  });
+
+  it('entiende un respaldo del formato viejo, sin cuestionario', () => {
+    // Quien entró al demo con la versión anterior y sale con esta tiene que
+    // recuperar igual su biblioteca.
+    const propia = [makeMedia({ tmdbId: 42, title: 'Lo mío' })];
+    localStorage.setItem('que-miro-pre-demo', JSON.stringify(propia));
+
+    exitDemoMode();
+
+    expect(useMediaStore.getState().mediaList).toEqual(propia);
+    expect(useMediaStore.getState().picks).toEqual(emptyPicks());
   });
 });

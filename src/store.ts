@@ -1,12 +1,29 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Collection, MediaStatus, SavedMedia, SeriesProgress, WatchEntry } from './types';
+import {
+  Collection,
+  MediaStatus,
+  SavedMedia,
+  SeriesProgress,
+  TastePicks,
+  WatchEntry,
+} from './types';
 import { SCHEMA_VERSION, parseCollection, parseMedia } from './lib/schema';
+import { emptyPicks, parsePicks } from './lib/picks';
 
 interface MediaState {
   mediaList: SavedMedia[];
   /** Listas propias, más allá de los tres estados fijos. */
   collections: Collection[];
+  /**
+   * Lo que la persona contestó en "Contanos de vos".
+   *
+   * Vive con la biblioteca y no en las preferencias del dispositivo porque es
+   * dato de la cuenta: se sincroniza, se exporta y, sobre todo, tiene el mismo
+   * dueño. Sin eso, el cuestionario de quien usó el celular antes se le
+   * aparecería al siguiente que inicie sesión.
+   */
+  picks: TastePicks;
   /**
    * UID del usuario dueño de los datos que hay en memoria/localStorage.
    * `null` significa "datos de invitado", todavía no asociados a ninguna cuenta.
@@ -34,6 +51,8 @@ interface MediaState {
   setProgress: (tmdbId: number, progress: SeriesProgress) => void;
   removeMedia: (tmdbId: number) => void;
   setMediaList: (list: SavedMedia[]) => void;
+
+  setPicks: (picks: TastePicks) => void;
 
   setCollections: (collections: Collection[]) => void;
   addCollection: (collection: Collection) => void;
@@ -65,15 +84,18 @@ export const useMediaStore = create<MediaState>()(
     (set) => ({
       mediaList: [],
       collections: [],
+      picks: emptyPicks(),
       ownerUid: null,
       syncedUid: null,
       setMediaList: (list) => set({ mediaList: list }),
+      setPicks: (picks) => set({ picks }),
       setOwnerUid: (uid) => set({ ownerUid: uid }),
       setSyncedUid: (uid) => set({ syncedUid: uid }),
       reset: () =>
         set({
           mediaList: [],
           collections: [],
+          picks: emptyPicks(),
           ownerUid: null,
           syncedUid: null,
         }),
@@ -179,6 +201,19 @@ export const useMediaStore = create<MediaState>()(
       name: 'que-miro-storage',
       version: SCHEMA_VERSION,
       /**
+       * El cuestionario se valida en cada arranque, no solo al migrar.
+       *
+       * `migrate` corre únicamente cuando cambia la versión del schema, así que
+       * un documento de gustos editado a mano —o guardado por una versión de la
+       * app que pedía otra cosa— entraría sin revisar y rompería el perfil al
+       * dibujarlo. Pasarlo siempre por `parsePicks` cuesta nada: son siete
+       * campos.
+       */
+      merge: (persisted, current) => {
+        const state = { ...current, ...(persisted as Partial<MediaState>) };
+        return { ...state, picks: parsePicks(state.picks) };
+      },
+      /**
        * Migra lo que ya estaba guardado en el dispositivo.
        *
        * Pasa cada título por `parseMedia`, que es el mismo camino que recorren
@@ -200,6 +235,7 @@ export const useMediaStore = create<MediaState>()(
           collections: rawCollections
             .map(parseCollection)
             .filter((collection): collection is Collection => collection !== null),
+          picks: parsePicks(state?.picks),
         } as MediaState;
       },
     },

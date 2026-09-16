@@ -7,6 +7,7 @@ import {
   parseBackup,
   toCsv,
 } from './backup';
+import { emptyPicks } from './picks';
 import { SavedMedia } from '@/types';
 
 function makeMedia(overrides: Partial<SavedMedia> = {}): SavedMedia {
@@ -109,6 +110,44 @@ describe('parseBackup', () => {
     const backup = buildBackup([makeMedia()]);
     const { media } = parseBackup(JSON.stringify(backup));
     expect(media[0].tmdbId).toBe(1);
+  });
+});
+
+describe('el cuestionario en el backup', () => {
+  it('viaja con la biblioteca y vuelve entero', () => {
+    const picks = {
+      ...emptyPicks(),
+      genres: ['Terror'],
+      decade: 1990,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    const backup = buildBackup([makeMedia()], [], picks);
+    const parsed = parseBackup(JSON.stringify(backup));
+
+    expect(parsed.picks).toEqual(picks);
+  });
+
+  it('en blanco no se escribe: no es una respuesta', () => {
+    const backup = buildBackup([makeMedia()], [], emptyPicks());
+
+    expect(backup.picks).toBeUndefined();
+  });
+
+  it('un backup de antes de que existiera se lee igual', () => {
+    const parsed = parseBackup(serialize([makeMedia()]));
+
+    expect(parsed.picks).toBeNull();
+    expect(parsed.media).toHaveLength(1);
+  });
+
+  it('un cuestionario corrupto no voltea la importación', () => {
+    const parsed = parseBackup(
+      serialize([makeMedia()], { picks: 'cualquier cosa' }),
+    );
+
+    expect(parsed.picks).toBeNull();
+    expect(parsed.media).toHaveLength(1);
   });
 });
 

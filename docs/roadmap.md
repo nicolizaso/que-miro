@@ -272,6 +272,57 @@ de lo que esa persona vio y puntuó.
 
 ---
 
+## QM-3 — Contanos de vos
+
+*Explorar deducía todo. Ahora también pregunta.*
+
+**Qué estaba mal**
+
+Todo lo que Explorar sabía de alguien salía de su biblioteca, y eso tiene dos
+límites. El primero es el tiempo: hasta que no hay una docena de títulos
+puntuados no hay con qué armar una fila personal, así que quien recién se
+instala la app ve la misma pestaña que todo el mundo justo el día en que más
+falta le hace una recomendación. El segundo es que hay cosas que la biblioteca
+no va a saber nunca. *La* película favorita —esa que se vio cinco veces antes de
+instalar esto— no está en *Por Ver* ni tiene una reseña: no se anota lo que ya
+se sabe de memoria. Lo mismo con la actriz que se sigue a cualquier lado o con
+la productora cuyo sello alcanza para decidir.
+
+**Cómo quedó implementado**
+
+- **Siete preguntas y ningún botón de guardar.** Película, serie, géneros,
+  actores, directores, productoras y década. Cada respuesta se guarda sola
+  cuando se elige, porque son independientes entre sí: un formulario con un
+  botón al final invita a contestarlo entero o nada, y con una sola respuesta
+  Explorar ya cambia. La pantalla lleva la cuenta —"3 de 7"— y ofrece ir a ver
+  cómo quedó.
+- **Lo declarado y lo deducido no se mezclan.** `taste.ts` sigue leyendo la
+  biblioteca y `picks.ts` guarda lo que la persona contestó. Cada receta lee una
+  sola de las dos fuentes, y las nueve que leen lo declarado pesan más que sus
+  equivalentes deducidas: lo que alguien dice de sí mismo no hay que
+  interpretarlo. Son 34 recetas en total.
+- **Las respuestas son datos de la cuenta, no del dispositivo.** Viven al lado
+  de la biblioteca, con el mismo dueño: se sincronizan como un documento
+  (`users/{uid}/profile/taste`, gana el más nuevo), se van en el backup, se
+  restauran al importarlo y se borran con la cuenta. Sin ese `ownerUid`
+  compartido, el cuestionario de quien usó el celular antes se le aparecería al
+  siguiente que inicie sesión.
+- **Dos búsquedas nuevas, con la misma lista blanca.** `/api/tmdb/search` acepta
+  ahora `kind=person` y `kind=company` —hace falta poder nombrar a una directora
+  que no aparece en ninguna película guardada— y `/discover` aprendió a filtrar
+  por productora. De la respuesta de TMDB se reenvían cuatro campos y no la
+  ficha entera: `known_for` trae la sinopsis de tres títulos por persona, que
+  acá no mira nadie.
+- **El demo viene contestado.** Sus respuestas son coherentes con su biblioteca,
+  así que quien entra a mirar la app ve también las filas que salen de acá; al
+  salir del demo se devuelve el cuestionario que hubiera antes, igual que la
+  biblioteca.
+
+**Resultado:** Explorar tiene filas tuyas desde el primer día, y lo que la
+biblioteca nunca iba a poder deducir ahora se puede decir en dos minutos.
+
+---
+
 ## Resumen
 
 ```
@@ -281,4 +332,5 @@ T3  Descubrir      explorar, recomendaciones, picker 2.0, duelo, stats
 T4  Producción     wrapped, perfil público, compartir, offline, E2E
 UI  Rediseño       navegación, tipografía, formas, contraste AA
 QM2 Explorar       señales de gusto, 25 recetas, feed barajado e infinito
+QM3 Contanos       cuestionario de favoritos, 9 recetas declaradas
 ```
