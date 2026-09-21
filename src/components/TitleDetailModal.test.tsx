@@ -101,7 +101,7 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     expect(saved.runtime).toBe(50);
   });
 
-  it('lo guarda en Completadas de un clic', async () => {
+  it('lo guarda en Completadas de un clic y pide la reseña', async () => {
     const user = userEvent.setup();
     await renderExploreDetail();
 
@@ -110,6 +110,54 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     await waitFor(() =>
       expect(useMediaStore.getState().mediaList[0]?.status).toBe('completada'),
     );
+    expect(
+      await screen.findByRole('heading', { name: 'Completaste' }),
+    ).toBeInTheDocument();
+  });
+
+  it('la reseña es opcional: cerrarla deja el título en Completadas', async () => {
+    const user = userEvent.setup();
+    await renderExploreDetail();
+
+    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Completada' }));
+    await screen.findByRole('heading', { name: 'Completaste' });
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Completaste' }),
+      ).not.toBeInTheDocument(),
+    );
+    const [saved] = useMediaStore.getState().mediaList;
+    expect(saved.status).toBe('completada');
+    expect(saved.history ?? []).toHaveLength(0);
+  });
+
+  it('la reseña que se escribe ahí queda guardada en el título', async () => {
+    const user = userEvent.setup();
+    await renderExploreDetail();
+
+    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Completada' }));
+    await screen.findByRole('heading', { name: 'Completaste' });
+    await user.click(screen.getByLabelText('5 de 5 estrellas'));
+    await user.click(screen.getByRole('button', { name: 'Guardar Reseña' }));
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0]?.history).toHaveLength(1),
+    );
+    expect(useMediaStore.getState().mediaList[0]?.history?.[0].rating).toBe(5);
+  });
+
+  it('guardarlo en Por Ver no pide ninguna reseña', async () => {
+    const user = userEvent.setup();
+    await renderExploreDetail();
+
+    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Por Ver' }));
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList).toHaveLength(1),
+    );
+    expect(screen.queryByRole('heading', { name: 'Completaste' })).not.toBeInTheDocument();
   });
 
   it('sumarlo a una lista propia lo guarda adentro de esa lista', async () => {
