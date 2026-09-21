@@ -16,7 +16,8 @@ import {
 import { searchMulti, getGenreNames, TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { Dialog } from '@/components/ui/Dialog';
 import { TitleDetailModal } from '@/components/TitleDetailModal';
-import { MediaStatus, TMDbResult } from '@/types';
+import { ReviewDrawer } from '@/components/ReviewDrawer';
+import { MediaStatus, SavedMedia, TMDbResult } from '@/types';
 
 const DEBOUNCE_MS = 400;
 
@@ -39,7 +40,8 @@ function ResultSkeleton() {
  * La fila entera abre la ficha —es lo que se espera al tocar algo que tiene
  * póster, título y año— y al costado quedan las dos listas a las que se llega
  * sin abrirla: *Por Ver* para lo que se anota para después, *Completadas* para
- * lo que ya se vio. Son las mismas dos de la ficha de Explorar.
+ * lo que ya se vio. Son las mismas dos de la ficha de Explorar, y el tilde
+ * pide la reseña igual que en la biblioteca.
  */
 function ResultRow({
   result,
@@ -55,8 +57,19 @@ function ResultRow({
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   /** Estado que se está guardando, para el spinner del botón que lo pidió. */
   const [savingStatus, setSavingStatus] = useState<MediaStatus | null>(null);
+  /** La reseña que se pide al marcar algo como completado. */
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  /**
+   * Lo que se acaba de guardar desde acá, hasta que el store lo devuelva.
+   *
+   * Con sesión iniciada la escritura no espera al servidor y el título vuelve
+   * por `onSnapshot`, un rato después. El drawer de reseña necesita el título
+   * guardado *ya*, así que hasta entonces vale esta copia.
+   */
+  const [justSaved, setJustSaved] = useState<SavedMedia | null>(null);
 
-  const saved = mediaList.find((media) => media.tmdbId === result.id);
+  const saved =
+    mediaList.find((media) => media.tmdbId === result.id) ?? justSaved;
   const title = result.title || result.name || '';
   const date = result.release_date || result.first_air_date || '';
   const year = date ? date.split('-')[0] : '';
@@ -76,9 +89,8 @@ function ResultRow({
     try {
       if (saved) {
         await updateStatus(saved.tmdbId, status);
-        showToast(`"${title}" pasó a ${listName}.`);
       } else {
-        await addMedia({
+        const draft: SavedMedia = {
           tmdbId: result.id,
           mediaType: result.media_type,
           title,
@@ -87,14 +99,32 @@ function ResultRow({
           releaseYear: year,
           genres: getGenreNames(result.genre_ids ?? []),
           status,
-        });
-        showToast(`"${title}" se agregó a ${listName}.`);
+          updatedAt: new Date().toISOString(),
+        };
+        setJustSaved(draft);
+        await addMedia(draft);
       }
     } finally {
       setSavingStatus(null);
     }
 
-    // El buscador se cierra con la acción hecha: se abre para resolver algo
+    /**
+     * Completar algo es tener algo para decir al respecto, así que la reseña
+     * se ofrece sola, igual que al marcar completada una tarjeta de la
+     * biblioteca.
+     *
+     * Es opcional: el título ya quedó en Completadas, y cerrar el drawer lo
+     * deja ahí sin puntaje. El buscador se queda abierto detrás —cerrarlo de
+     * abajo del drawer serían dos pantallas yéndose de una— y la fila, ya
+     * marcada, muestra dónde terminó el título.
+     */
+    if (status === 'completada') {
+      setIsReviewOpen(true);
+      return;
+    }
+
+    showToast(`"${title}" se agregó a ${listName}.`);
+    // Con la acción hecha el buscador se cierra: se abre para resolver algo
     // puntual, y el aviso ya dice dónde fue a parar el título.
     onSaved();
   };
@@ -201,9 +231,17 @@ function ResultRow({
         <TitleDetailModal
           id={result.id}
           mediaType={result.media_type}
-          media={saved}
+          media={saved ?? undefined}
           isOpen={isDetailOpen}
           onClose={() => setIsDetailOpen(false)}
+        />
+      )}
+
+      {isReviewOpen && saved && (
+        <ReviewDrawer
+          media={saved}
+          isOpen={isReviewOpen}
+          onClose={() => setIsReviewOpen(false)}
         />
       )}
     </div>

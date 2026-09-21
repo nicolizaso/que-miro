@@ -12,6 +12,7 @@ import { ScrollRail } from '@/components/ui/ScrollRail';
 import { SeriesProgress } from '@/components/SeriesProgress';
 import { CollectionPicker } from '@/components/CollectionPicker';
 import { WatchHistory } from '@/components/WatchHistory';
+import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { ShareButton } from '@/components/ShareButton';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
@@ -81,6 +82,8 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   const [justSaved, setJustSaved] = useState<SavedMedia | null>(null);
   /** Estado que se está guardando, para el spinner del botón que lo pidió. */
   const [savingStatus, setSavingStatus] = useState<MediaStatus | null>(null);
+  /** La reseña que se pide al marcar algo como completado. */
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
   const titleId = useId();
   // Un backfill por apertura: sin esto, el patch cambia `media`, el efecto se
   // vuelve a disparar y se escribe en loop.
@@ -148,6 +151,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   // al cambiar de id, lo que corresponde es lo que diga el store.
   useEffect(() => {
     setJustSaved(null);
+    setIsReviewOpen(false);
   }, [id, isOpen]);
 
   const trailer = detail?.videos?.results?.find(
@@ -204,10 +208,25 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
     setSavingStatus(status);
     try {
       await saveToLibrary(status);
-      showToast(`"${title}" se agregó a ${listName}.`);
     } finally {
       setSavingStatus(null);
     }
+
+    /**
+     * Completar algo es tener algo para decir al respecto, así que la reseña
+     * se ofrece sola en vez de esperar a que alguien vuelva a buscar el título
+     * en su biblioteca.
+     *
+     * Es opcional: el título ya quedó en Completadas, y cerrar el drawer lo
+     * deja ahí sin puntaje. Por eso tampoco va el aviso de siempre — lo que
+     * anuncia el guardado es el drawer, que se abre encima con el título.
+     */
+    if (status === 'completada') {
+      setIsReviewOpen(true);
+      return;
+    }
+
+    showToast(`"${title}" se agregó a ${listName}.`);
   };
 
   /** Guarda el título dentro de una lista propia, en un solo paso. */
@@ -502,6 +521,16 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
           </>
         )}
       </motion.div>
+
+      {/* El drawer se monta acá adentro pero se dibuja aparte —tiene su propio
+          portal— así que queda encima de la ficha sin quedarse con su foco. */}
+      {isReviewOpen && saved && (
+        <ReviewDrawer
+          media={saved}
+          isOpen={isReviewOpen}
+          onClose={() => setIsReviewOpen(false)}
+        />
+      )}
     </Dialog>
   );
 }

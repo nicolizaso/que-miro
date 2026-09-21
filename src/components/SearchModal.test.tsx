@@ -141,7 +141,7 @@ describe('SearchModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('el tilde guarda el título en Completadas', async () => {
+  it('el tilde guarda el título en Completadas y pide la reseña', async () => {
     const user = await search();
 
     await user.click(
@@ -154,9 +154,56 @@ describe('SearchModal', () => {
       expect(useMediaStore.getState().mediaList[0]?.status).toBe('completada'),
     );
     expect(useMediaStore.getState().mediaList).toHaveLength(1);
+    expect(
+      await screen.findByRole('heading', { name: 'Completaste' }),
+    ).toBeInTheDocument();
+  });
+
+  it('la reseña es opcional: cerrarla deja el título en Completadas', async () => {
+    const user = await search();
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Marcar "Juego de tronos" como completada',
+      }),
+    );
+    await screen.findByRole('heading', { name: 'Completaste' });
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Completaste' }),
+      ).not.toBeInTheDocument(),
+    );
+    const [saved] = useMediaStore.getState().mediaList;
+    expect(saved.status).toBe('completada');
+    expect(saved.history ?? []).toHaveLength(0);
+    // El buscador sigue abierto, con la fila ya marcada.
+    expect(screen.getByText('Ya está en Completadas')).toBeInTheDocument();
+  });
+
+  it('la reseña que se escribe ahí queda guardada en el título', async () => {
+    const user = await search();
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Marcar "Juego de tronos" como completada',
+      }),
+    );
+    await screen.findByRole('heading', { name: 'Completaste' });
+    await user.click(screen.getByLabelText('4 de 5 estrellas'));
+    await user.click(screen.getByRole('button', { name: 'Guardar Reseña' }));
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0]?.history).toHaveLength(1),
+    );
+    const [saved] = useMediaStore.getState().mediaList;
+    expect(saved.status).toBe('completada');
+    expect(saved.history?.[0].rating).toBe(4);
   });
 
   it('sobre un título ya guardado, el tilde lo pasa a Completadas sin pisar lo suyo', async () => {
+    // Un título con reseña previa: volver a guardarlo de cero la borraría.
     act(() => {
       useMediaStore.setState({
         mediaList: [

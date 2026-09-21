@@ -19,7 +19,8 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Tres listas** — *Por Ver*, *Viendo* y *Completadas*, con transiciones animadas.
 - **Búsqueda en TMDB** — películas y series, con atajo `⌘K` / `Ctrl+K`. Cada
   resultado abre su ficha de un toque, o va directo a *Por Ver* o a
-  *Completadas* desde los dos botones de al lado.
+  *Completadas* desde los dos botones de al lado. Marcar algo como completado
+  abre la reseña ahí mismo.
 - **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo,
   plataforma, lista o ánimo. Los filtros viven en la URL, así que la vista se
   puede compartir.
@@ -41,7 +42,7 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   saga que te falta, la serie que dejaste a medias. Son 34 recetas distintas,
   barajadas en cada visita y cargadas de a tandas mientras scrolleás. Desde la
   ficha lo guardás en *Por Ver* o en *Completadas* de un clic, o directo en una
-  de tus listas.
+  de tus listas; si lo completaste, la reseña se abre sola.
 - **Contanos de vos** — siete preguntas en el perfil —tu película, tu serie,
   tus géneros, tus actores, tus directores, tus productoras, tu década— que
   Explorar convierte en filas nuevas. Es lo que hace que la pestaña sea tuya
