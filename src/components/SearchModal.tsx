@@ -2,10 +2,21 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useMediaStore } from '@/store';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
-import { Search, Plus, Check, Tv, Film, AlertCircle, X } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Check,
+  Tv,
+  Film,
+  AlertCircle,
+  X,
+  BookmarkCheck,
+  Loader2,
+} from 'lucide-react';
 import { searchMulti, getGenreNames, TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { Dialog } from '@/components/ui/Dialog';
-import { TMDbResult } from '@/types';
+import { TitleDetailModal } from '@/components/TitleDetailModal';
+import { MediaStatus, TMDbResult } from '@/types';
 
 const DEBOUNCE_MS = 400;
 
@@ -22,6 +33,183 @@ function ResultSkeleton() {
   );
 }
 
+/**
+ * Un resultado de la búsqueda.
+ *
+ * La fila entera abre la ficha —es lo que se espera al tocar algo que tiene
+ * póster, título y año— y al costado quedan las dos listas a las que se llega
+ * sin abrirla: *Por Ver* para lo que se anota para después, *Completadas* para
+ * lo que ya se vio. Son las mismas dos de la ficha de Explorar.
+ */
+function ResultRow({
+  result,
+  onSaved,
+}: {
+  result: TMDbResult;
+  /** Se llama cuando el título quedó guardado, para cerrar el buscador. */
+  onSaved: () => void;
+}) {
+  const mediaList = useMediaStore((state) => state.mediaList);
+  const { addMedia, updateStatus } = useMediaActions();
+  const { showToast } = useToast();
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  /** Estado que se está guardando, para el spinner del botón que lo pidió. */
+  const [savingStatus, setSavingStatus] = useState<MediaStatus | null>(null);
+
+  const saved = mediaList.find((media) => media.tmdbId === result.id);
+  const title = result.title || result.name || '';
+  const date = result.release_date || result.first_air_date || '';
+  const year = date ? date.split('-')[0] : '';
+  const isCompleted = saved?.status === 'completada';
+
+  /**
+   * Manda el título a una de las dos listas.
+   *
+   * Si ya está en la biblioteca solo cambia de estado: volver a agregarlo lo
+   * escribiría de cero y se llevaría puestos la reseña, el historial y el
+   * progreso de temporadas que tuviera.
+   */
+  const save = async (status: MediaStatus, listName: string) => {
+    if (savingStatus) return;
+
+    setSavingStatus(status);
+    try {
+      if (saved) {
+        await updateStatus(saved.tmdbId, status);
+        showToast(`"${title}" pasó a ${listName}.`);
+      } else {
+        await addMedia({
+          tmdbId: result.id,
+          mediaType: result.media_type,
+          title,
+          posterPath: result.poster_path,
+          backdropPath: result.backdrop_path,
+          releaseYear: year,
+          genres: getGenreNames(result.genre_ids ?? []),
+          status,
+        });
+        showToast(`"${title}" se agregó a ${listName}.`);
+      }
+    } finally {
+      setSavingStatus(null);
+    }
+
+    // El buscador se cierra con la acción hecha: se abre para resolver algo
+    // puntual, y el aviso ya dice dónde fue a parar el título.
+    onSaved();
+  };
+
+  return (
+    <div className="flex gap-2 p-3 surface items-center transition-colors hover:border-text-subtle">
+      {/* Un botón de verdad y no un div con onClick: es la única forma de abrir
+          la ficha con teclado. Los botones de lista quedan afuera porque no se
+          pueden anidar adentro de otro botón. */}
+      <button
+        type="button"
+        onClick={() => setIsDetailOpen(true)}
+        // Nombre accesible explícito: sin él sale de concatenar todo lo que la
+        // fila tiene adentro —"Juego de tronos 2011 • Serie"— y no dice qué
+        // hace el botón.
+        aria-label={`Ver detalle de ${title}`}
+        className="flex flex-1 items-center gap-4 min-w-0 text-left rounded-control cursor-pointer"
+      >
+        <span className="block w-16 h-24 bg-border-card rounded-lg shrink-0 overflow-hidden">
+          {result.poster_path ? (
+            <img
+              src={`${TMDB_IMAGE_BASE_URL}${result.poster_path}`}
+              alt=""
+              loading="lazy"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="w-full h-full flex items-center justify-center text-text-subtle">
+              {result.media_type === 'movie' ? (
+                <Film aria-hidden="true" />
+              ) : (
+                <Tv aria-hidden="true" />
+              )}
+            </span>
+          )}
+        </span>
+
+        <span className="flex-1 min-w-0">
+          <span className="block font-bold text-text-main truncate">{title}</span>
+          <span className="text-sm text-text-muted flex items-center gap-2">
+            <span>{year}</span>
+            <span aria-hidden="true">•</span>
+            <span>{result.media_type === 'movie' ? 'Película' : 'Serie'}</span>
+          </span>
+        </span>
+      </button>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {saved ? (
+          // Un marcador y no un tilde pelado: el tilde de al lado quiere decir
+          // "completada", y dos tildes juntos no dicen ninguna de las dos
+          // cosas.
+          <span
+            className="btn-icon w-11 h-11 bg-border-card text-text-muted"
+            title="Ya está en tu biblioteca"
+          >
+            <BookmarkCheck size={20} aria-hidden="true" />
+            <span className="sr-only">Ya está en tu biblioteca</span>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => save('por_ver', 'Por Ver')}
+            disabled={savingStatus !== null}
+            className="btn-icon w-11 h-11 bg-bg-main border border-border-card text-status-por-ver hover:bg-border-card"
+            aria-label={`Agregar "${title}" a Por Ver`}
+            title="Agregar a Por Ver"
+          >
+            {savingStatus === 'por_ver' ? (
+              <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Plus size={20} aria-hidden="true" />
+            )}
+          </button>
+        )}
+
+        {isCompleted ? (
+          <span
+            className="btn-icon w-11 h-11 bg-status-completada/15 text-status-completada"
+            title="Ya está en Completadas"
+          >
+            <Check size={20} aria-hidden="true" />
+            <span className="sr-only">Ya está en Completadas</span>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => save('completada', 'Completadas')}
+            disabled={savingStatus !== null}
+            className="btn-icon w-11 h-11 bg-bg-main border border-border-card text-status-completada hover:bg-border-card"
+            aria-label={`Marcar "${title}" como completada`}
+            title="Marcar Completada"
+          >
+            {savingStatus === 'completada' ? (
+              <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Check size={20} aria-hidden="true" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {isDetailOpen && (
+        <TitleDetailModal
+          id={result.id}
+          mediaType={result.media_type}
+          media={saved}
+          isOpen={isDetailOpen}
+          onClose={() => setIsDetailOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 export function SearchModal({
   isOpen,
   onClose,
@@ -33,9 +221,6 @@ export function SearchModal({
   const [results, setResults] = useState<TMDbResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState('');
-  const { mediaList } = useMediaStore();
-  const { addMedia } = useMediaActions();
-  const { showToast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const statusId = useId();
 
@@ -82,23 +267,6 @@ export function SearchModal({
   useEffect(() => {
     if (!isOpen) setQuery('');
   }, [isOpen]);
-
-  const handleAdd = async (result: TMDbResult) => {
-    const title = result.title || result.name || '';
-    const date = result.release_date || result.first_air_date || '';
-    await addMedia({
-      tmdbId: result.id,
-      mediaType: result.media_type,
-      title,
-      posterPath: result.poster_path,
-      backdropPath: result.backdrop_path,
-      releaseYear: date ? date.split('-')[0] : '',
-      genres: getGenreNames(result.genre_ids),
-      status: 'por_ver',
-    });
-    showToast(`"${title}" se agregó a Por Ver.`);
-    onClose();
-  };
 
   const showEmptyState =
     !isSearching && !error && trimmedQuery !== '' && results.length === 0;
@@ -170,68 +338,13 @@ export function SearchModal({
 
           {!isSearching &&
             !error &&
-            results.map((result) => {
-              const isAdded = mediaList.some((m) => m.tmdbId === result.id);
-              const title = result.title || result.name || '';
-              const date = result.release_date || result.first_air_date || '';
-              const year = date ? date.split('-')[0] : '';
-
-              return (
-                <div
-                  key={`${result.media_type}-${result.id}`}
-                  className="flex gap-4 p-3 surface items-center"
-                >
-                  <div className="w-16 h-24 bg-border-card rounded-lg flex-shrink-0 overflow-hidden">
-                    {result.poster_path ? (
-                      <img
-                        src={`${TMDB_IMAGE_BASE_URL}${result.poster_path}`}
-                        alt=""
-                        loading="lazy"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-text-subtle">
-                        {result.media_type === 'movie' ? (
-                          <Film aria-hidden="true" />
-                        ) : (
-                          <Tv aria-hidden="true" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-text-main truncate">{title}</h4>
-                    <div className="text-sm text-text-muted flex items-center gap-2">
-                      <span>{year}</span>
-                      <span aria-hidden="true">•</span>
-                      <span>
-                        {result.media_type === 'movie' ? 'Película' : 'Serie'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {isAdded ? (
-                    <span
-                      className="p-3 bg-border-card rounded-control text-text-muted flex items-center justify-center"
-                      title="Ya está en tu biblioteca"
-                    >
-                      <Check size={20} aria-hidden="true" />
-                      <span className="sr-only">Ya está en tu biblioteca</span>
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleAdd(result)}
-                      className="p-3 bg-bg-main border border-border-card rounded-control text-status-por-ver hover:bg-border-card transition-colors flex items-center justify-center"
-                      aria-label={`Agregar "${title}" a Por Ver`}
-                      title="Agregar a Por Ver"
-                    >
-                      <Plus size={20} aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+            results.map((result) => (
+              <ResultRow
+                key={`${result.media_type}-${result.id}`}
+                result={result}
+                onSaved={onClose}
+              />
+            ))}
         </div>
       </div>
     </Dialog>

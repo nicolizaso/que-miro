@@ -17,7 +17,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 ## Features
 
 - **Tres listas** — *Por Ver*, *Viendo* y *Completadas*, con transiciones animadas.
-- **Búsqueda en TMDB** — películas y series, con atajo `⌘K` / `Ctrl+K`.
+- **Búsqueda en TMDB** — películas y series, con atajo `⌘K` / `Ctrl+K`. Cada
+  resultado abre su ficha de un toque, o va directo a *Por Ver* o a
+  *Completadas* desde los dos botones de al lado.
 - **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo,
   plataforma, lista o ánimo. Los filtros viven en la URL, así que la vista se
   puede compartir.
