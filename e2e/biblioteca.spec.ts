@@ -61,6 +61,31 @@ test('filtrar deja el filtro en la URL y se puede limpiar', async ({ page }) => 
   await expect(page).not.toHaveURL(/q=duna/);
 });
 
+test('los botones de Películas y Series filtran la lista', async ({ page }) => {
+  const types = page.getByRole('group', { name: 'Filtrar por tipo' });
+  const movies = types.getByRole('button', { name: 'Películas' });
+  const series = types.getByRole('button', { name: 'Series' });
+  const cards = page.locator('article');
+  await expect(cards.first()).toBeVisible();
+  const total = await cards.count();
+
+  await series.click();
+  await expect(series).toHaveAttribute('aria-pressed', 'true');
+  await expect(page).toHaveURL(/tipo=tv/);
+  const seriesCount = await cards.count();
+
+  await movies.click();
+  await expect(movies).toHaveAttribute('aria-pressed', 'true');
+  await expect(series).toHaveAttribute('aria-pressed', 'false');
+  await expect(page).toHaveURL(/tipo=movie/);
+  await expect(cards).toHaveCount(total - seriesCount);
+
+  // Tocar el que está prendido lo apaga y vuelve a mostrar todo.
+  await movies.click();
+  await expect(page).not.toHaveURL(/tipo=/);
+  await expect(cards).toHaveCount(total);
+});
+
 test('una vista filtrada sobrevive a recargar la página', async ({ page }) => {
   await page.getByLabel('Buscar en esta lista').fill('duna');
   // El filtro vive en la URL, así que primero se confirma que llegó ahí: es lo

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { Compass, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { Clapperboard, Compass, Search, SlidersHorizontal, Sparkles, Tv, X } from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { MediaCard } from '@/components/MediaCard';
@@ -23,10 +23,9 @@ const TABS: { id: MediaStatus; label: string }[] = [
   { id: 'completada', label: 'Completadas' },
 ];
 
-const TYPES: { value: MediaType | ''; label: string }[] = [
-  { value: '', label: 'Todo' },
-  { value: 'movie', label: 'Películas' },
-  { value: 'tv', label: 'Series' },
+const TYPES: { value: MediaType; label: string; Icon: typeof Tv }[] = [
+  { value: 'movie', label: 'Películas', Icon: Clapperboard },
+  { value: 'tv', label: 'Series', Icon: Tv },
 ];
 
 export function ListView() {
@@ -92,7 +91,13 @@ export function ListView() {
 
         {TABS.map((tab) => {
           const isActive = filters.status === tab.id;
-          const count = mediaList.filter((m) => m.status === tab.id).length;
+          // El número respeta el botón de Películas / Series: con "Series"
+          // prendido, "Por Ver 7" cuando hay tres series confunde.
+          const count = mediaList.filter(
+            (m) =>
+              m.status === tab.id &&
+              (!filters.type || m.mediaType === filters.type),
+          ).length;
 
           return (
             <button
@@ -128,6 +133,38 @@ export function ListView() {
           );
         })}
       </div>
+
+      {/* Películas y Series a la vista, fuera del panel de filtros: es el
+          corte que más se usa y en el teléfono no tiene que costar dos toques.
+          Tocar el que está prendido lo apaga y vuelve a mostrar todo. */}
+      {mediaList.length > 0 && (
+        <div
+          role="group"
+          aria-label="Filtrar por tipo"
+          className="flex gap-2"
+        >
+          {TYPES.map(({ value, label, Icon }) => {
+            const isActive = filters.type === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setFilters({ type: isActive ? null : value })}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
+                  isActive
+                    ? 'bg-accent text-accent-contrast border-accent font-medium'
+                    : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
+                )}
+              >
+                <Icon size={16} aria-hidden="true" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* La barra de filtros aparece recién cuando hay algo que filtrar: con
           tres títulos guardados es ruido. */}
@@ -169,21 +206,6 @@ export function ListView() {
               areFiltersOpen ? 'flex' : 'hidden',
             )}
           >
-            <select
-              value={filters.type ?? ''}
-              onChange={(e) =>
-                setFilters({ type: (e.target.value || null) as MediaType | null })
-              }
-              aria-label="Filtrar por tipo"
-              className="select-control"
-            >
-              {TYPES.map(({ value, label }) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-
             {genres.length > 1 && (
               <select
                 value={filters.genre ?? ''}
