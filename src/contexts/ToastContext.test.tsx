@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider, useToast } from './ToastContext';
 
@@ -75,5 +75,39 @@ describe('ToastProvider', () => {
     );
 
     spy.mockRestore();
+  });
+});
+
+describe('ToastProvider con una acción', () => {
+  it('muestra el botón y lo ejecuta una sola vez, cerrando el aviso', async () => {
+    const onAction = vi.fn();
+    function Trigger() {
+      const { showToast } = useToast();
+      return (
+        <button
+          onClick={() =>
+            showToast('Marcaste T2E4.', 'success', {
+              action: { label: 'Deshacer', onAction },
+            })
+          }
+        >
+          disparar
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <Trigger />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByText('disparar'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Deshacer' }));
+
+    expect(onAction).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.queryByText('Marcaste T2E4.')).not.toBeInTheDocument(),
+    );
   });
 });

@@ -202,7 +202,18 @@ export function nextEpisode(
   media: WithAiring,
 ): { seasonNumber: number; episode: number } | null {
   if (watchedEpisodes(media) === 0) return null;
+  return firstUnwatchedAired(media);
+}
 
+/**
+ * El primer episodio emitido sin marcar, aunque la serie no haya arrancado.
+ *
+ * Es el "siguiente" de quien pasó una serie a *Viendo* sin marcar nada
+ * todavía: el primero.
+ */
+export function firstUnwatchedAired(
+  media: WithAiring,
+): { seasonNumber: number; episode: number } | null {
   for (const season of countableSeasons(media)) {
     const seen = media.progress?.watched[season.seasonNumber] ?? [];
     const aired = airedInSeason(media, season);

@@ -333,3 +333,33 @@ test('las respuestas de "Contanos de vos" se guardan y sobreviven a una recarga'
     page.getByRole('button', { name: 'Los 80', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('marcar el siguiente episodio desde el inicio', async ({ page }) => {
+  await expect(page.getByRole('heading', { name: 'Continuar viendo' })).toBeVisible();
+
+  // Severance va por T2E4 en el demo: el "+1" lo marca sin abrir la ficha.
+  await page
+    .getByRole('button', { name: 'Marcar T2E4 de Severance como visto' })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Marcar T2E5 de Severance como visto' }),
+  ).toBeVisible();
+
+  // El aviso deja deshacerlo, por si el dedo se adelantó.
+  await page.getByRole('button', { name: 'Deshacer' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Marcar T2E4 de Severance como visto' }),
+  ).toBeVisible();
+
+  // Y lo marcado sobrevive a recargar la página.
+  await page
+    .getByRole('button', { name: 'Marcar T2E4 de Severance como visto' })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Marcar T2E5 de Severance como visto' }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: 'Marcar T2E5 de Severance como visto' }),
+  ).toBeVisible();
+});

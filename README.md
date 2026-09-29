@@ -17,6 +17,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 ## Features
 
 - **Tres listas** — *Por Ver*, *Viendo* y *Completadas*, con transiciones animadas.
+- **Continuar viendo** — arriba de todo, las series para retomar con el
+  episodio que toca y un "+1" para marcarlo sin abrir la ficha, con su
+  "Deshacer". Si era el último, ofrece la reseña.
 - **Búsqueda en TMDB** — películas y series, con atajo `⌘K` / `Ctrl+K`. Cada
   resultado abre su ficha de un toque, o va directo a *Por Ver* o a
   *Completadas* desde los dos botones de al lado. Marcar algo como completado

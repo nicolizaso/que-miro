@@ -11,15 +11,32 @@ import { AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 type ToastVariant = 'success' | 'error';
 
+/** Un botón dentro del aviso: "Deshacer", "Puntuarla". */
+export interface ToastAction {
+  label: string;
+  onAction: () => void;
+}
+
 interface Toast {
   id: number;
   message: string;
   variant: ToastVariant;
+  action?: ToastAction;
 }
 
 interface ToastContextType {
-  /** Muestra un aviso efímero. Se cierra solo a los 5 segundos. */
-  showToast: (message: string, variant?: ToastVariant) => void;
+  /**
+   * Muestra un aviso efímero. Se cierra solo a los 5 segundos.
+   *
+   * Con `action` lleva un botón: es la forma de deshacer algo que se hizo de
+   * un toque, sin pedir una confirmación antes para lo que casi nunca se
+   * quiere deshacer.
+   */
+  showToast: (
+    message: string,
+    variant?: ToastVariant,
+    options?: { action?: ToastAction },
+  ) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -49,9 +66,16 @@ export function ToastProvider({
   }, []);
 
   const showToast = useCallback(
-    (message: string, variant: ToastVariant = 'success') => {
+    (
+      message: string,
+      variant: ToastVariant = 'success',
+      options?: { action?: ToastAction },
+    ) => {
       const id = nextId.current++;
-      setToasts((current) => [...current, { id, message, variant }]);
+      setToasts((current) => [
+        ...current,
+        { id, message, variant, action: options?.action },
+      ]);
       timers.current.set(
         id,
         setTimeout(() => dismiss(id), autoDismissMs),
@@ -97,6 +121,18 @@ export function ToastProvider({
                 />
               )}
               <p className="text-sm leading-snug flex-1">{toast.message}</p>
+              {toast.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.action?.onAction();
+                    dismiss(toast.id);
+                  }}
+                  className="shrink-0 text-sm font-semibold text-accent underline-offset-4 hover:underline"
+                >
+                  {toast.action.label}
+                </button>
+              )}
               <button
                 onClick={() => dismiss(toast.id)}
                 aria-label="Cerrar aviso"

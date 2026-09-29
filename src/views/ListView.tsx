@@ -14,6 +14,7 @@ import {
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { MediaCard } from '@/components/MediaCard';
+import { ContinueWatching } from '@/components/ContinueWatching';
 import { useLibraryFilters } from '@/hooks/useLibraryFilters';
 import {
   SORT_OPTIONS,
@@ -75,6 +76,10 @@ export function ListView() {
 
   return (
     <div className="flex flex-col gap-5 w-full max-w-5xl mx-auto px-4 pt-6">
+      {/* Arriba de todo: es lo que se viene a hacer la mayoría de las veces,
+          anotar el episodio de anoche. Sin nada para retomar, no existe. */}
+      <ContinueWatching />
+
       <h1 className="text-display">Mis listas</h1>
 
       <div
