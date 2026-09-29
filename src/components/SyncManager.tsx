@@ -8,13 +8,32 @@ import {
   isPermissionDeniedError,
 } from '@/lib/firebase';
 import { useSyncStatus } from '@/lib/syncStatus';
-import { collection, onSnapshot, doc, setDoc, writeBatch } from 'firebase/firestore';
+import {
+  collection,
+  onSnapshot,
+  doc,
+  setDoc,
+  writeBatch,
+  FirestoreError,
+  Unsubscribe,
+} from 'firebase/firestore';
 import { Collection, SavedMedia } from '@/types';
 import { parseCollection, parseMedia } from '@/lib/schema';
 import { hasPicks, parsePicks } from '@/lib/picks';
 import { picksPath, picksToDocument } from '@/hooks/useTastePicks';
 import { mergeLibraries } from '@/lib/backup';
 import { useToast } from '@/contexts/ToastContext';
+
+/**
+ * Cuánto tiene que pasar entre dos rechazos para volver a intentar.
+ *
+ * Un rechazo aislado se reintenta; dos seguidos ya no son mala suerte: son las
+ * reglas diciendo que no.
+ */
+export const PERMISSION_RETRY_WINDOW_MS = 30_000;
+
+/** Respiro antes de volver a suscribirse, para no reintentar en caliente. */
+export const PERMISSION_RETRY_DELAY_MS = 1_500;
 
 /**
  * Mantiene sincronizada la biblioteca local (Zustand + localStorage) con
@@ -108,7 +127,67 @@ export function SyncManager() {
       );
     };
 
-    const unsubscribeMedia = onSnapshot(
+    let disposed = false;
+    const retryTimers = new Set<ReturnType<typeof setTimeout>>();
+
+    /**
+     * `onSnapshot` que sobrevive a un `permission-denied` pasajero.
+     *
+     * Al abrir la app en el celular, sobre todo como PWA que vuelve del fondo,
+     * Auth ya dio a la persona por conectada pero el token que viaja con la
+     * primera escucha todavía no sirve (venció mientras la app dormía y la red
+     * recién se está despertando). Las reglas lo rechazan y Firestore mata la
+     * escucha para siempre: sin esto quedaba el cartel de "tus cambios no se
+     * están sincronizando" aunque todo anduviera, y esa escucha no volvía a
+     * bajar nada hasta recargar.
+     *
+     * Por eso el primer rechazo pide un token nuevo y se vuelve a suscribir.
+     * Si el rechazo se repite enseguida ya no es el arranque: son las reglas,
+     * y ahí sí se avisa.
+     */
+    const listen = (
+      subscribe: (onListenError: (error: FirestoreError) => void) => Unsubscribe,
+    ): Unsubscribe => {
+      let unsubscribe: Unsubscribe = () => {};
+      let lastRetryAt = -Infinity;
+
+      const start = () => {
+        unsubscribe = subscribe((error) => {
+          const now = Date.now();
+          if (
+            !isPermissionDeniedError(error) ||
+            now - lastRetryAt < PERMISSION_RETRY_WINDOW_MS
+          ) {
+            onError(error);
+            return;
+          }
+
+          lastRetryAt = now;
+          console.warn(
+            '[sync] Firestore rechazó la escucha; reintentamos con un token nuevo:',
+            error,
+          );
+          user
+            .getIdToken(true)
+            .catch(() => {
+              // Sin red para renovarlo: se reintenta igual con el que haya.
+            })
+            .finally(() => {
+              if (disposed) return;
+              const timer = setTimeout(() => {
+                retryTimers.delete(timer);
+                if (!disposed) start();
+              }, PERMISSION_RETRY_DELAY_MS);
+              retryTimers.add(timer);
+            });
+        });
+      };
+
+      start();
+      return () => unsubscribe();
+    };
+
+    const unsubscribeMedia = listen((onListenError) => onSnapshot(
       savedMediaRef,
       async (snapshot) => {
         // Solo las emisiones que vienen del servidor prueban que hay
@@ -201,12 +280,12 @@ export function SyncManager() {
         // hechos en otro dispositivo incluidos.
         if (fromServer) setSyncedUid(user.uid);
       },
-      onError,
-    );
+      onListenError,
+    ));
 
     let collectionsUploaded = false;
 
-    const unsubscribeCollections = onSnapshot(
+    const unsubscribeCollections = listen((onListenError) => onSnapshot(
       collectionsRef,
       async (snapshot) => {
         const fromServer = !snapshot.metadata.fromCache;
@@ -257,8 +336,8 @@ export function SyncManager() {
           remote.sort((a, b) => a.name.localeCompare(b.name, 'es')),
         );
       },
-      onError,
-    );
+      onListenError,
+    ));
 
     /**
      * El cuestionario: un documento y no una colección.
@@ -268,7 +347,7 @@ export function SyncManager() {
      * alguien contestó en el celular y después en la compu, lo último que dijo
      * es lo que quiso decir.
      */
-    const unsubscribePicks = onSnapshot(
+    const unsubscribePicks = listen((onListenError) => onSnapshot(
       picksRef,
       (snapshot) => {
         const remote = snapshot.exists() ? parsePicks(snapshot.data()) : null;
@@ -294,10 +373,12 @@ export function SyncManager() {
         if (Date.parse(remote.updatedAt) < Date.parse(local.updatedAt)) return;
         setPicks(remote);
       },
-      onError,
-    );
+      onListenError,
+    ));
 
     return () => {
+      disposed = true;
+      retryTimers.forEach(clearTimeout);
       unsubscribeMedia();
       unsubscribeCollections();
       unsubscribePicks();
