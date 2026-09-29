@@ -112,6 +112,10 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   su vista previa resuelta del lado del servidor. Se mantiene al día solo:
   unos minutos después de que cambia una reseña o un puntaje, se republica, y
   dice hace cuánto se actualizó.
+- **Seguir perfiles** — desde el perfil público de alguien, "Seguir"; en tu
+  perfil, *Siguiendo* junta las reseñas de todos por fecha ("Ana le puso 4,5 a
+  *Past Lives*"), y cada título se guarda en *Por Ver* de un toque. Se arma en
+  tu dispositivo con lo que cada uno publicó: el servidor no se entera.
 - **Offline de verdad** — sin conexión seguís usando la app, y los cambios se
   sincronizan solos cuando vuelve la red.
 - **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.

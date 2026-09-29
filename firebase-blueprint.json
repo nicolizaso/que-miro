@@ -127,6 +127,21 @@
       }
     },
     {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/following",
+      "description": "Public profiles the user follows (slug, owner uid at follow time, name, since), capped at 100; synced newest-wins, in the backup and deleted with the account",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "profiles", "type": "list", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
       "collection": "public_profiles",
       "path": "/public_profiles/{slug}",
       "description": "Curated public snapshot of a library (never a window into saved_media). Public read; writes only by the uid the document declares, which cannot change. Republished automatically while autoUpdate is on",

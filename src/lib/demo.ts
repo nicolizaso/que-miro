@@ -5,11 +5,13 @@ import { newWatchId } from '@/lib/schema';
 import { emptyPicks, parsePicks } from '@/lib/picks';
 import { emptyGoals, parseGoals } from '@/lib/goals';
 import { emptySubscriptions, parseSubscriptions } from '@/lib/subscriptions';
+import { emptyFollowing, parseFollowing } from '@/lib/following';
 import {
   EpisodeRef,
   Goals,
   MediaStatus,
   Subscriptions,
+  Following,
   MediaType,
   SavedMedia,
   SeriesProgress,
@@ -585,11 +587,13 @@ export function enterDemoMode(): void {
     picks,
     goals,
     subscriptions,
+    following,
     ownerUid,
     setMediaList,
     setPicks,
     setGoals,
     setSubscriptions,
+    setFollowing,
     setOwnerUid,
   } = useMediaStore.getState();
 
@@ -597,7 +601,7 @@ export function enterDemoMode(): void {
     try {
       localStorage.setItem(
         SNAPSHOT_KEY,
-        JSON.stringify({ media: mediaList, picks, goals, subscriptions }),
+        JSON.stringify({ media: mediaList, picks, goals, subscriptions, following }),
       );
     } catch {
       // Sin storage disponible se pierde el respaldo, pero el demo funciona.
@@ -608,18 +612,22 @@ export function enterDemoMode(): void {
   setPicks(buildDemoPicks());
   setGoals(buildDemoGoals());
   setSubscriptions(buildDemoSubscriptions());
+  // Sin seguidos: el feed lee perfiles publicados en Firestore, que el demo
+  // no tiene.
+  setFollowing(emptyFollowing());
   setOwnerUid(DEMO_OWNER_UID);
 }
 
 /** Sale del demo y restituye lo que había antes: biblioteca y respuestas. */
 export function exitDemoMode(): void {
-  const { setMediaList, setPicks, setGoals, setSubscriptions, setOwnerUid } =
+  const { setMediaList, setPicks, setGoals, setSubscriptions, setFollowing, setOwnerUid } =
     useMediaStore.getState();
 
   let media: SavedMedia[] = [];
   let picks: TastePicks = emptyPicks();
   let goals: Goals = emptyGoals();
   let subscriptions: Subscriptions = emptySubscriptions();
+  let following: Following = emptyFollowing();
 
   try {
     const snapshot = localStorage.getItem(SNAPSHOT_KEY);
@@ -636,6 +644,7 @@ export function exitDemoMode(): void {
           picks?: unknown;
           goals?: unknown;
           subscriptions?: unknown;
+          following?: unknown;
         };
         media = Array.isArray(snapshotObject.media)
           ? (snapshotObject.media as SavedMedia[])
@@ -643,6 +652,7 @@ export function exitDemoMode(): void {
         picks = parsePicks(snapshotObject.picks);
         goals = parseGoals(snapshotObject.goals);
         subscriptions = parseSubscriptions(snapshotObject.subscriptions);
+        following = parseFollowing(snapshotObject.following);
       }
     }
     localStorage.removeItem(SNAPSHOT_KEY);
@@ -654,5 +664,6 @@ export function exitDemoMode(): void {
   setPicks(picks);
   setGoals(goals);
   setSubscriptions(subscriptions);
+  setFollowing(following);
   setOwnerUid(null);
 }

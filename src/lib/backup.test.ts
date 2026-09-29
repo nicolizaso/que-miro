@@ -284,3 +284,24 @@ describe('las suscripciones en el backup', () => {
     expect(parseBackup(JSON.stringify(backup)).subscriptions).toEqual(subscriptions);
   });
 });
+
+describe('los perfiles seguidos en el backup', () => {
+  it('viajan con la biblioteca y vuelven enteros', () => {
+    const following = {
+      profiles: [{ slug: 'ana', uid: 'uid-ana', name: 'Ana', since: '2026-03-01T00:00:00.000Z' }],
+      updatedAt: '2026-03-01T00:00:00.000Z',
+    };
+    const backup = buildBackup([makeMedia()], [], undefined, undefined, undefined, following);
+
+    expect(parseBackup(JSON.stringify(backup)).following).toEqual(following);
+  });
+
+  it('sin seguidos no se escriben, y un backup viejo vuelve sin ellos', () => {
+    const backup = buildBackup([makeMedia()], [], undefined, undefined, undefined, {
+      profiles: [],
+      updatedAt: '2026-03-01T00:00:00.000Z',
+    });
+    expect(backup).not.toHaveProperty('following');
+    expect(parseBackup(JSON.stringify(backup)).following).toBeNull();
+  });
+});

@@ -1,10 +1,53 @@
-import { Film, Star, UserX } from 'lucide-react';
+import { Check, Film, Star, UserPlus, UserX } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { usePublicProfileBySlug } from '@/hooks/usePublicProfile';
+import { useFollowing } from '@/hooks/useFollowing';
+import { useToast } from '@/contexts/ToastContext';
+import { PublicProfile } from '@/lib/publicProfile';
+import { isFollowing } from '@/lib/following';
+import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ScrollRail } from '@/components/ui/ScrollRail';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { formatRelative, formatWatchDate } from '@/lib/dates';
+
+/**
+ * "Seguir", para quien tiene cuenta y no está mirando su propio perfil. Es un
+ * interruptor: el nombre no cambia, cambia si está apretado.
+ */
+function FollowButton({ profile }: { profile: PublicProfile }) {
+  const { following, canFollow, uid, followProfile, unfollowProfile } = useFollowing();
+  const { showToast } = useToast();
+  if (!canFollow || profile.uid === uid) return null;
+
+  const isOn = isFollowing(following, profile.slug);
+  const toggle = () => {
+    if (isOn) {
+      unfollowProfile(profile.slug);
+      return;
+    }
+    if (followProfile(profile)) {
+      showToast(`Ahora seguís a ${profile.displayName}: sus reseñas aparecen en tu perfil, en Siguiendo.`);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      aria-pressed={isOn}
+      onClick={toggle}
+      className={cn(
+        'btn px-4 py-2 text-sm border',
+        isOn
+          ? 'bg-accent text-accent-contrast border-accent'
+          : 'border-border-card text-text-main hover:border-text-subtle',
+      )}
+    >
+      {isOn ? <Check size={16} aria-hidden="true" /> : <UserPlus size={16} aria-hidden="true" />}
+      Seguir
+    </button>
+  );
+}
 
 /**
  * Perfil público de otra persona, en modo lectura.
@@ -72,12 +115,15 @@ export function PublicProfileView() {
               <h1 className="text-display sm:text-5xl">
                 {profile.displayName}
               </h1>
-              <p className="text-sm text-text-subtle mt-2">
-                Actualizada{' '}
-                <time dateTime={profile.publishedAt} title={formatWatchDate(profile.publishedAt)}>
-                  {formatRelative(profile.publishedAt)}
-                </time>
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
+                <p className="text-sm text-text-subtle">
+                  Actualizada{' '}
+                  <time dateTime={profile.publishedAt} title={formatWatchDate(profile.publishedAt)}>
+                    {formatRelative(profile.publishedAt)}
+                  </time>
+                </p>
+                <FollowButton profile={profile} />
+              </div>
             </section>
 
             <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">

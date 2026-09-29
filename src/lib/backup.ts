@@ -1,4 +1,4 @@
-import { Collection, Goals, SavedMedia, Subscriptions, TastePicks } from '@/types';
+import { Collection, Following, Goals, SavedMedia, Subscriptions, TastePicks } from '@/types';
 import {
   SCHEMA_VERSION,
   parseCollection,
@@ -8,6 +8,7 @@ import {
 import { hasPicks, parsePicks } from '@/lib/picks';
 import { hasGoals, parseGoals } from '@/lib/goals';
 import { hasSubscriptions, parseSubscriptions } from '@/lib/subscriptions';
+import { hasFollowing, parseFollowing } from '@/lib/following';
 import { progressPercent, watchedEpisodes } from '@/lib/progress';
 
 export { SCHEMA_VERSION };
@@ -29,6 +30,8 @@ export interface LibraryBackup {
   goals?: Goals;
   /** Las plataformas que se pagan, si había alguna. */
   subscriptions?: Subscriptions;
+  /** Los perfiles que se siguen, si había alguno. */
+  following?: Following;
 }
 
 /** Error de importación con un mensaje pensado para mostrarle a la persona. */
@@ -45,6 +48,7 @@ export function buildBackup(
   picks?: TastePicks,
   goals?: Goals,
   subscriptions?: Subscriptions,
+  following?: Following,
 ): LibraryBackup {
   return {
     app: 'que-miro',
@@ -61,6 +65,7 @@ export function buildBackup(
     // Lo mismo con las metas: sin ninguna, no van.
     ...(goals && hasGoals(goals) ? { goals } : {}),
     ...(subscriptions && hasSubscriptions(subscriptions) ? { subscriptions } : {}),
+    ...(following && hasFollowing(following) ? { following } : {}),
   };
 }
 
@@ -73,6 +78,8 @@ export interface ParsedBackup {
   goals: Goals | null;
   /** `null` si no traía suscripciones. */
   subscriptions: Subscriptions | null;
+  /** `null` si no traía perfiles seguidos. */
+  following: Following | null;
   /** Títulos descartados por estar incompletos o corruptos. */
   skipped: number;
 }
@@ -122,6 +129,7 @@ export function parseBackup(contents: string): ParsedBackup {
   const goals = raw.goals === undefined ? null : parseGoals(raw.goals);
   const subscriptions =
     raw.subscriptions === undefined ? null : parseSubscriptions(raw.subscriptions);
+  const following = raw.following === undefined ? null : parseFollowing(raw.following);
 
   return {
     media,
@@ -129,6 +137,7 @@ export function parseBackup(contents: string): ParsedBackup {
     picks: picks && hasPicks(picks) ? picks : null,
     goals: goals && hasGoals(goals) ? goals : null,
     subscriptions: subscriptions && hasSubscriptions(subscriptions) ? subscriptions : null,
+    following: following && hasFollowing(following) ? following : null,
     skipped,
   };
 }

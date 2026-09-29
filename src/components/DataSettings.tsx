@@ -20,6 +20,7 @@ import { clearRescue, readRescue } from '@/lib/rescue';
 import { useTastePicks } from '@/hooks/useTastePicks';
 import { useGoals } from '@/hooks/useGoals';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
+import { useFollowing } from '@/hooks/useFollowing';
 import { formatWatchDate } from '@/lib/dates';
 
 type PendingDialog = 'import' | 'clear' | 'delete' | null;
@@ -35,6 +36,7 @@ export function DataSettings() {
   const { picks, savePicks } = useTastePicks();
   const { goals, replaceGoals } = useGoals();
   const { subscriptions, replaceSubscriptions } = useSubscriptions();
+  const { following, replaceFollowing } = useFollowing();
   const { authState } = useAuth();
   const { showToast } = useToast();
   const { saveMany } = useMediaActions();
@@ -56,7 +58,7 @@ export function DataSettings() {
     downloadFile(
       backupFilename('json'),
       JSON.stringify(
-        buildBackup(mediaList, collections, picks, goals, subscriptions),
+        buildBackup(mediaList, collections, picks, goals, subscriptions, following),
         null,
         2,
       ),
@@ -79,6 +81,7 @@ export function DataSettings() {
       picks: null,
       goals: null,
       subscriptions: null,
+      following: null,
       skipped: 0,
     });
     setDialog('import');
@@ -154,6 +157,13 @@ export function DataSettings() {
         Date.parse(incomingSubscriptions.updatedAt) > Date.parse(subscriptions.updatedAt)
       ) {
         replaceSubscriptions(incomingSubscriptions);
+      }
+      const incomingFollowing = pendingImport.following;
+      if (
+        incomingFollowing &&
+        Date.parse(incomingFollowing.updatedAt) > Date.parse(following.updatedAt)
+      ) {
+        replaceFollowing(incomingFollowing);
       }
 
       showToast(

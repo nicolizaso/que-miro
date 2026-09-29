@@ -539,6 +539,29 @@ export interface Subscriptions {
   updatedAt: string; // ISO
 }
 
+/** Un perfil público que seguís. */
+export interface FollowedProfile {
+  slug: string;
+  /**
+   * De quién era cuando lo seguiste. Un slug se libera cuando alguien
+   * despublica y lo puede tomar otra persona: si el dueño cambió, no es a
+   * quien seguías.
+   */
+  uid: string;
+  /** Cómo se llamaba: para nombrarlo aunque deje de estar publicado. */
+  name: string;
+  since: string; // ISO
+}
+
+/**
+ * Los perfiles que seguís, en `users/{uid}/profile/following`. De la cuenta,
+ * como las metas: va en el backup y se borra con ella.
+ */
+export interface Following {
+  profiles: FollowedProfile[];
+  updatedAt: string; // ISO
+}
+
 /** La meta de un año. Cualquiera de las tres puede faltar. */
 export interface YearGoal {
   movies?: number;

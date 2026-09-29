@@ -21,8 +21,9 @@ service cloud.firestore {
 
       // "Contanos de vos" (`profile/taste`), las metas del año
       // (`profile/goals`), las plataformas que se pagan
-      // (`profile/subscriptions`) y el token del calendario suscribible
-      // (`profile/calendar`): documentos de la cuenta. Mismo dueño y mismas
+      // (`profile/subscriptions`), el token del calendario suscribible
+      // (`profile/calendar`) y los perfiles que se siguen
+      // (`profile/following`): documentos de la cuenta. Mismo dueño y mismas
       // reglas que la biblioteca — son datos de la persona, no algo publicado.
       // Un documento nuevo acá no necesita regla nueva: `{docId}` ya lo cubre.
       match /profile/{docId} {

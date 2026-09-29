@@ -17,6 +17,7 @@ import {
 } from '@/views/ProfileView';
 import { PublicProfileView } from '@/views/PublicProfileView';
 import { TasteProfileView } from '@/views/TasteProfileView';
+import { FollowingView } from '@/views/FollowingView';
 import { SmartPickerView } from '@/views/SmartPickerView';
 
 /** Pantalla de carga mientras Firebase resuelve si hay sesión. */
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="perfil" element={<ProfileView />}>
           <Route index element={<ProfileSummary />} />
           <Route path="gustos" element={<TasteProfileView />} />
+          <Route path="siguiendo" element={<FollowingView />} />
           <Route path="ajustes" element={<ProfileSettings />} />
         </Route>
         <Route path="*" element={<NotFoundView />} />
