@@ -3,11 +3,13 @@ import {
   TmdbError,
   getDiscover,
   getList,
+  getMediaDetail,
   getPersonCredits,
   getRecommendations,
   getTrending,
   parseDiscoverQuery,
   parseId,
+  parseLanguage,
   parseListKind,
   parseMediaType,
   parseSearchKind,
@@ -574,5 +576,185 @@ describe('getPersonCredits', () => {
     const results = await getPersonCredits(7, 'reparto');
 
     expect(results.map((credit) => credit.id)).toEqual([2, 1]);
+  });
+});
+
+describe('el idioma de los textos', () => {
+  const originalKey = process.env.TMDB_API_KEY;
+
+  beforeEach(() => {
+    process.env.TMDB_API_KEY = 'test-key';
+    clearCache();
+  });
+
+  afterEach(() => {
+    process.env.TMDB_API_KEY = originalKey;
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  /** La URL con la que se llamó a TMDB en la enésima llamada. */
+  function calledUrl(fetchMock: ReturnType<typeof vi.fn>, index = 0): URL {
+    return new URL(fetchMock.mock.calls[index][0] as string);
+  }
+
+  describe('parseLanguage', () => {
+    it('sin parámetro es castellano de España, para no romper a nadie', () => {
+      expect(parseLanguage(undefined)).toBe('es-ES');
+      expect(parseLanguage('')).toBe('es-ES');
+    });
+
+    it('acepta los dos castellanos', () => {
+      expect(parseLanguage('es-ES')).toBe('es-ES');
+      expect(parseLanguage('es-MX')).toBe('es-MX');
+    });
+
+    it.each(['es', 'en-US', 'es-AR', 'ES-MX', ['es-MX']])(
+      'rechaza %o con un 400',
+      (value) => {
+        expect(() => parseLanguage(value)).toThrow(TmdbError);
+      },
+    );
+  });
+
+  it('le pasa el idioma a TMDB', async () => {
+    const fetchMock = stubFetch([]);
+
+    await searchMulti('duro de matar', 'es-MX');
+    await searchMulti('la jungla de cristal');
+
+    expect(calledUrl(fetchMock, 0).searchParams.get('language')).toBe('es-MX');
+    expect(calledUrl(fetchMock, 1).searchParams.get('language')).toBe('es-ES');
+  });
+
+  it('cachea cada idioma por separado', async () => {
+    // Sin el idioma en la clave, la respuesta en un idioma se serviría a quien
+    // pidió el otro.
+    const fetchMock = stubFetch([{ id: 1, media_type: 'movie' }]);
+
+    await getTrending('day', 'es-ES');
+    await getTrending('day', 'es-MX');
+    await getTrending('day', 'es-MX');
+    await getPersonCredits(525, 'reparto', 'es-ES');
+    await getPersonCredits(525, 'reparto', 'es-MX');
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  describe('getMediaDetail', () => {
+    /** Un `fetch` que contesta distinto según el idioma pedido. */
+    function stubDetail(byLanguage: Record<string, Record<string, unknown>>) {
+      const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+        const language = new URL(url).searchParams.get('language') ?? '';
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...byLanguage[language] }),
+        };
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      return fetchMock;
+    }
+
+    it('en latino, sin sinopsis, la completa con la de España', async () => {
+      const fetchMock = stubDetail({
+        'es-MX': { id: 562, title: 'Duro de matar', overview: '' },
+        'es-ES': { id: 562, title: 'La jungla de cristal', overview: 'Un policía...' },
+      });
+
+      const detail = await getMediaDetail('movie', 562, 'es-MX');
+
+      expect(detail.overview).toBe('Un policía...');
+      // El título no se toca: el latino es el que se pidió.
+      expect(detail.title).toBe('Duro de matar');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // La segunda es liviana: de ella solo se usa la sinopsis.
+      expect(calledUrl(fetchMock, 1).searchParams.get('append_to_response')).toBeNull();
+    });
+
+    it('en latino, con sinopsis, es una sola llamada', async () => {
+      const fetchMock = stubDetail({
+        'es-MX': { id: 562, title: 'Duro de matar', overview: 'Un policía...' },
+      });
+
+      await getMediaDetail('movie', 562, 'es-MX');
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('en castellano de España no hay a quién pedirle respaldo', async () => {
+      const fetchMock = stubDetail({ 'es-ES': { id: 562, overview: '' } });
+
+      await getMediaDetail('movie', 562);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('si el respaldo falla, la ficha llega igual', async () => {
+      let calls = 0;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async () => {
+          calls++;
+          if (calls > 1) throw new Error('ECONNRESET');
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ id: 562, title: 'Duro de matar', overview: '' }),
+          };
+        }),
+      );
+
+      const detail = await getMediaDetail('movie', 562, 'es-MX');
+
+      expect(detail.title).toBe('Duro de matar');
+      expect(detail.overview).toBe('');
+    });
+  });
+
+  describe('discover', () => {
+    it('el idioma original se pide con `original`', () => {
+      expect(
+        parseDiscoverQuery({ type: 'movie', original: 'ko', lang: 'es-MX' }),
+      ).toMatchObject({ originalLanguage: 'ko', lang: 'es-MX' });
+    });
+
+    it('un cliente viejo que manda `lang=ko` sigue pidiendo coreanas', () => {
+      // Antes `lang` era el idioma original. Un código pelado no puede ser un
+      // idioma de textos, así que se lee como el original que quería decir.
+      expect(parseDiscoverQuery({ type: 'movie', lang: 'ko' })).toMatchObject({
+        originalLanguage: 'ko',
+        lang: 'es-ES',
+      });
+    });
+
+    it.each([
+      { type: 'movie', original: 'Coreano' },
+      { type: 'movie', lang: 'en-US' },
+    ])('rechaza %o con un 400', (query) => {
+      expect(() => parseDiscoverQuery(query)).toThrow(TmdbError);
+    });
+
+    it('manda a TMDB los dos idiomas, cada uno donde va', async () => {
+      const fetchMock = stubFetch([]);
+
+      await getDiscover(
+        parseDiscoverQuery({ type: 'movie', original: 'ko', lang: 'es-MX' }),
+      );
+
+      const url = calledUrl(fetchMock);
+      expect(url.searchParams.get('with_original_language')).toBe('ko');
+      expect(url.searchParams.get('language')).toBe('es-MX');
+    });
+
+    it('cachea cada idioma por separado', async () => {
+      const fetchMock = stubFetch([]);
+
+      await getDiscover(parseDiscoverQuery({ type: 'movie', genre: '27' }));
+      await getDiscover(parseDiscoverQuery({ type: 'movie', genre: '27', lang: 'es-MX' }));
+      await getDiscover(parseDiscoverQuery({ type: 'movie', genre: '27', lang: 'es-MX' }));
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
   });
 });

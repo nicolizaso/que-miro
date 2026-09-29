@@ -4,6 +4,7 @@ import {
   TRENDING_TTL,
   getList,
   getTrending,
+  parseLanguage,
   parseListKind,
   parseMediaType,
   parseTrendingWindow,
@@ -19,14 +20,21 @@ import {
  *     /api/tmdb/trending?window=week
  *     /api/tmdb/trending?type=movie&list=top_rated
  *
+ * Las dos formas aceptan `lang=es-MX` para los títulos en latino.
+ *
  * Las tres respuestas son iguales para todo el mundo, así que se cachean en el
  * proceso y en el borde.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
+    const lang = parseLanguage(req.query.lang);
     const results = req.query.type
-      ? await getList(parseMediaType(req.query.type), parseListKind(req.query.list))
-      : await getTrending(parseTrendingWindow(req.query.window));
+      ? await getList(
+          parseMediaType(req.query.type),
+          parseListKind(req.query.list),
+          lang,
+        )
+      : await getTrending(parseTrendingWindow(req.query.window), lang);
 
     for (const [header, value] of Object.entries(cacheHeaders(TRENDING_TTL))) {
       res.setHeader(header, value);

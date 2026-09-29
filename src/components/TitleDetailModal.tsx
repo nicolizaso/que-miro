@@ -4,6 +4,7 @@ import {
   TMDB_IMAGE_BASE_URL,
   TMDB_IMAGE_ORIGINAL_URL,
 } from '@/lib/tmdb';
+import { canonicalGenreNames } from '@/lib/genres';
 import { MediaStatus, SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
 import {
   X,
@@ -200,7 +201,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
       releaseYear: (detail.release_date || detail.first_air_date || '').split(
         '-',
       )[0],
-      genres: detail.genres?.map((genre) => genre.name) ?? [],
+      genres: canonicalGenreNames(detail.genres),
       status,
       ...(collections?.length ? { collections } : {}),
       ...enrichFromDetail(detail, preferredRegion),

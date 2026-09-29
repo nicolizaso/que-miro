@@ -25,6 +25,7 @@ import {
   getTrending,
   parseDiscoverQuery,
   parseId,
+  parseLanguage,
   parseListKind,
   parseMediaType,
   parsePersonRole,
@@ -53,12 +54,13 @@ async function startServer() {
     }
     try {
       const kind = parseSearchKind(req.query.kind);
+      const lang = parseLanguage(req.query.lang);
       const results =
         kind === 'person'
           ? await searchPeople(query)
           : kind === 'company'
             ? await searchCompanies(query)
-            : await searchMulti(query);
+            : await searchMulti(query, lang);
 
       return res.status(200).json({ results });
     } catch (error) {
@@ -71,7 +73,8 @@ async function startServer() {
     try {
       const mediaType = parseMediaType(req.query.type);
       const id = parseId(req.query.id);
-      return res.status(200).json(await getMediaDetail(mediaType, id));
+      const lang = parseLanguage(req.query.lang);
+      return res.status(200).json(await getMediaDetail(mediaType, id, lang));
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);
@@ -80,12 +83,14 @@ async function startServer() {
 
   app.get('/api/tmdb/trending', async (req, res) => {
     try {
+      const lang = parseLanguage(req.query.lang);
       const results = req.query.type
         ? await getList(
             parseMediaType(req.query.type),
             parseListKind(req.query.list),
+            lang,
           )
-        : await getTrending(parseTrendingWindow(req.query.window));
+        : await getTrending(parseTrendingWindow(req.query.window), lang);
 
       res.set(cacheHeaders(TRENDING_TTL));
       return res.status(200).json({ results });
@@ -99,11 +104,12 @@ async function startServer() {
     try {
       const mediaType = parseMediaType(req.query.type);
       const id = parseId(req.query.id);
+      const lang = parseLanguage(req.query.lang);
 
       const results =
         req.query.mode === 'similar'
-          ? await getSimilar(mediaType, id)
-          : await getRecommendations(mediaType, id);
+          ? await getSimilar(mediaType, id, lang)
+          : await getRecommendations(mediaType, id, lang);
 
       res.set(cacheHeaders(RECOMMENDATIONS_TTL));
       return res.status(200).json({ results });
@@ -129,9 +135,12 @@ async function startServer() {
     try {
       const id = parseId(req.query.id);
       const role = parsePersonRole(req.query.role);
+      const lang = parseLanguage(req.query.lang);
 
       res.set(cacheHeaders(PERSON_TTL));
-      return res.status(200).json({ results: await getPersonCredits(id, role) });
+      return res
+        .status(200)
+        .json({ results: await getPersonCredits(id, role, lang) });
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);
@@ -140,8 +149,12 @@ async function startServer() {
 
   app.get('/api/tmdb/saga', async (req, res) => {
     try {
+      const results = await getSaga(
+        parseId(req.query.id),
+        parseLanguage(req.query.lang),
+      );
       res.set(cacheHeaders(PERSON_TTL));
-      return res.status(200).json({ results: await getSaga(parseId(req.query.id)) });
+      return res.status(200).json({ results });
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);

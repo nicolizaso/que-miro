@@ -10,9 +10,31 @@
 import { withCache } from './cache.js';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-const TMDB_LANGUAGE = 'es-ES';
 
 export type MediaType = 'movie' | 'tv';
+
+/**
+ * Los idiomas en los que se piden los textos: títulos, sinopsis, nombres de
+ * temporada.
+ *
+ * Castellano de España para quien elige España, y latino para el resto: desde
+ * Buenos Aires, *Die Hard* es "Duro de matar" y no "La jungla de cristal". Es
+ * una lista cerrada a propósito: la ruta es pública y el idioma entra en la
+ * clave de caché, así que con un passthrough cada idioma inventado sería una
+ * entrada más desalojando a las que sí se usan.
+ */
+export const LANGUAGES = ['es-ES', 'es-MX'] as const;
+export type Language = (typeof LANGUAGES)[number];
+
+/** Sin parámetro, el de siempre: así un cliente que no lo manda no nota nada. */
+export const DEFAULT_LANGUAGE: Language = 'es-ES';
+
+/** Valida el idioma que llega por la request. */
+export function parseLanguage(value: unknown): Language {
+  if (value === undefined || value === '') return DEFAULT_LANGUAGE;
+  if (LANGUAGES.includes(value as Language)) return value as Language;
+  throw new TmdbError("El parámetro 'lang' debe ser 'es-ES' o 'es-MX'.", 400);
+}
 
 /**
  * Cuánto vive en caché cada respuesta.
@@ -56,10 +78,11 @@ function getApiKey(): string {
 async function fetchTMDB<T>(
   endpoint: string,
   params: Record<string, string> = {},
+  language: Language = DEFAULT_LANGUAGE,
 ): Promise<T> {
   const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
   url.searchParams.set('api_key', getApiKey());
-  url.searchParams.set('language', TMDB_LANGUAGE);
+  url.searchParams.set('language', language);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
@@ -89,10 +112,14 @@ function onlyMoviesAndShows<T extends { media_type?: string }>(results: T[]): T[
 }
 
 /** Busca películas y series por texto, descartando personas y otros tipos. */
-export async function searchMulti(query: string) {
+export async function searchMulti(
+  query: string,
+  language: Language = DEFAULT_LANGUAGE,
+) {
   const data = await fetchTMDB<{ results?: { media_type?: string }[] }>(
     '/search/multi',
     { query },
+    language,
   );
   return onlyMoviesAndShows(data.results ?? []);
 }
@@ -124,6 +151,9 @@ const MAX_SEARCH_RESULTS = 12;
  * Devuelve solo los cuatro campos que la app usa y no la respuesta cruda: el
  * `known_for` de TMDB trae la ficha entera de hasta tres títulos por persona,
  * que acá no mira nadie y multiplica por diez el peso de la respuesta.
+ *
+ * No lleva idioma: TMDB no traduce los nombres de las personas, así que
+ * pedirlos en latino y en castellano de España sería pagar dos veces lo mismo.
  */
 export async function searchPeople(query: string) {
   const data = await fetchTMDB<{
@@ -179,10 +209,17 @@ export function parseTrendingWindow(value: unknown): TrendingWindow {
  * Cacheado porque la respuesta no depende de quién pregunta: es la misma para
  * todos los visitantes durante todo el día.
  */
-export async function getTrending(window: TrendingWindow = 'day') {
-  return withCache(`trending:${window}`, TRENDING_TTL, async () => {
+export async function getTrending(
+  window: TrendingWindow = 'day',
+  language: Language = DEFAULT_LANGUAGE,
+) {
+  // El idioma va en la clave: si no, la respuesta en un idioma se serviría a
+  // quien pidió el otro.
+  return withCache(`trending:${window}:${language}`, TRENDING_TTL, async () => {
     const data = await fetchTMDB<{ results?: { media_type?: string }[] }>(
       `/trending/all/${window}`,
+      {},
+      language,
     );
     return onlyMoviesAndShows(data.results ?? []);
   });
@@ -206,10 +243,16 @@ export function parseListKind(value: unknown): ListKind {
  * TMDB no devuelve `media_type` en estos endpoints —el tipo está en la ruta—
  * así que se agrega a mano para que el front reciba siempre la misma forma.
  */
-export async function getList(mediaType: MediaType, kind: ListKind) {
-  return withCache(`list:${mediaType}:${kind}`, TRENDING_TTL, async () => {
+export async function getList(
+  mediaType: MediaType,
+  kind: ListKind,
+  language: Language = DEFAULT_LANGUAGE,
+) {
+  return withCache(`list:${mediaType}:${kind}:${language}`, TRENDING_TTL, async () => {
     const data = await fetchTMDB<{ results?: Record<string, unknown>[] }>(
       `/${mediaType}/${kind}`,
+      {},
+      language,
     );
     return (data.results ?? []).map((result) => ({
       ...result,
@@ -225,13 +268,19 @@ export async function getList(mediaType: MediaType, kind: ListKind) {
  * puntuados y arma la lista final del lado del cliente, con lo que ya sabe de
  * la biblioteca de esa persona.
  */
-export async function getRecommendations(mediaType: MediaType, id: number) {
+export async function getRecommendations(
+  mediaType: MediaType,
+  id: number,
+  language: Language = DEFAULT_LANGUAGE,
+) {
   return withCache(
-    `recommendations:${mediaType}:${id}`,
+    `recommendations:${mediaType}:${id}:${language}`,
     RECOMMENDATIONS_TTL,
     async () => {
       const data = await fetchTMDB<{ results?: Record<string, unknown>[] }>(
         `/${mediaType}/${id}/recommendations`,
+        {},
+        language,
       );
       return (data.results ?? []).map((result) => ({
         media_type: mediaType,
@@ -241,14 +290,51 @@ export async function getRecommendations(mediaType: MediaType, id: number) {
   );
 }
 
-/** Detalle de un título, con trailers, reparto y plataformas en una sola llamada. */
-export async function getMediaDetail(mediaType: MediaType, id: number) {
-  return fetchTMDB(`/${mediaType}/${id}`, {
-    // `keywords` entra en la misma llamada: es lo que después habilita las
-    // filas por tema de Explorar, y pedirlo aparte sería una request más por
-    // cada título que alguien agrega.
-    append_to_response: 'videos,credits,keywords,watch/providers',
-  });
+/**
+ * Detalle de un título, con trailers, reparto y plataformas en una sola llamada.
+ *
+ * En latino, la sinopsis puede venir vacía: la traducción de un título la
+ * carga la comunidad de TMDB y a veces solo existe la de España. En ese caso se
+ * completa con la de `es-ES`, que es una segunda llamada, pero solo en ese caso
+ * y liviana: sin `append_to_response`, porque de ella se toma un solo campo.
+ *
+ * Se eligió esto antes que sumar `translations` al `append_to_response`, que
+ * resuelve lo mismo en una llamada pero trae las traducciones a todos los
+ * idiomas —decenas— en cada ficha, para usar una sola y solo cuando falta. El
+ * título, en cambio, no se completa: si la ficha latina no lo traduce es porque
+ * en Latinoamérica suele estrenarse con el original, y el de España sería peor.
+ */
+export async function getMediaDetail(
+  mediaType: MediaType,
+  id: number,
+  language: Language = DEFAULT_LANGUAGE,
+) {
+  const detail = await fetchTMDB<Record<string, unknown>>(
+    `/${mediaType}/${id}`,
+    {
+      // `keywords` entra en la misma llamada: es lo que después habilita las
+      // filas por tema de Explorar, y pedirlo aparte sería una request más por
+      // cada título que alguien agrega.
+      append_to_response: 'videos,credits,keywords,watch/providers',
+    },
+    language,
+  );
+
+  if (language !== DEFAULT_LANGUAGE && !detail.overview) {
+    try {
+      const fallback = await fetchTMDB<{ overview?: string }>(
+        `/${mediaType}/${id}`,
+        {},
+        DEFAULT_LANGUAGE,
+      );
+      if (fallback.overview) detail.overview = fallback.overview;
+    } catch {
+      // Sin la de respaldo queda la ficha como vino: una sinopsis que falta no
+      // justifica tirar abajo la ficha entera.
+    }
+  }
+
+  return detail;
 }
 
 /** Valida el `mediaType` que llega por la request antes de pegarle a TMDB. */
@@ -306,8 +392,8 @@ export interface DiscoverQuery {
   /** Años, inclusive. */
   from?: number;
   to?: number;
-  /** Idioma original, ISO 639-1. */
-  language?: string;
+  /** Idioma original, ISO 639-1: lo que se filma en coreano, no lo que se lee. */
+  originalLanguage?: string;
   keyword?: number;
   /** Id de la productora, para las filas que salen de un estudio. */
   company?: number;
@@ -318,6 +404,8 @@ export interface DiscoverQuery {
   maxRuntime?: number;
   minRuntime?: number;
   sort: DiscoverSort;
+  /** En qué idioma vienen los títulos, como en el resto de los endpoints. */
+  lang: Language;
 }
 
 /** Cuántos votos pedimos según el orden, para que no salga cualquier cosa. */
@@ -375,12 +463,29 @@ function parseDiscoverSort(value: unknown): DiscoverSort {
 export function parseDiscoverQuery(
   query: Record<string, unknown>,
 ): DiscoverQuery {
-  const language =
-    query.lang === undefined || query.lang === ''
-      ? undefined
-      : String(query.lang);
-  if (language !== undefined && !/^[a-z]{2,3}$/.test(language)) {
-    throw new TmdbError("El parámetro 'lang' debe ser un código ISO 639-1.", 400);
+  /**
+   * `lang` es el idioma de los textos, como en todos los endpoints, y el
+   * idioma original se pide con `original`.
+   *
+   * Antes `lang` era el original, y un cliente que ya estaba abierto cuando
+   * cambió lo sigue mandando así: `lang=ko`. Un código pelado, sin región, no
+   * puede ser un idioma de textos de la lista blanca, así que se lo lee como
+   * el original que quería decir en vez de rechazar la fila entera.
+   */
+  const legacyOriginal =
+    typeof query.lang === 'string' && /^[a-z]{2,3}$/.test(query.lang)
+      ? query.lang
+      : undefined;
+
+  const originalLanguage =
+    query.original === undefined || query.original === ''
+      ? legacyOriginal
+      : String(query.original);
+  if (originalLanguage !== undefined && !/^[a-z]{2,3}$/.test(originalLanguage)) {
+    throw new TmdbError(
+      "El parámetro 'original' debe ser un código ISO 639-1.",
+      400,
+    );
   }
 
   const region =
@@ -408,7 +513,7 @@ export function parseDiscoverQuery(
     withoutGenres: parseGenreList(query.without, 'without'),
     from: parseYear(query.from, 'from'),
     to: parseYear(query.to, 'to'),
-    language,
+    originalLanguage,
     keyword:
       query.keyword === undefined || query.keyword === ''
         ? undefined
@@ -428,6 +533,7 @@ export function parseDiscoverQuery(
         ? undefined
         : parseIntParam(query.minRuntime, 'minRuntime'),
     sort: parseDiscoverSort(query.sort),
+    lang: parseLanguage(legacyOriginal ? undefined : query.lang),
   };
 }
 
@@ -440,7 +546,7 @@ function discoverCacheKey(query: DiscoverQuery): string {
     query.withoutGenres.join('-'),
     query.from ?? '',
     query.to ?? '',
-    query.language ?? '',
+    query.originalLanguage ?? '',
     query.keyword ?? '',
     query.company ?? '',
     query.provider ?? '',
@@ -448,6 +554,7 @@ function discoverCacheKey(query: DiscoverQuery): string {
     query.minRuntime ?? '',
     query.maxRuntime ?? '',
     query.sort,
+    query.lang,
   ].join(':');
 }
 
@@ -514,7 +621,9 @@ function discoverParams(
   const upperDate = query.to ? `${query.to}-12-31` : today;
   params[`${dateField}.lte`] = upperDate < today ? upperDate : today;
 
-  if (query.language) params.with_original_language = query.language;
+  if (query.originalLanguage) {
+    params.with_original_language = query.originalLanguage;
+  }
   if (query.keyword) params.with_keywords = String(query.keyword);
   if (query.company) params.with_companies = String(query.company);
   if (query.minRuntime) params['with_runtime.gte'] = String(query.minRuntime);
@@ -549,6 +658,7 @@ export async function getDiscover(query: DiscoverQuery) {
     const data = await fetchTMDB<{ results?: Record<string, unknown>[] }>(
       `/discover/${query.mediaType}`,
       discoverParams(query, providerId),
+      query.lang,
     );
 
     // `/discover` no devuelve `media_type` —el tipo está en la ruta—, igual que
@@ -591,12 +701,18 @@ type Credit = Record<string, unknown> & {
  * TMDB premia lo reciente, y la pregunta que responde esta fila es "qué más
  * hizo que valga la pena", no "qué hizo último".
  */
-export async function getPersonCredits(id: number, role: PersonRole) {
-  return withCache(`person:${id}:${role}`, PERSON_TTL, async () => {
+export async function getPersonCredits(
+  id: number,
+  role: PersonRole,
+  language: Language = DEFAULT_LANGUAGE,
+) {
+  // El idioma es por los títulos de la filmografía, no por el nombre de la
+  // persona, que TMDB no traduce.
+  return withCache(`person:${id}:${role}:${language}`, PERSON_TTL, async () => {
     const data = await fetchTMDB<{
       cast?: Record<string, unknown>[];
       crew?: Record<string, unknown>[];
-    }>(`/person/${id}/combined_credits`);
+    }>(`/person/${id}/combined_credits`, {}, language);
 
     const credits =
       role === 'direccion'
@@ -627,10 +743,12 @@ export async function getPersonCredits(id: number, role: PersonRole) {
  * Es lo que permite decirte que viste la segunda y la tercera pero nunca la
  * primera.
  */
-export async function getSaga(id: number) {
-  return withCache(`saga:${id}`, PERSON_TTL, async () => {
+export async function getSaga(id: number, language: Language = DEFAULT_LANGUAGE) {
+  return withCache(`saga:${id}:${language}`, PERSON_TTL, async () => {
     const data = await fetchTMDB<{ parts?: Record<string, unknown>[] }>(
       `/collection/${id}`,
+      {},
+      language,
     );
     return (data.parts ?? [])
       .sort((a, b) =>
@@ -648,13 +766,19 @@ export async function getSaga(id: number) {
  * el mismo título, y eso es justamente lo que se busca: dos filas sembradas
  * con la misma película que no sean la misma fila.
  */
-export async function getSimilar(mediaType: MediaType, id: number) {
+export async function getSimilar(
+  mediaType: MediaType,
+  id: number,
+  language: Language = DEFAULT_LANGUAGE,
+) {
   return withCache(
-    `similar:${mediaType}:${id}`,
+    `similar:${mediaType}:${id}:${language}`,
     RECOMMENDATIONS_TTL,
     async () => {
       const data = await fetchTMDB<{ results?: Record<string, unknown>[] }>(
         `/${mediaType}/${id}/similar`,
+        {},
+        language,
       );
       return (data.results ?? []).map((result) => ({
         media_type: mediaType,

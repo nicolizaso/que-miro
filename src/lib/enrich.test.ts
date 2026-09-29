@@ -119,7 +119,11 @@ describe('isStale', () => {
   });
 
   it('cambiar de país invalida las plataformas guardadas', () => {
-    const media = makeMedia({ providerRegion: 'AR', providers: ['Netflix'] });
+    const media = makeMedia({
+      providerRegion: 'AR',
+      providers: ['Netflix'],
+      enrichedLanguage: 'es-MX',
+    });
 
     expect(isStale(media, 'AR')).toBe(false);
     expect(isStale(media, 'ES')).toBe(true);
@@ -127,7 +131,74 @@ describe('isStale', () => {
 
   it('un título sin plataformas en su región no se vuelve a pedir', () => {
     // `providerRegion` marca que ya se consultó, aunque no haya dado resultado.
-    expect(isStale(makeMedia({ providerRegion: 'AR' }), 'AR')).toBe(false);
+    expect(
+      isStale(makeMedia({ providerRegion: 'AR', enrichedLanguage: 'es-MX' }), 'AR'),
+    ).toBe(false);
+  });
+
+  it('lo guardado antes del idioma se pidió en castellano de España', () => {
+    // Para quien está en España sigue al día; para quien está en Argentina
+    // tiene el título equivocado y hay que volver a pedirlo.
+    expect(isStale(makeMedia({ providerRegion: 'ES' }), 'ES')).toBe(false);
+    expect(isStale(makeMedia({ providerRegion: 'AR' }), 'AR')).toBe(true);
+  });
+
+  it('un título enriquecido en el idioma de la región no vence por eso', () => {
+    const media = makeMedia({ providerRegion: 'MX', enrichedLanguage: 'es-MX' });
+    expect(isStale(media, 'MX')).toBe(false);
+  });
+
+  it('vuelve a pedirlo si quedó en el castellano de otra región', () => {
+    const media = makeMedia({ providerRegion: 'ES', enrichedLanguage: 'es-MX' });
+    expect(isStale(media, 'ES')).toBe(true);
+  });
+});
+
+describe('el idioma de la ficha', () => {
+  it('guarda en qué castellano se pidió', () => {
+    expect(enrichFromDetail(makeDetail(), 'AR').enrichedLanguage).toBe('es-MX');
+    expect(enrichFromDetail(makeDetail(), 'ES').enrichedLanguage).toBe('es-ES');
+  });
+
+  it('trae el título, para que refrescar lo corrija', () => {
+    expect(
+      enrichFromDetail(makeDetail({ title: 'Duro de matar' }), 'AR').title,
+    ).toBe('Duro de matar');
+    // Las series lo mandan en otro campo.
+    expect(
+      enrichFromDetail(
+        makeDetail({ media_type: 'tv', title: undefined, name: 'Los Soprano' }),
+        'AR',
+      ).title,
+    ).toBe('Los Soprano');
+  });
+
+  it('nunca pisa el título guardado con uno vacío', () => {
+    const enrichment = enrichFromDetail(
+      makeDetail({ title: '', name: undefined }),
+      'AR',
+    );
+    expect('title' in enrichment).toBe(false);
+  });
+
+  it('nombra los géneros como la app, no como TMDB en cada idioma', () => {
+    // "Suspense" es como lo llama TMDB en España; la biblioteca, el filtro y
+    // el cuestionario lo llaman "Suspenso".
+    const enrichment = enrichFromDetail(
+      makeDetail({
+        genres: [
+          { id: 53, name: 'Suspense' },
+          { id: 878, name: 'Ciencia ficción' },
+        ],
+      }),
+      'ES',
+    );
+
+    expect(enrichment.genres).toEqual(['Suspenso', 'Ciencia Ficción']);
+  });
+
+  it('sin géneros en la ficha no borra los guardados', () => {
+    expect('genres' in enrichFromDetail(makeDetail(), 'AR')).toBe(false);
   });
 });
 

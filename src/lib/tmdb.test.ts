@@ -1,10 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   TMDbRequestError,
-  getGenreNames,
+  getDiscover,
   getMediaDetail,
+  getPersonCredits,
   searchMulti,
+  searchPeople,
 } from './tmdb';
+import { usePreferences } from '@/preferences';
+
+beforeEach(() => {
+  // España: el idioma por defecto, que no se escribe en la URL. Los tests del
+  // latino lo cambian a mano.
+  usePreferences.setState({ region: 'ES' });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -21,20 +30,6 @@ function stubFetch(response: Partial<Response> & { json?: () => unknown }) {
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
-
-describe('getGenreNames', () => {
-  it('traduce los IDs conocidos a nombres en español', () => {
-    expect(getGenreNames([28, 878])).toEqual(['Acción', 'Ciencia Ficción']);
-  });
-
-  it('descarta los IDs que no están en el mapa', () => {
-    expect(getGenreNames([28, 999999])).toEqual(['Acción']);
-  });
-
-  it('devuelve una lista vacía si no hay géneros', () => {
-    expect(getGenreNames([])).toEqual([]);
-  });
-});
 
 describe('searchMulti', () => {
   it('pega contra nuestra API y no contra TMDB directamente', async () => {
@@ -103,5 +98,54 @@ describe('getMediaDetail', () => {
     await expect(getMediaDetail(1, 'tv')).rejects.toThrow(
       'No pudimos obtener los datos.',
     );
+  });
+});
+
+describe('el idioma de los pedidos', () => {
+  it('en España no se escribe: es el que el servidor asume', async () => {
+    const fetchMock = stubFetch({ json: async () => ({ id: 603 }) });
+
+    await getMediaDetail(603, 'movie');
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/tmdb/detail?type=movie&id=603');
+  });
+
+  it('en Latinoamérica pide los textos en latino', async () => {
+    usePreferences.setState({ region: 'AR' });
+    const fetchMock = stubFetch({ json: async () => ({ results: [] }) });
+
+    await getMediaDetail(603, 'movie');
+    await searchMulti('duro de matar');
+    await getPersonCredits(525, 'direccion');
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/tmdb/detail?type=movie&id=603&lang=es-MX',
+    );
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      '/api/tmdb/search?query=duro%20de%20matar&lang=es-MX',
+    );
+    expect(fetchMock.mock.calls[2][0]).toBe(
+      '/api/tmdb/person?id=525&role=direccion&lang=es-MX',
+    );
+  });
+
+  it('la búsqueda de personas no lleva idioma: TMDB no traduce los nombres', async () => {
+    usePreferences.setState({ region: 'AR' });
+    const fetchMock = stubFetch({ json: async () => ({ results: [] }) });
+
+    await searchPeople('nolan');
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/tmdb/search?kind=person&query=nolan');
+  });
+
+  it('discover pide el idioma original con `original` y el de los textos con `lang`', async () => {
+    usePreferences.setState({ region: 'MX' });
+    const fetchMock = stubFetch({ json: async () => ({ results: [] }) });
+
+    await getDiscover({ mediaType: 'movie', originalLanguage: 'ko', sort: 'rating' });
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string, 'http://localhost');
+    expect(url.searchParams.get('original')).toBe('ko');
+    expect(url.searchParams.get('lang')).toBe('es-MX');
   });
 });

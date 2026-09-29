@@ -8,6 +8,7 @@ import {
   SeriesProgress,
   WatchEntry,
 } from '@/types';
+import { parseLanguage } from '@/lib/language';
 
 /**
  * Versión del formato de la biblioteca.
@@ -278,6 +279,9 @@ export function parseMedia(value: unknown): SavedMedia | null {
       typeof value.originalLanguage === 'string' && value.originalLanguage
         ? value.originalLanguage
         : undefined,
+    // Uno desconocido cuenta como ausente: el título se refresca con el
+    // idioma que corresponda, que es lo mismo que pasa con uno viejo.
+    enrichedLanguage: parseLanguage(value.enrichedLanguage),
 
     progress: mediaType === 'tv' ? parseProgress(value.progress) : undefined,
     history: history.length > 0 ? history : undefined,

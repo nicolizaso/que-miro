@@ -328,16 +328,15 @@ export async function hydrateDemoLibrary(region: string): Promise<void> {
 
     const detail = result.value;
     const date = detail.release_date || detail.first_air_date || '';
-    const genres = detail.genres?.map((genre) => genre.name).filter(Boolean);
 
     patches.set(DEMO_SEED[index].tmdbId, {
-      title: detail.title || detail.name || DEMO_SEED[index].title,
       posterPath: detail.poster_path,
       backdropPath: detail.backdrop_path,
       releaseYear: date ? date.split('-')[0] : DEMO_SEED[index].releaseYear,
-      genres: genres?.length ? genres : DEMO_SEED[index].genres,
       // Temporadas y plataformas: sin esto el demo no puede mostrar ni el
-      // progreso por episodio ni el filtro por plataforma.
+      // progreso por episodio ni el filtro por plataforma. Trae también el
+      // título y los géneros, en el castellano de la región elegida; si TMDB
+      // no los manda, quedan los del seed.
       ...enrichFromDetail(detail, region),
     });
   });

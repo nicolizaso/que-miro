@@ -1,5 +1,7 @@
 import { Keyword, Person, SavedMedia, TMDbDetail } from '@/types';
 import { pickProviders } from '@/lib/providers';
+import { canonicalGenreNames } from '@/lib/genres';
+import { DEFAULT_LANGUAGE, languageForRegion } from '@/lib/language';
 
 /** Cuántas plataformas se guardan por título. Más que esto no aporta nada. */
 const MAX_PROVIDERS = 8;
@@ -29,7 +31,19 @@ export type MediaEnrichment = Pick<
   | 'sagaId'
   | 'sagaName'
   | 'originalLanguage'
->;
+  | 'enrichedLanguage'
+> & {
+  /**
+   * El título, en el idioma en que se pidió la ficha.
+   *
+   * Va en el enriquecimiento para que refrescar lo corrija: un título guardado
+   * en castellano de España pasa al latino la próxima vez que se refresca.
+   * Opcional porque nunca se pisa con uno vacío.
+   */
+  title?: string;
+  /** Los géneros con el nombre de la app. Opcional por lo mismo. */
+  genres?: string[];
+};
 
 /**
  * El reparto principal y quienes dirigieron, en una sola lista.
@@ -115,8 +129,12 @@ export function enrichFromDetail(
   const runtime = detail.runtime ?? detail.episode_run_time?.[0] ?? null;
 
   const people = peopleFromDetail(detail);
+  const title = (detail.title || detail.name || '').trim();
+  const genres = canonicalGenreNames(detail.genres);
 
   return {
+    ...(title ? { title } : {}),
+    ...(genres.length > 0 ? { genres } : {}),
     runtime: runtime && runtime > 0 ? runtime : null,
     seasons: seasons?.length ? seasons : undefined,
     totalEpisodes: detail.number_of_episodes ?? null,
@@ -132,6 +150,9 @@ export function enrichFromDetail(
     sagaId: detail.belongs_to_collection?.id ?? null,
     sagaName: detail.belongs_to_collection?.name,
     originalLanguage: detail.original_language,
+    // La ficha se pidió en el idioma de esta misma región: es lo que después
+    // mira `isStale` para saber si el título quedó en el castellano de otro.
+    enrichedLanguage: languageForRegion(preferredRegion),
   };
 }
 
@@ -140,7 +161,11 @@ export function isStale(media: SavedMedia, region: string): boolean {
   if (media.providerRegion === undefined) return true;
   // Cambiar el país de las plataformas invalida lo que se había guardado con
   // el catálogo del país anterior.
-  return media.providerRegion !== region;
+  if (media.providerRegion !== region) return true;
+  // Y el idioma: lo guardado antes de que existiera se pidió en castellano de
+  // España, y para quien está en Latinoamérica eso es un título equivocado.
+  const language = media.enrichedLanguage ?? DEFAULT_LANGUAGE;
+  return language !== languageForRegion(region);
 }
 
 /**

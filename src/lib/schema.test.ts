@@ -275,3 +275,23 @@ describe('la gente y los temas del título', () => {
     expect(media.originalLanguage).toBeUndefined();
   });
 });
+
+describe('el idioma en que se enriqueció el título', () => {
+  it('conserva los dos idiomas que se usan', () => {
+    expect(parseMedia(v1Media({ enrichedLanguage: 'es-MX' }))!.enrichedLanguage).toBe(
+      'es-MX',
+    );
+    expect(parseMedia(v1Media({ enrichedLanguage: 'es-ES' }))!.enrichedLanguage).toBe(
+      'es-ES',
+    );
+  });
+
+  it('uno desconocido cuenta como ausente, igual que en un documento viejo', () => {
+    // Ausente es "se pidió en es-ES": el título se refresca con el idioma que
+    // corresponda, en vez de quedar marcado con uno que la app no sabe pedir.
+    expect(parseMedia(v1Media({ enrichedLanguage: 'klingon' }))!.enrichedLanguage).toBe(
+      undefined,
+    );
+    expect(parseMedia(v1Media())!.enrichedLanguage).toBeUndefined();
+  });
+});

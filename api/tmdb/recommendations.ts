@@ -5,6 +5,7 @@ import {
   getRecommendations,
   getSimilar,
   parseId,
+  parseLanguage,
   parseMediaType,
   toErrorResponse,
 } from '../_lib/tmdb.js';
@@ -12,6 +13,7 @@ import {
 /**
  * GET /api/tmdb/recommendations?type=movie&id=603
  * GET /api/tmdb/recommendations?type=movie&id=603&mode=similar
+ * (las dos aceptan `&lang=es-MX`)
  *
  * Títulos parecidos a uno dado, por dos caminos distintos: `recommendations` es
  * colaborativo —lo arma quién mira qué— y `similar` va por metadatos, género y
@@ -26,11 +28,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const mediaType = parseMediaType(req.query.type);
     const id = parseId(req.query.id);
+    const lang = parseLanguage(req.query.lang);
 
     const results =
       req.query.mode === 'similar'
-        ? await getSimilar(mediaType, id)
-        : await getRecommendations(mediaType, id);
+        ? await getSimilar(mediaType, id, lang)
+        : await getRecommendations(mediaType, id, lang);
 
     for (const [header, value] of Object.entries(
       cacheHeaders(RECOMMENDATIONS_TTL),

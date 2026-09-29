@@ -507,7 +507,7 @@ export const RECIPES: Recipe[] = [
           fetch: () =>
             getDiscover({
               mediaType: 'movie',
-              language: language.code,
+              originalLanguage: language.code,
               sort: 'rating',
             }),
         },

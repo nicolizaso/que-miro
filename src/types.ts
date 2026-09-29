@@ -2,6 +2,12 @@ export type MediaType = 'movie' | 'tv';
 export type MediaStatus = 'por_ver' | 'viendo' | 'completada';
 
 /**
+ * En qué castellano se le piden los textos a TMDB: el de España o el latino.
+ * Sale de la región (ver `lib/language.ts`).
+ */
+export type TmdbLanguage = 'es-ES' | 'es-MX';
+
+/**
  * Una vez que viste un título, de principio a fin.
  *
  * Reemplaza al `review` único de la v1 del schema: volver a ver algo ya no pisa
@@ -100,6 +106,16 @@ export interface SavedMedia {
   sagaName?: string;
   /** Idioma original, en ISO 639-1. Distingue lo que ves doblado de lo que no. */
   originalLanguage?: string;
+  /**
+   * En qué castellano se pidió la ficha que completó el título: de ahí salen
+   * el título y el nombre de la saga.
+   *
+   * Ausente en lo guardado antes de que existiera, que se pidió todo en
+   * `es-ES`. `isStale` lo compara con el de la región actual: así lo que se
+   * guardó como "La jungla de cristal" pasa a "Duro de matar" cuando se
+   * refresca, sin migrar nada de golpe.
+   */
+  enrichedLanguage?: TmdbLanguage;
 
   /** Episodios vistos. Solo en series. */
   progress?: SeriesProgress;

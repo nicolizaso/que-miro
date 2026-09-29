@@ -21,6 +21,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   resultado abre su ficha de un toque, o va directo a *Por Ver* o a
   *Completadas* desde los dos botones de al lado. Marcar algo como completado
   abre la reseña ahí mismo.
+- **En tu castellano** — títulos y sinopsis en latino o en castellano de
+  España, según el país que elijas: desde Buenos Aires es *Duro de matar*, no
+  *La jungla de cristal*. Lo que ya tenías guardado se corrige solo, de a poco.
 - **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo,
   plataforma, lista o ánimo. Los filtros viven en la URL, así que la vista se
   puede compartir.
@@ -171,9 +174,10 @@ api/                  Funciones serverless (Vercel)
   tmdb/detail.ts      GET /api/tmdb/detail?type=&id=
   tmdb/trending.ts    GET /api/tmdb/trending (tendencias, populares, top)
   tmdb/recommendations.ts  GET /api/tmdb/recommendations?type=&id=[&mode=similar]
-  tmdb/discover.ts    GET /api/tmdb/discover?type=&genre=&from=&lang=&provider=…
+  tmdb/discover.ts    GET /api/tmdb/discover?type=&genre=&from=&original=&provider=…
   tmdb/person.ts      GET /api/tmdb/person?id=&role=reparto|direccion
   tmdb/saga.ts        GET /api/tmdb/saga?id=
+                      (todos aceptan &lang=es-ES|es-MX; sin él, es-ES)
   u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
 e2e/                  Tests de punta a punta (Playwright)
 src/

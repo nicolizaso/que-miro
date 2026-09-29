@@ -28,6 +28,22 @@
           { "name": "genres", "type": "list", "required": false },
           { "name": "status", "type": "string", "required": true },
           { "name": "updatedAt", "type": "timestamp", "required": true },
+          { "name": "runtime", "type": "number", "required": false },
+          { "name": "seasons", "type": "list", "required": false },
+          { "name": "totalEpisodes", "type": "number", "required": false },
+          { "name": "providers", "type": "list", "required": false },
+          { "name": "providerRegion", "type": "string", "required": false },
+          { "name": "people", "type": "list", "required": false },
+          { "name": "keywords", "type": "list", "required": false },
+          { "name": "sagaId", "type": "number", "required": false },
+          { "name": "sagaName", "type": "string", "required": false },
+          { "name": "originalLanguage", "type": "string", "required": false },
+          { "name": "enrichedLanguage", "type": "string", "required": false },
+          { "name": "progress", "type": "map", "required": false },
+          { "name": "history", "type": "list", "required": false },
+          { "name": "collections", "type": "list", "required": false },
+          { "name": "duelScore", "type": "number", "required": false },
+          { "name": "duelCount", "type": "number", "required": false },
           { "name": "review", "type": "map", "required": false }
         ]
       }

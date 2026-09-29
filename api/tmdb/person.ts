@@ -4,12 +4,13 @@ import {
   PERSON_TTL,
   getPersonCredits,
   parseId,
+  parseLanguage,
   parsePersonRole,
   toErrorResponse,
 } from '../_lib/tmdb.js';
 
 /**
- * GET /api/tmdb/person?id=525&role=direccion
+ * GET /api/tmdb/person?id=525&role=direccion[&lang=es-MX]
  *
  * Qué más hizo alguien. Con `role=reparto`, lo que actuó; con `role=direccion`,
  * lo que dirigió o creó.
@@ -21,8 +22,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const id = parseId(req.query.id);
     const role = parsePersonRole(req.query.role);
+    const lang = parseLanguage(req.query.lang);
 
-    const results = await getPersonCredits(id, role);
+    const results = await getPersonCredits(id, role, lang);
 
     for (const [header, value] of Object.entries(cacheHeaders(PERSON_TTL))) {
       res.setHeader(header, value);

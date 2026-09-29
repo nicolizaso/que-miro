@@ -8,7 +8,7 @@ import {
 } from '../_lib/tmdb.js';
 
 /**
- * GET /api/tmdb/discover?type=movie&genre=27&sort=rating
+ * GET /api/tmdb/discover?type=movie&genre=27&sort=rating[&lang=es-MX]
  *
  * Títulos que cumplen un criterio: de terror bien puntuadas, de los 90, en
  * coreano, disponibles en Netflix en Argentina. Es lo que alimenta la mayoría

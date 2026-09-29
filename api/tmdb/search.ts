@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
+  parseLanguage,
   parseSearchKind,
   searchCompanies,
   searchMulti,
@@ -8,7 +9,7 @@ import {
 } from '../_lib/tmdb.js';
 
 /**
- * GET /api/tmdb/search?query=matrix[&kind=multi|person|company]
+ * GET /api/tmdb/search?query=matrix[&kind=multi|person|company][&lang=es-MX]
  *
  * Sin `kind` busca títulos, que es lo que hace la búsqueda de siempre. Con
  * `person` o `company` busca gente y productoras: lo que necesita el
@@ -24,12 +25,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const kind = parseSearchKind(req.query.kind);
+    const lang = parseLanguage(req.query.lang);
+    // Gente y productoras no llevan idioma: TMDB no traduce los nombres.
     const results =
       kind === 'person'
         ? await searchPeople(query)
         : kind === 'company'
           ? await searchCompanies(query)
-          : await searchMulti(query);
+          : await searchMulti(query, lang);
 
     // Los resultados de búsqueda cambian poco: cacheamos en el CDN 5 minutos
     // y permitimos servir una copia vieja mientras se revalida.
