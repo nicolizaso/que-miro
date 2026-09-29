@@ -281,6 +281,17 @@ test('un perfil público inexistente muestra su propia página, no el login', as
   await expect(page).toHaveURL(/\/u\/no-existe/);
 });
 
+test('una lista compartida inexistente muestra su propia página, no el login', async ({
+  page,
+}) => {
+  await page.goto('/l/abcdefghijkl1234');
+
+  await expect(
+    page.getByRole('heading', { name: /Esta lista no existe|No pudimos cargar la lista/ }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/l\/abcdefghijkl1234/);
+});
+
 test('se navega con teclado desde el salto al contenido', async ({ page }) => {
   // Se recarga primero para que el foco arranque desde el principio del
   // documento: el botón del demo se desmontó al hacer clic, y el navegador

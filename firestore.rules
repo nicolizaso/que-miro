@@ -58,6 +58,39 @@ service cloud.firestore {
     }
 
     /**
+     * Listas compartidas (`/l/{id}`, ver `api/l/[id].ts`).
+     *
+     * El mismo patrón que los perfiles públicos: una instantánea curada que
+     * se lee sin sesión, y que solo escribe el `uid` que declara, sin poder
+     * cambiarlo —si no, cualquiera con sesión podría quedarse con la lista de
+     * otro reescribiéndola—. Con una diferencia: `list` está prohibido. Una
+     * lista se comparte por su link, no es un directorio para recorrer.
+     */
+    match /public_lists/{listId} {
+      function validList() {
+        return request.resource.data.id == listId
+          && request.resource.data.items is list
+          && request.resource.data.items.size() <= 200;
+      }
+
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.uid
+        && listId.matches('^[A-Za-z0-9_-]{12,32}$')
+        && validList();
+
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.resource.data.uid == resource.data.uid
+        && validList();
+
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+    }
+
+    /**
      * Calendarios para suscribirse (`/cal/{token}.ics`, ver `api/cal/[token].ts`).
      *
      * Google Calendar y compañía piden la dirección sin sesión, así que el

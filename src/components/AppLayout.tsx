@@ -21,6 +21,7 @@ import { useBackgroundRefresh } from '@/hooks/useBackgroundRefresh';
 import { usePushSnapshot } from '@/hooks/usePushSnapshot';
 import { useCalendarFeedSync } from '@/hooks/useCalendarFeed';
 import { useAutoPublishProfile } from '@/hooks/usePublicProfile';
+import { ListAutoPublishers } from '@/hooks/usePublicList';
 import { cn } from '@/lib/utils';
 
 // El Picker va al medio a propósito: es el botón destacado de la barra
@@ -79,6 +80,7 @@ export function AppLayout() {
   return (
     <div className="min-h-[100dvh] bg-bg-main text-text-main font-sans selection:bg-accent/30 flex flex-col">
       <SyncManager />
+      <ListAutoPublishers />
 
       {/* Primer elemento tabulable de la página: deja saltar el header y la
           navegación de una, que es lo que necesita quien usa teclado. */}

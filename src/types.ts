@@ -323,6 +323,11 @@ export interface Collection {
   name: string;
   createdAt: string; // ISO
   updatedAt: string; // ISO
+  /**
+   * Si está publicada, el id de su instantánea en `public_lists`: es lo que
+   * va en el link. Aditivo; sin publicar, ausente.
+   */
+  publicId?: string;
 }
 
 export interface TMDbResult {

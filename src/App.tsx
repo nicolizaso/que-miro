@@ -16,6 +16,7 @@ import {
   ProfileView,
 } from '@/views/ProfileView';
 import { PublicProfileView } from '@/views/PublicProfileView';
+import { PublicListView } from '@/views/PublicListView';
 import { TasteProfileView } from '@/views/TasteProfileView';
 import { FollowingView } from '@/views/FollowingView';
 import { SmartPickerView } from '@/views/SmartPickerView';
@@ -45,8 +46,10 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/login" element={<LoginView />} />
-        {/* El perfil público se ve sin sesión: es todo el punto de compartirlo. */}
+        {/* El perfil público y las listas compartidas se ven sin sesión: es
+            todo el punto de compartirlos. */}
         <Route path="/u/:slug" element={<PublicProfileView />} />
+        <Route path="/l/:id" element={<PublicListView />} />
         {/* Cualquier otra ruta manda al login. `replace` para no dejar la ruta
             protegida en el historial y que "atrás" rebote de vuelta acá. */}
         <Route path="*" element={<Navigate to="/login" replace />} />
@@ -58,6 +61,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/u/:slug" element={<PublicProfileView />} />
+      <Route path="/l/:id" element={<PublicListView />} />
       <Route element={<AppLayout />}>
         <Route index element={<ListView />} />
         <Route path="explorar" element={<ExploreView />} />

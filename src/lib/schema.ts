@@ -569,6 +569,9 @@ export function parseCollection(value: unknown) {
     name,
     createdAt: isoOrNow(value.createdAt),
     updatedAt: isoOrNow(value.updatedAt),
+    ...(typeof value.publicId === 'string' && /^[A-Za-z0-9_-]{12,32}$/.test(value.publicId)
+      ? { publicId: value.publicId }
+      : {}),
   };
 }
 

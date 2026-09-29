@@ -61,6 +61,24 @@
       }
     },
     {
+      "collection": "collections",
+      "path": "/users/{userId}/collections/{collectionId}",
+      "description": "User-defined lists beyond the three statuses; membership lives in saved_media.collections. publicId points to its public_lists snapshot while published",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "id", "type": "string", "required": true },
+          { "name": "name", "type": "string", "required": true },
+          { "name": "createdAt", "type": "timestamp", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true },
+          { "name": "publicId", "type": "string", "required": false }
+        ]
+      }
+    },
+    {
       "collection": "profile",
       "path": "/users/{userId}/profile/taste",
       "description": "Declared taste from the 'Contanos de vos' questionnaire",
@@ -162,6 +180,30 @@
           { "name": "topGenres", "type": "list", "required": true },
           { "name": "favorites", "type": "list", "required": true },
           { "name": "reviews", "type": "list", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "public_lists",
+      "path": "/public_lists/{listId}",
+      "description": "Curated snapshot of a shared list: name, optional description and minimal items (tmdbId, mediaType, title, posterPath, releaseYear). Public get, list forbidden, owner-only writes with immutable uid; republished automatically while autoUpdate is on",
+      "access": {
+        "get": "true",
+        "list": "false",
+        "create": "request.auth != null && request.auth.uid == request.resource.data.uid && listId.matches('^[A-Za-z0-9_-]{12,32}$')",
+        "update": "request.auth != null && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid",
+        "delete": "request.auth != null && request.auth.uid == resource.data.uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "id", "type": "string", "required": true },
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "ownerName", "type": "string", "required": true },
+          { "name": "name", "type": "string", "required": true },
+          { "name": "description", "type": "string", "required": false },
+          { "name": "items", "type": "list", "required": true },
+          { "name": "publishedAt", "type": "timestamp", "required": true },
+          { "name": "autoUpdate", "type": "boolean", "required": false }
         ]
       }
     },

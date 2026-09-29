@@ -67,6 +67,10 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Listas propias** — agrupaciones más allá de los tres estados: "maratón del
   finde", "pendientes de terror". Se arman desde la ficha de cualquier título,
   esté o no en tu biblioteca.
+- **Listas compartibles** — publicá una lista con su link (`/l/…`), con
+  descripción opcional y vista previa en redes. Se mantiene al día sola;
+  quien la abre puede guardar un título o la lista entera como propia. Se
+  publica solo el nombre, el año y el póster de cada título.
 - **Explorar** — un feed que se arma con tu biblioteca y con lo que nos
   contaste: otros trabajos del director que puntuaste alto, más de esa actriz
   que aparece en dos de tus favoritas, lo que se parece a tu película favorita,
@@ -275,6 +279,8 @@ api/                  Funciones serverless (Vercel)
   tmdb/providers.ts   GET /api/tmdb/providers?type=&region= (plataformas del país)
                       (todos aceptan &lang=es-ES|es-MX; sin él, es-ES)
   u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
+  l/[id].ts           Lo mismo para una lista compartida (`/l/{id}`)
+  _lib/og.ts          Lo compartido por las dos: index.html, meta tags, Firestore REST
   cal/[token].ts      GET /cal/{token}.ics: el calendario suscribible
   _lib/ics.ts         El generador .ics (RFC 5545): escape, plegado, UID estable
 e2e/                  Tests de punta a punta (Playwright)

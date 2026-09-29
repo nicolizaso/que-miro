@@ -14,6 +14,7 @@ import { goalsPath } from '@/hooks/useGoals';
 import { subscriptionsPath } from '@/hooks/useSubscriptions';
 import { followingPath } from '@/hooks/useFollowing';
 import { pushPath } from '@/lib/push';
+import { publicListPath } from '@/lib/publicList';
 import { releasePushDevice } from '@/lib/pushDevice';
 import { deleteCalendarFeed } from '@/hooks/useCalendarFeed';
 import { deletePublicProfile } from '@/hooks/usePublicProfile';
@@ -46,6 +47,29 @@ export function useAccountActions() {
     // El documento del usuario puede no existir: `deleteDoc` sobre algo que no
     // está es un no-op, así que no hace falta chequearlo antes.
     await deleteDoc(doc(db, `users/${uid}`));
+  };
+
+  /**
+   * Borra las listas propias y, de las publicadas, su instantánea pública.
+   *
+   * Borrar `users/{uid}` no borra sus subcolecciones: sin esto, las listas
+   * sobrevivían a la cuenta, y las publicadas seguían a la vista de todos.
+   */
+  const deleteRemoteCollections = async (uid: string) => {
+    const snapshot = await getDocs(collection(db, `users/${uid}/collections`));
+    for (const document of snapshot.docs) {
+      const publicId: unknown = document.data().publicId;
+      if (typeof publicId === 'string' && publicId) {
+        await deleteDoc(doc(db, publicListPath(publicId)));
+      }
+    }
+    for (let i = 0; i < snapshot.docs.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      for (const document of snapshot.docs.slice(i, i + BATCH_LIMIT)) {
+        batch.delete(document.ref);
+      }
+      await batch.commit();
+    }
   };
 
   /**
@@ -84,6 +108,7 @@ export function useAccountActions() {
       // Primero el perfil público: el slug está en `users/{uid}`, que se borra
       // con la biblioteca.
       await deletePublicProfile(user.uid);
+      await deleteRemoteCollections(user.uid);
       await deleteRemoteLibrary(user.uid);
       // Las respuestas de "Contanos de vos" están fuera de `saved_media`, y
       // borrar el documento de un usuario no borra sus subcolecciones: sin
