@@ -640,6 +640,88 @@ curadas que decide cada persona. **Hay que publicar las reglas de Firestore**
 
 ---
 
+## QM-8 — Puertas de entrada
+
+*Que se pueda llegar con lo que ya se vio en otro lado, y que cada nombre lleve a algún lado.*
+
+**Qué estaba mal**
+
+Quien venía de Letterboxd, IMDb o Trakt arrancaba de cero: el único import
+era el JSON propio. Y el reparto de la ficha era una fila de caras que no
+llevaba a ningún lado; para ver qué más hizo alguien había que esperar a que
+Explorar armara su fila, sin saber qué de eso ya habías visto.
+
+**Cómo quedó implementado**
+
+- **Importar desde otras apps.** Un parser por fuente en `lib/importers/`
+  (el CSV de IMDb, el ZIP de Letterboxd —se descomprime en el navegador con
+  `fflate`—, los JSON de Trakt) que devuelve registros intermedios con
+  título, año, fechas, puntaje, estado e ids. IMDb se resuelve exacto por su
+  `tt…`; Letterboxd, por búsqueda con año, y cuenta como dudoso lo que tiene
+  más de un resultado posible; Trakt trae el id de TMDB y se pide la ficha
+  para que entre completo. Los puntajes de 1 a 10 pasan a 0,5–5, y el diario
+  de Letterboxd deja una entrada del historial por cada vez vista.
+- **`/api/tmdb/find`**, con lista blanca: `imdb` (validado como `tt…`) o
+  `type` + `query` + `year`; reenvía solo lo que usa la revisión y pasa por
+  `withCache`. Montado también en `server.ts`.
+- **Revisión antes de guardar**: cuántos entraron, los dudosos con sus
+  opciones y los que no aparecieron con un buscador para corregirlos a mano.
+  Las búsquedas van de a seis, con barra de avance y cancelar.
+- **Página de persona.** `/persona/:id`, con enlace real desde el reparto de
+  la ficha, las filas de Explorar que hablan de alguien y lo elegido en
+  "Contanos de vos". `/api/tmdb/person-page` trae datos y `combined_credits`
+  en una llamada; `lib/person.ts` arma la filmografía sin repetidos, la marca
+  según la biblioteca y calcula "Viste 7 de 23" y las mejor puntuadas que te
+  faltan.
+
+**Decisiones y hallazgos**
+
+- *Los fixtures no son exports reales.* El pedido era confirmar las columnas
+  contra exports de verdad; desde acá no había ninguno a mano (ni red a esas
+  apps, ni una cuenta con datos). Están reconstruidos del formato documentado
+  de cada uno y lo dice `__fixtures__/README.md`. **Falta pasarle un export
+  real de cada app** —anonimizado— y volver a correr los tests.
+- *`mergeLibraries` solo no alcanzaba.* Decide por `updatedAt`, y lo
+  importado siempre es "más nuevo" porque se arma en el momento: usado tal
+  cual, un export ajeno pisaría las reseñas de acá. Antes pasa por
+  `mergeIntoLibrary`, que suma historial y episodios sin pisar lo que había
+  (y respeta *En pausa* y *Abandonada*, salvo que el export diga que la
+  terminaste); lo que no cambia nada no se escribe.
+- *Una vez vista sin puntaje pierde su fecha.* Cada entrada del historial
+  lleva puntaje, y anotar una sin inventarlo no se puede: esos títulos entran
+  en *Completadas*, pero sin la fecha. Resolverlo es un cambio de schema
+  (puntaje opcional en el historial) que queda para otra tanda.
+- *Una serie de Trakt se da por terminada solo con la ficha.* Si la viste
+  entera y no le falta nada por salir, es completada con su puntaje; si no,
+  queda en *Viendo* con sus episodios, y el puntaje de la serie no entra como
+  vista.
+- *La biblioteca se indexa por id, sin el tipo.* Una serie con el mismo
+  número que una película que ya tenés no puede entrar sin pisarla: se
+  saltea. Es una limitación de antes, que ahora se nota.
+- *"Bien puntuada" tiene piso.* Además del mínimo de 300 votos que pedía el
+  pedido, un 7 de TMDB: sin él, a quien hizo pocas cosas buenas se le
+  recomendaría lo mejor de lo flojo. Lo que ya está en tu biblioteca —*Por
+  Ver* incluido— no aparece en "Te faltan": ya lo tenés anotado.
+- *Afuera lo que no es obra.* Talk shows, noticieros, reality y las veces que
+  alguien aparece haciendo de sí mismo son, en alguien famoso, cientos de
+  créditos que taparían los de verdad: los saca el servidor. De dirección
+  quedan lo dirigido y lo creado.
+- *Un endpoint nuevo y no ampliar `/api/tmdb/person`.* Ese devuelve títulos
+  con la forma de las filas de Explorar; la página necesita la persona y su
+  filmografía entera, y mezclarlas eran dos respuestas en una.
+- *El idioma, igual que el resto.* Los nombres no se traducen, pero los
+  títulos de la filmografía y la biografía sí; si en latino no hay
+  biografía, se completa con la de España.
+- *De paso:* el buscador se cierra al cambiar de página y la ficha al irse a
+  una persona, para no quedar encima de la página nueva.
+
+**Resultado:** se puede llegar con años de historial de otra app y revisarlo
+antes de que toque la biblioteca, y cada nombre del reparto es una puerta
+a todo lo que esa persona hizo, marcado con lo que ya viste. No hay
+colecciones ni reglas de Firestore nuevas en esta tanda.
+
+---
+
 ## Resumen
 
 ```
@@ -655,4 +737,5 @@ QM4 Series vivas   refresco, fichas de episodio, al día, continuar, calendario
 QM5 Historial fino fecha por episodio, en pausa y abandonada, puntajes, metas
 QM6 Plataformas    suscripciones, llegó a tu plataforma, avisos push, calendario .ics
 QM7 Compartir      perfil que se actualiza solo, seguir perfiles, listas, ver juntos
+QM8 Puertas        importar de Letterboxd, IMDb y Trakt, página de persona
 ```
