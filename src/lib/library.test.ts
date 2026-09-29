@@ -33,6 +33,7 @@ function makeFilters(overrides: Partial<LibraryFilters> = {}): LibraryFilters {
     provider: null,
     collection: null,
     tag: null,
+    onlyNew: false,
     sort: DEFAULT_SORT,
     ...overrides,
   };
@@ -231,5 +232,34 @@ describe('hasActiveFilters', () => {
     expect(hasActiveFilters(makeFilters({ collection: 'abc' }))).toBe(true);
     expect(hasActiveFilters(makeFilters({ tag: 'Para llorar' }))).toBe(true);
     expect(hasActiveFilters(makeFilters({ sort: 'titulo' }))).toBe(true);
+  });
+});
+
+describe('el filtro de episodios nuevos', () => {
+  const conNovedades = makeMedia({
+    tmdbId: 10,
+    mediaType: 'tv',
+    title: 'The Last of Us',
+    status: 'completada',
+    seasons: [
+      { seasonNumber: 1, name: 'T1', episodeCount: 9 },
+      { seasonNumber: 2, name: 'T2', episodeCount: 7 },
+    ],
+    progress: { watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9] } },
+    newEpisodesSince: { seasonNumber: 2, episodeNumber: 1, detectedAt: '2026-04-15T00:00:00.000Z' },
+  });
+  const sinNovedades = makeMedia({ tmdbId: 11, mediaType: 'tv', status: 'completada' });
+
+  it('deja solo las series con episodios nuevos sin ver', () => {
+    const result = filterLibrary(
+      [conNovedades, sinNovedades],
+      makeFilters({ status: 'completada', onlyNew: true }),
+    );
+
+    expect(result.map((media) => media.tmdbId)).toEqual([10]);
+  });
+
+  it('cuenta como filtro activo', () => {
+    expect(hasActiveFilters(makeFilters({ onlyNew: true }))).toBe(true);
   });
 });

@@ -123,6 +123,14 @@ describe('parseMedia — validación', () => {
     expect(media.status).toBe('completada');
   });
 
+  it('algo ya visto sí puede volver a Viendo', () => {
+    // Una serie terminada que estrena temporada vuelve a Viendo sin perder su
+    // reseña: forzarla a completada la dejaba trabada ahí.
+    const media = parseMedia(v1Media({ mediaType: 'tv', status: 'viendo' }))!;
+    expect(media.status).toBe('viendo');
+    expect(media.history).toHaveLength(1);
+  });
+
   it('ignora el progreso en las películas', () => {
     const media = parseMedia(
       v1Media({ mediaType: 'movie', progress: { watched: { 1: [1, 2] } } }),
@@ -352,5 +360,37 @@ describe('lo que el refresco sabe de una serie', () => {
 
     expect(media.seriesStatus).toBeUndefined();
     expect(media.nextToAir).toBeUndefined();
+  });
+});
+
+describe('la marca de episodios nuevos', () => {
+  it('se conserva en una serie', () => {
+    const media = parseMedia(
+      v1Media({
+        mediaType: 'tv',
+        newEpisodesSince: {
+          seasonNumber: 3,
+          episodeNumber: 1,
+          detectedAt: '2026-09-10T00:00:00.000Z',
+        },
+      }),
+    )!;
+    expect(media.newEpisodesSince).toEqual({
+      seasonNumber: 3,
+      episodeNumber: 1,
+      detectedAt: '2026-09-10T00:00:00.000Z',
+    });
+  });
+
+  it('se descarta rota, o en una película', () => {
+    expect(
+      parseMedia(v1Media({ mediaType: 'tv', newEpisodesSince: { seasonNumber: 0 } }))!
+        .newEpisodesSince,
+    ).toBeUndefined();
+    expect(
+      parseMedia(
+        v1Media({ newEpisodesSince: { seasonNumber: 1, episodeNumber: 1 } }),
+      )!.newEpisodesSince,
+    ).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import {
   EpisodeRef,
   Keyword,
   MediaStatus,
+  NewEpisodesMarker,
   MediaType,
   Person,
   SavedMedia,
@@ -232,6 +233,18 @@ function parseEpisodeRef(value: unknown): EpisodeRef | undefined {
   };
 }
 
+/** Desde qué episodio hay novedades sin ver. */
+function parseNewEpisodes(value: unknown): NewEpisodesMarker | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const seasonNumber = Number(value.seasonNumber);
+  const episodeNumber = Number(value.episodeNumber);
+  if (!Number.isInteger(seasonNumber) || seasonNumber < 1) return undefined;
+  if (!Number.isInteger(episodeNumber) || episodeNumber < 1) return undefined;
+
+  return { seasonNumber, episodeNumber, detectedAt: isoOrNow(value.detectedAt) };
+}
+
 /** Una fecha ISO válida, o `undefined`. Sin inventar "ahora" como `isoOrNow`. */
 function parseIso(value: unknown): string | undefined {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value))
@@ -286,9 +299,11 @@ export function parseMedia(value: unknown): SavedMedia | null {
       typeof value.backdropPath === 'string' ? value.backdropPath : null,
     releaseYear: typeof value.releaseYear === 'string' ? value.releaseYear : '',
     genres: parseStringArray(value.genres),
-    // Haber terminado algo alguna vez implica el estado "completada", aunque el
-    // documento diga otra cosa: es la regla que aplica el store al guardar.
-    status: history.length > 0 ? 'completada' : declaredStatus,
+    // Algo que ya se vio no puede estar "por ver": haberlo terminado alguna
+    // vez lo saca de ahí. Sí puede volver a *Viendo*, que es lo que pasa con
+    // una serie terminada que estrena temporada.
+    status:
+      history.length > 0 && declaredStatus === 'por_ver' ? 'completada' : declaredStatus,
     updatedAt: isoOrNow(value.updatedAt),
 
     runtime: parseNullableNumber(value.runtime),
@@ -323,6 +338,8 @@ export function parseMedia(value: unknown): SavedMedia | null {
     seriesStatus: mediaType === 'tv' ? parseSeriesStatus(value.seriesStatus) : undefined,
     lastAired: mediaType === 'tv' ? parseEpisodeRef(value.lastAired) : undefined,
     nextToAir: mediaType === 'tv' ? parseEpisodeRef(value.nextToAir) : undefined,
+    newEpisodesSince:
+      mediaType === 'tv' ? parseNewEpisodes(value.newEpisodesSince) : undefined,
 
     progress: mediaType === 'tv' ? parseProgress(value.progress) : undefined,
     history: history.length > 0 ? history : undefined,

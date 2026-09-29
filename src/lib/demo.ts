@@ -4,12 +4,15 @@ import { enrichFromDetail } from '@/lib/enrich';
 import { newWatchId } from '@/lib/schema';
 import { emptyPicks, parsePicks } from '@/lib/picks';
 import {
+  EpisodeRef,
   MediaStatus,
   MediaType,
   SavedMedia,
   SeriesProgress,
+  SeriesStatus,
   TastePicks,
 } from '@/types';
+import { toDayKey } from '@/lib/dates';
 
 /**
  * Dueño ficticio de la biblioteca de demostración.
@@ -82,6 +85,17 @@ interface DemoSeedEntry {
   seasons?: Record<number, number>;
   /** Episodios vistos por temporada, para las series empezadas. */
   watched?: Record<number, number[]>;
+  /**
+   * En qué anda la serie y qué salió, para que el demo muestre "al día" y
+   * las novedades aunque TMDB no conteste. Si contesta, gana lo de TMDB.
+   */
+  seriesStatus?: SeriesStatus;
+  /** El último episodio que salió, hace `daysAgo` días. */
+  lastAired?: { season: number; episode: number; daysAgo: number };
+  /** El próximo episodio, dentro de `inDays` días. */
+  nextToAir?: { season: number; episode: number; inDays: number; name?: string };
+  /** Desde qué episodio hay novedades sin ver, para el aviso de la tarjeta. */
+  newSince?: { season: number; episode: number };
 }
 
 export const DEMO_SEED: DemoSeedEntry[] = [
@@ -158,6 +172,25 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     reviewText: 'Caótica de una forma que funciona. Se me hizo un poco larga.',
   },
   {
+    // Terminó la primera temporada y ya salió la segunda: es la que muestra el
+    // aviso de "T2 nueva" y el botón para volver a Viendo.
+    tmdbId: 100088,
+    mediaType: 'tv',
+    seasons: { 1: 9, 2: 7 },
+    title: 'The Last of Us',
+    releaseYear: '2023',
+    genres: ['Drama', 'Sci-Fi y Fantasía'],
+    status: 'completada',
+    daysAgo: 45,
+    rating: 4.5,
+    reviewText: 'El tercer episodio solo ya vale la temporada.',
+    tags: ['Para llorar'],
+    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
+    seriesStatus: 'Returning Series',
+    lastAired: { season: 2, episode: 7, daysAgo: 12 },
+    newSince: { season: 2, episode: 1 },
+  },
+  {
     tmdbId: 95396,
     mediaType: 'tv',
     seasons: { 1: 9, 2: 10 },
@@ -169,6 +202,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9], 2: [1, 2, 3] },
   },
   {
+    // Al día: vio todo lo que salió de una serie que sigue saliendo.
     tmdbId: 136315,
     mediaType: 'tv',
     seasons: { 1: 8, 2: 10, 3: 10 },
@@ -177,7 +211,13 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     genres: ['Drama', 'Comedia'],
     status: 'viendo',
     daysAgo: 3,
-    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8] },
+    watched: {
+      1: [1, 2, 3, 4, 5, 6, 7, 8],
+      2: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      3: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    },
+    seriesStatus: 'Returning Series',
+    lastAired: { season: 3, episode: 10, daysAgo: 20 },
   },
   {
     tmdbId: 94605,
@@ -261,6 +301,16 @@ function daysAgoToIso(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+/** Un episodio del seed, con su fecha contada desde hoy. */
+function seedEpisode(season: number, episode: number, offsetDays: number, name?: string): EpisodeRef {
+  return {
+    seasonNumber: season,
+    episodeNumber: episode,
+    airDate: toDayKey(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000)),
+    ...(name ? { name } : {}),
+  };
+}
+
 /**
  * Arma la biblioteca de ejemplo.
  *
@@ -294,6 +344,25 @@ export function buildDemoLibrary(): SavedMedia[] {
       updatedAt: daysAgoToIso(entry.daysAgo),
       seasons,
       progress,
+      seriesStatus: entry.seriesStatus,
+      lastAired: entry.lastAired
+        ? seedEpisode(entry.lastAired.season, entry.lastAired.episode, -entry.lastAired.daysAgo)
+        : undefined,
+      nextToAir: entry.nextToAir
+        ? seedEpisode(
+            entry.nextToAir.season,
+            entry.nextToAir.episode,
+            entry.nextToAir.inDays,
+            entry.nextToAir.name,
+          )
+        : undefined,
+      newEpisodesSince: entry.newSince
+        ? {
+            seasonNumber: entry.newSince.season,
+            episodeNumber: entry.newSince.episode,
+            detectedAt: daysAgoToIso(entry.lastAired?.daysAgo ?? 1),
+          }
+        : undefined,
       history:
         entry.rating === undefined
           ? undefined

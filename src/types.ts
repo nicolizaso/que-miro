@@ -55,6 +55,13 @@ export interface EpisodeRef {
   name?: string;
 }
 
+/** El primer episodio nuevo de una serie, y cuándo se lo detectó. */
+export interface NewEpisodesMarker {
+  seasonNumber: number;
+  episodeNumber: number;
+  detectedAt: string; // ISO
+}
+
 /** Una temporada, como la describe TMDB. */
 export interface SeasonInfo {
   seasonNumber: number;
@@ -174,6 +181,15 @@ export interface SavedMedia {
   lastAired?: EpisodeRef;
   /** El próximo que sale, si ya tiene fecha. Solo en series. */
   nextToAir?: EpisodeRef;
+  /**
+   * Desde qué episodio hay novedades que todavía no viste.
+   *
+   * Lo anota el refresco cuando una serie que habías terminado —o en la que
+   * estabas al día— trae episodios nuevos. Es una marca y no un contador: lo
+   * que falta ver se calcula cada vez contra el progreso, así que el aviso se
+   * apaga solo a medida que los mirás.
+   */
+  newEpisodesSince?: NewEpisodesMarker;
 
   /** Episodios vistos. Solo en series. */
   progress?: SeriesProgress;

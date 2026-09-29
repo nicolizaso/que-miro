@@ -1,5 +1,6 @@
 import { SavedMedia } from '@/types';
 import { isStale } from '@/lib/enrich';
+import { isStillAiring } from '@/lib/progress';
 
 /**
  * Cuántos títulos se refrescan por visita.
@@ -22,17 +23,9 @@ export const REFRESH_PER_VISIT = 8;
  */
 export function refreshPriority(media: SavedMedia): number {
   if (media.status === 'viendo') return 0;
-  if (isAiring(media)) return 1;
+  if (media.mediaType === 'tv' && isStillAiring(media)) return 1;
   if (media.status === 'por_ver') return 2;
   return 3;
-}
-
-/** Si la serie sigue saliendo, según lo último que dijo TMDB. */
-export function isAiring(media: SavedMedia): boolean {
-  return (
-    media.mediaType === 'tv' &&
-    (media.seriesStatus === 'Returning Series' || media.nextToAir !== undefined)
-  );
 }
 
 /*

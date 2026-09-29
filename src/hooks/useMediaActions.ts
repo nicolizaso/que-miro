@@ -6,7 +6,11 @@ import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { getMediaDetail } from '@/lib/tmdb';
 import { MediaEnrichment, enrichFromDetail, mergeSeasons } from '@/lib/enrich';
-import { completeProgress } from '@/lib/progress';
+import {
+  completeProgress,
+  detectNewEpisodes,
+  hasNewEpisodes,
+} from '@/lib/progress';
 import { SavedMedia, MediaStatus, SeriesProgress, WatchEntry } from '@/types';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
@@ -185,12 +189,20 @@ export function useMediaActions() {
    * plano, el completado del reparto y lo que la ficha completa al abrirse.
    */
   const applyEnrichment = (media: SavedMedia, enrichment: MediaEnrichment) => {
-    writeSilently(
-      media.tmdbId,
+    const patch: Partial<SavedMedia> =
       'seasons' in enrichment
         ? { ...enrichment, seasons: mergeSeasons(enrichment.seasons, media.seasons) }
-        : enrichment,
-    );
+        : enrichment;
+
+    // Si trajo episodios que salieron desde el refresco anterior, en una serie
+    // que habías terminado o en la que estabas al día, queda anotado desde
+    // cuál: es lo que muestra el aviso de la tarjeta. El estado no se toca —
+    // mudarla a *Viendo* lo decide la persona.
+    const marker = media.newEpisodesSince
+      ? undefined
+      : detectNewEpisodes(media, { ...media, ...patch });
+
+    writeSilently(media.tmdbId, marker ? { ...patch, newEpisodesSince: marker } : patch);
   };
 
   const updateStatus = async (tmdbId: number, status: MediaStatus) => {
@@ -263,9 +275,19 @@ export function useMediaActions() {
     status?: MediaStatus,
   ) => {
     const hasProgress = Object.keys(progress.watched).length > 0;
+    const current = useMediaStore
+      .getState()
+      .mediaList.find((media) => media.tmdbId === tmdbId);
+    // Viste lo nuevo: el aviso ya no tiene de qué hablar y se apaga en la
+    // misma escritura.
+    const clearsNews =
+      current?.newEpisodesSince !== undefined &&
+      !hasNewEpisodes({ ...current, progress });
+
     await write(tmdbId, {
       progress: hasProgress ? progress : undefined,
       ...(status ? { status } : {}),
+      ...(clearsNews ? { newEpisodesSince: undefined } : {}),
     });
   };
 

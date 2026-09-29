@@ -5,16 +5,21 @@ import { useMediaActions } from '@/hooks/useMediaActions';
 import { useSeasonDetail } from '@/hooks/useSeasonDetail';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import {
+  airedBoundary,
+  airedEpisodes,
+  airedInSeason,
   formatEpisode,
+  hasWatchedAllAired,
+  isCaughtUp,
   isEpisodeWatched,
-  isSeriesComplete,
+  isStillAiring,
   nextEpisode,
   progressPercent,
   toggleEpisode,
   toggleSeason,
   totalEpisodes,
+  watchedAiredEpisodes,
   watchedEpisodes,
-  watchedInSeason,
 } from '@/lib/progress';
 import {
   episodeTypeLabel,
@@ -185,6 +190,7 @@ function EpisodeSkeleton({ count }: { count: number }) {
 function Season({
   media,
   season,
+  aired,
   defaultOpen,
   onToggleEpisode,
   onToggleSeason,
@@ -192,6 +198,8 @@ function Season({
 }: {
   media: SavedMedia;
   season: SeasonInfo;
+  /** Cuántos episodios de la temporada ya salieron. */
+  aired: number;
   defaultOpen: boolean;
   onToggleEpisode: (seasonNumber: number, episode: number) => void;
   onToggleSeason: (season: SeasonInfo) => void;
@@ -199,8 +207,13 @@ function Season({
   onRuntimeKnown: (seasonNumber: number, totalRuntime: number) => void;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const seen = watchedInSeason(media.progress, season.seasonNumber);
-  const isComplete = seen >= season.episodeCount;
+  // Contra lo que salió: en una temporada en emisión, "4/10" en rojo dice que
+  // faltan seis que todavía nadie pudo ver.
+  const seen = (media.progress?.watched[season.seasonNumber] ?? []).filter(
+    (episode) => episode <= aired,
+  ).length;
+  const isComplete = aired > 0 && seen >= aired;
+  const upcoming = season.episodeCount - aired;
   const { season: detail, status } = useSeasonDetail(
     media.tmdbId,
     season.seasonNumber,
@@ -243,17 +256,23 @@ function Season({
               isComplete ? 'text-status-completada' : 'text-text-subtle',
             )}
           >
-            {seen}/{season.episodeCount}
+            {seen}/{aired}
+            {upcoming > 0 && (
+              <span className="text-text-subtle"> · {upcoming} por salir</span>
+            )}
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => onToggleSeason(season)}
-          className="text-xs text-text-muted hover:text-text-main transition-colors shrink-0 px-2 py-1 rounded-lg hover:bg-border-card"
-        >
-          {isComplete ? 'Desmarcar' : 'Marcar toda'}
-        </button>
+        {/* Una temporada que todavía no salió no tiene nada para marcar. */}
+        {aired > 0 && (
+          <button
+            type="button"
+            onClick={() => onToggleSeason(season)}
+            className="text-xs text-text-muted hover:text-text-main transition-colors shrink-0 px-2 py-1 rounded-lg hover:bg-border-card"
+          >
+            {isComplete ? 'Desmarcar' : 'Marcar toda'}
+          </button>
+        )}
       </div>
 
       {isOpen &&
@@ -333,11 +352,18 @@ export function SeriesProgress({
   const mediaWithSeasons: SavedMedia = { ...media, seasons };
 
   const total = totalEpisodes(mediaWithSeasons);
-  const seen = watchedEpisodes(mediaWithSeasons);
+  const aired = airedEpisodes(mediaWithSeasons);
+  const seen = watchedAiredEpisodes(mediaWithSeasons);
   const percent = progressPercent(mediaWithSeasons);
   const next = nextEpisode(mediaWithSeasons);
-  const isComplete = isSeriesComplete(mediaWithSeasons);
+  // Estar al día no es haberla terminado: de una serie que sigue saliendo se
+  // puede haber visto todo lo emitido, pero no se la puede puntuar como
+  // terminada ni decir "la terminaste".
+  const caughtUp = isCaughtUp(mediaWithSeasons);
+  const isComplete =
+    hasWatchedAllAired(mediaWithSeasons) && !isStillAiring(mediaWithSeasons);
   const alreadyRated = (media.history?.length ?? 0) > 0;
+  const upcomingNext = media.nextToAir;
 
   if (total === 0) return null;
 
@@ -357,6 +383,15 @@ export function SeriesProgress({
   const countableSeasons = seasons.filter(
     (season) => season.seasonNumber > 0 && season.episodeCount > 0,
   );
+
+  // Se abre sola la temporada donde quedó la persona, para no obligarla a
+  // buscar dónde retomar. Al día, la que está saliendo.
+  const boundary = airedBoundary(mediaWithSeasons);
+  const openSeason =
+    next?.seasonNumber ??
+    (caughtUp && boundary && Number.isFinite(boundary.episodeNumber)
+      ? boundary.seasonNumber
+      : countableSeasons[0]?.seasonNumber);
 
   /**
    * Anota cuánto dura una temporada, ahora que llegaron sus episodios.
@@ -381,7 +416,10 @@ export function SeriesProgress({
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-section">Tu progreso</h3>
         <span className="text-sm text-text-muted tabular-nums">
-          {seen} de {total} episodios
+          {seen} de {aired} episodios
+          {total > aired && (
+            <span className="text-text-subtle"> · {total - aired} por salir</span>
+          )}
         </span>
       </div>
 
@@ -404,6 +442,18 @@ export function SeriesProgress({
             <span className="text-status-completada font-medium">
               La terminaste.
             </span>
+          ) : caughtUp ? (
+            <>
+              <span className="text-status-viendo font-medium">Estás al día.</span>
+              {upcomingNext && (
+                <>
+                  {' '}
+                  El próximo,{' '}
+                  {formatEpisode(upcomingNext.seasonNumber, upcomingNext.episodeNumber)},
+                  sale el {formatDay(upcomingNext.airDate)}.
+                </>
+              )}
+            </>
           ) : next ? (
             <>
               Vas por{' '}
@@ -442,20 +492,21 @@ export function SeriesProgress({
             key={season.seasonNumber}
             media={mediaWithSeasons}
             season={season}
-            // Se abre sola la temporada donde quedó la persona, para no
-            // obligarla a buscar dónde retomar.
-            defaultOpen={
-              next
-                ? season.seasonNumber === next.seasonNumber
-                : season.seasonNumber === countableSeasons[0]?.seasonNumber
-            }
+            aired={airedInSeason(mediaWithSeasons, season)}
+            defaultOpen={season.seasonNumber === openSeason}
             onToggleEpisode={(seasonNumber, episode) =>
               applyProgress(
                 toggleEpisode(media.progress, seasonNumber, episode),
               )
             }
             onToggleSeason={(target) =>
-              applyProgress(toggleSeason(media.progress, target))
+              applyProgress(
+                toggleSeason(
+                  media.progress,
+                  target,
+                  airedInSeason(mediaWithSeasons, target),
+                ),
+              )
             }
             onRuntimeKnown={handleRuntimeKnown}
           />

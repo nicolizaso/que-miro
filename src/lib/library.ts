@@ -1,6 +1,6 @@
 import { MediaStatus, MediaType, SavedMedia } from '@/types';
 import { latestRating } from '@/lib/schema';
-import { progressPercent } from '@/lib/progress';
+import { hasNewEpisodes, progressPercent } from '@/lib/progress';
 import { scoreOf } from '@/lib/duel';
 
 export type SortOption =
@@ -36,6 +36,8 @@ export interface LibraryFilters {
   collection: string | null;
   /** Etiqueta de ánimo de alguna reseña del título. */
   tag: string | null;
+  /** Solo las series con episodios nuevos que todavía no viste. */
+  onlyNew: boolean;
   sort: SortOption;
 }
 
@@ -46,6 +48,7 @@ export const EMPTY_FILTERS: Omit<LibraryFilters, 'status'> = {
   provider: null,
   collection: null,
   tag: null,
+  onlyNew: false,
   sort: DEFAULT_SORT,
 };
 
@@ -170,6 +173,7 @@ export function filterLibrary(
       ) {
         return false;
       }
+      if (filters.onlyNew && !hasNewEpisodes(media)) return false;
       if (query && !normalizeText(media.title).includes(query)) return false;
       return true;
     })
@@ -185,6 +189,7 @@ export function hasActiveFilters(filters: LibraryFilters): boolean {
     filters.provider !== null ||
     filters.collection !== null ||
     filters.tag !== null ||
+    filters.onlyNew ||
     filters.sort !== DEFAULT_SORT
   );
 }

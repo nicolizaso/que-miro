@@ -4,7 +4,12 @@ import { useToast } from '@/contexts/ToastContext';
 import { SavedMedia, MediaStatus } from '@/types';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { latestRating, watchCount } from '@/lib/schema';
-import { progressPercent, watchedEpisodes } from '@/lib/progress';
+import {
+  isCaughtUp,
+  newEpisodesSummary,
+  progressPercent,
+  watchedEpisodes,
+} from '@/lib/progress';
 import { Check, Tv, Film, Repeat, Trash2, Star } from 'lucide-react';
 import { ReviewDrawer } from './ReviewDrawer';
 import { TitleDetailModal } from './TitleDetailModal';
@@ -42,11 +47,19 @@ export function MediaCard({
 
   const rating = latestRating(media);
   const times = watchCount(media);
+  const isSeries = media.mediaType === 'tv';
   // El progreso solo se muestra en series empezadas y sin terminar: al 0% no
   // dice nada y al 100% lo dice el puntaje.
-  const percent = media.mediaType === 'tv' ? progressPercent(media) : 0;
-  const showProgress =
-    media.mediaType === 'tv' && watchedEpisodes(media) > 0 && percent < 100;
+  const percent = isSeries ? progressPercent(media) : 0;
+  const showProgress = isSeries && watchedEpisodes(media) > 0 && percent < 100;
+  // "Al día" ocupa el lugar de la barra: al 100% de lo que salió, la barra
+  // llena diría "terminada", y no lo está.
+  const caughtUp = isSeries && isCaughtUp(media);
+  const news = isSeries ? newEpisodesSummary(media) : null;
+  // Con novedades, una serie terminada ofrece volver a *Viendo*: el estado no
+  // se cambia solo, pero tampoco tiene que costar abrir la ficha.
+  const canMoveToWatching =
+    media.status === 'por_ver' || (news !== null && media.status !== 'viendo');
 
   const handleDelete = async () => {
     await removeMedia(media.tmdbId);
@@ -84,6 +97,8 @@ export function MediaCard({
             STATUS_LABELS[media.status],
             rating !== undefined && `${rating} de 5 estrellas`,
             showProgress && `${percent}% visto`,
+            caughtUp && 'Al día',
+            news?.label,
           ]
             .filter(Boolean)
             .join('. ')}
@@ -118,10 +133,19 @@ export function MediaCard({
               </span>
             )}
 
-            {times > 1 && (
-              <span className="absolute top-3 left-3 flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-medium">
-                <Repeat size={11} aria-hidden="true" />
-                {times}
+            {(times > 1 || news) && (
+              <span className="absolute top-3 left-3 right-14 flex flex-col items-start gap-1.5">
+                {times > 1 && (
+                  <span className="flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-medium">
+                    <Repeat size={11} aria-hidden="true" />
+                    {times}
+                  </span>
+                )}
+                {news && (
+                  <span className="bg-accent text-accent-contrast px-2 py-1 rounded-lg text-[11px] font-semibold shadow-card">
+                    {news.label}
+                  </span>
+                )}
               </span>
             )}
 
@@ -138,6 +162,13 @@ export function MediaCard({
                   </>
                 )}
               </span>
+
+              {caughtUp && (
+                <span className="flex items-center gap-1 text-[11px] font-medium text-status-viendo">
+                  <Check size={12} aria-hidden="true" />
+                  Al día
+                </span>
+              )}
 
               {showProgress && (
                 <span className="flex items-center gap-2">
@@ -167,7 +198,7 @@ export function MediaCard({
             la derecha: quedaban tres cuadraditos flotando al final de una fila
             vacía, y con el dedo son un blanco más chico de lo que hace falta. */}
         <div className="p-3 mt-auto shrink-0 border-t border-border-card grid grid-flow-col auto-cols-fr gap-2">
-          {media.status === 'por_ver' && (
+          {canMoveToWatching && (
             <button
               onClick={() => handleStatusChange('viendo')}
               className="btn-icon w-full h-10 bg-bg-main border border-border-card text-text-muted hover:bg-border-card hover:text-text-main"

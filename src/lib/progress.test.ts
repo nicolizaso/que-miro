@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
+  airedEpisodes,
+  airedInSeason,
   completeProgress,
+  detectNewEpisodes,
   formatEpisode,
+  hasNewEpisodes,
+  hasWatchedAllAired,
+  isCaughtUp,
   isEpisodeWatched,
   isSeriesComplete,
+  isStillAiring,
+  newEpisodesSummary,
   nextEpisode,
   progressPercent,
   toggleEpisode,
   toggleSeason,
   totalEpisodes,
+  watchedAiredEpisodes,
   watchedEpisodes,
 } from './progress';
 import { SavedMedia, SeasonInfo } from '@/types';
@@ -197,5 +206,241 @@ describe('completeProgress', () => {
   it('no hace nada sin temporadas conocidas ni en películas', () => {
     expect(completeProgress(makeSeries({}, []))).toBeUndefined();
     expect(completeProgress({ ...makeSeries(), mediaType: 'movie' })).toBeUndefined();
+  });
+});
+
+describe('lo que ya salió', () => {
+  // Una serie en emisión con la tercera temporada cargada de antemano: TMDB ya
+  // tiene sus diez episodios, con nombre y fecha, y salieron cuatro.
+  const SEASONS_EN_EMISION: SeasonInfo[] = [
+    { seasonNumber: 0, name: 'Especiales', episodeCount: 4 },
+    { seasonNumber: 1, name: 'Temporada 1', episodeCount: 8 },
+    { seasonNumber: 2, name: 'Temporada 2', episodeCount: 10 },
+    { seasonNumber: 3, name: 'Temporada 3', episodeCount: 10 },
+  ];
+
+  function airing(
+    watched: Record<number, number[]> = {},
+    overrides: Partial<SavedMedia> = {},
+  ): SavedMedia {
+    return {
+      ...makeSeries(watched, SEASONS_EN_EMISION),
+      seriesStatus: 'Returning Series',
+      lastAired: { seasonNumber: 3, episodeNumber: 4, airDate: '2026-09-10' },
+      nextToAir: { seasonNumber: 3, episodeNumber: 5, airDate: '2026-09-17' },
+      ...overrides,
+    };
+  }
+
+  const TODO_LO_EMITIDO = {
+    1: [1, 2, 3, 4, 5, 6, 7, 8],
+    2: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    3: [1, 2, 3, 4],
+  };
+
+  it('cuenta lo emitido y no lo cargado, sin los especiales', () => {
+    const media = airing();
+    expect(totalEpisodes(media)).toBe(28);
+    expect(airedEpisodes(media)).toBe(22);
+    expect(airedInSeason(media, SEASONS_EN_EMISION[3])).toBe(4);
+    expect(airedInSeason(media, SEASONS_EN_EMISION[1])).toBe(8);
+  });
+
+  it('el porcentaje llega a 100 con todo lo emitido, aunque haya episodios futuros', () => {
+    expect(progressPercent(airing(TODO_LO_EMITIDO))).toBe(100);
+    expect(isSeriesComplete(airing(TODO_LO_EMITIDO))).toBe(false);
+  });
+
+  it('marcar un episodio futuro no infla el porcentaje', () => {
+    const media = airing({ 1: [1, 2, 3, 4, 5, 6, 7, 8], 3: [9, 10] });
+    expect(watchedAiredEpisodes(media)).toBe(8);
+    expect(progressPercent(media)).toBe(36);
+  });
+
+  it('al día: viste todo lo emitido de una serie que sigue saliendo', () => {
+    expect(isCaughtUp(airing(TODO_LO_EMITIDO))).toBe(true);
+    expect(isCaughtUp(airing({ 1: [1, 2] }))).toBe(false);
+  });
+
+  it('una terminada no está al día: está terminada', () => {
+    const ended = makeSeries({ 1: [1, 2, 3], 2: [1, 2] });
+    ended.seriesStatus = 'Ended';
+
+    expect(isStillAiring(ended)).toBe(false);
+    expect(isCaughtUp(ended)).toBe(false);
+    expect(hasWatchedAllAired(ended)).toBe(true);
+  });
+
+  it('los especiales vistos no cuentan para estar al día ni les falta nada', () => {
+    const media = airing({ ...TODO_LO_EMITIDO, 0: [1] });
+    expect(isCaughtUp(media)).toBe(true);
+    expect(progressPercent(media)).toBe(100);
+  });
+
+  it('si el último emitido es un especial, se guía por el próximo episodio', () => {
+    const media = airing(
+      {},
+      { lastAired: { seasonNumber: 0, episodeNumber: 4, airDate: '2026-09-01' } },
+    );
+    // El próximo es T3E5: salió hasta T3E4.
+    expect(airedEpisodes(media)).toBe(22);
+  });
+
+  it('una serie anunciada sin nada emitido no tiene episodios salidos', () => {
+    const media = airing({}, { seriesStatus: 'Planned', lastAired: undefined, nextToAir: undefined });
+    expect(airedEpisodes(media)).toBe(0);
+    expect(progressPercent(media)).toBe(0);
+  });
+
+  it('sin datos de emisión, todo lo cargado cuenta como salido, como antes', () => {
+    expect(airedEpisodes(makeSeries())).toBe(5);
+    expect(progressPercent(makeSeries({ 1: [1, 2, 3], 2: [1, 2] }))).toBe(100);
+  });
+
+  it('el siguiente episodio es uno que ya salió', () => {
+    expect(nextEpisode(airing(TODO_LO_EMITIDO))).toBeNull();
+    expect(nextEpisode(airing({ 1: [1, 2, 3, 4, 5, 6, 7, 8], 2: [1] }))).toEqual({
+      seasonNumber: 2,
+      episode: 2,
+    });
+  });
+
+  it('completar una serie en emisión marca solo lo emitido', () => {
+    const progress = completeProgress(airing({ 3: [9] }))!;
+
+    expect(progress.watched[3]).toEqual([1, 2, 3, 4, 9]);
+    expect(progress.watched[2]).toHaveLength(10);
+    // Los especiales no se agregan.
+    expect(progress.watched[0]).toBeUndefined();
+  });
+
+  it('completar no hace nada si ya viste todo lo emitido', () => {
+    expect(completeProgress(airing(TODO_LO_EMITIDO))).toBeUndefined();
+  });
+
+  it('marcar toda una temporada en emisión marca lo que salió', () => {
+    const progress = toggleSeason(undefined, SEASONS_EN_EMISION[3], 4);
+    expect(progress.watched[3]).toEqual([1, 2, 3, 4]);
+
+    // Y con lo emitido completo, la desmarca.
+    expect(toggleSeason(progress, SEASONS_EN_EMISION[3], 4).watched[3]).toBeUndefined();
+  });
+});
+
+describe('episodios nuevos', () => {
+  const T1: SeasonInfo = { seasonNumber: 1, name: 'Temporada 1', episodeCount: 9 };
+  const T2: SeasonInfo = { seasonNumber: 2, name: 'Temporada 2', episodeCount: 7 };
+  const TODA_T1 = { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9] };
+  const NOW = new Date('2026-09-15T12:00:00.000Z');
+
+  function series(overrides: Partial<SavedMedia>): SavedMedia {
+    return { ...makeSeries(TODA_T1, [T1]), ...overrides };
+  }
+
+  it('una terminada que suma temporada anota desde dónde hay novedades', () => {
+    const before = series({ status: 'completada', seriesStatus: 'Ended' });
+    const after = { ...before, seasons: [T1, T2], seriesStatus: 'Returning Series' as const };
+
+    expect(detectNewEpisodes(before, after, NOW)).toEqual({
+      seasonNumber: 2,
+      episodeNumber: 1,
+      detectedAt: NOW.toISOString(),
+    });
+  });
+
+  it('una al día que suma episodios también', () => {
+    const before = series({
+      status: 'viendo',
+      seasons: [T1, T2],
+      progress: { watched: { ...TODA_T1, 2: [1, 2] } },
+      seriesStatus: 'Returning Series',
+      lastAired: { seasonNumber: 2, episodeNumber: 2, airDate: '2026-09-01' },
+    });
+    const after = {
+      ...before,
+      lastAired: { seasonNumber: 2, episodeNumber: 4, airDate: '2026-09-15' },
+    };
+
+    expect(detectNewEpisodes(before, after, NOW)).toMatchObject({
+      seasonNumber: 2,
+      episodeNumber: 3,
+    });
+  });
+
+  it('en una que estás viendo a tu ritmo, otro episodio no es noticia', () => {
+    const before = series({
+      status: 'viendo',
+      seasons: [T1, T2],
+      progress: { watched: { 1: [1, 2] } },
+      seriesStatus: 'Returning Series',
+      lastAired: { seasonNumber: 2, episodeNumber: 2, airDate: '2026-09-01' },
+    });
+    const after = {
+      ...before,
+      lastAired: { seasonNumber: 2, episodeNumber: 3, airDate: '2026-09-15' },
+    };
+
+    expect(detectNewEpisodes(before, after, NOW)).toBeUndefined();
+  });
+
+  it('sin temporadas conocidas antes, no hay con qué comparar', () => {
+    const before = series({ status: 'completada', seasons: undefined, progress: undefined });
+    expect(detectNewEpisodes(before, { ...before, seasons: [T1, T2] }, NOW)).toBeUndefined();
+  });
+
+  it('episodios futuros cargados no son novedades', () => {
+    // TMDB cargó la T2 entera, pero no salió nada todavía.
+    const before = series({ status: 'completada', seriesStatus: 'Returning Series' });
+    const after = {
+      ...before,
+      seasons: [T1, T2],
+      lastAired: { seasonNumber: 1, episodeNumber: 9, airDate: '2025-01-01' },
+      nextToAir: { seasonNumber: 2, episodeNumber: 1, airDate: '2026-10-01' },
+    };
+
+    expect(detectNewEpisodes(before, after, NOW)).toBeUndefined();
+  });
+
+  it('la marca que ya estaba se conserva', () => {
+    const marker = { seasonNumber: 2, episodeNumber: 1, detectedAt: '2026-08-01T00:00:00.000Z' };
+    const before = series({ status: 'completada', newEpisodesSince: marker });
+    expect(detectNewEpisodes(before, { ...before, seasons: [T1, T2] }, NOW)).toBe(marker);
+  });
+
+  describe('el aviso', () => {
+    const marker = { seasonNumber: 2, episodeNumber: 1, detectedAt: '2026-08-01T00:00:00.000Z' };
+
+    it('una temporada entera sin empezar se nombra como temporada', () => {
+      const media = series({ seasons: [T1, T2], newEpisodesSince: marker });
+      expect(newEpisodesSummary(media)).toEqual({ count: 7, label: 'T2 nueva' });
+    });
+
+    it('si ya la empezaste, cuenta los episodios que faltan', () => {
+      const media = series({
+        seasons: [T1, T2],
+        newEpisodesSince: marker,
+        progress: { watched: { ...TODA_T1, 2: [1, 2, 3, 4, 5, 6] } },
+      });
+      expect(newEpisodesSummary(media)).toEqual({ count: 1, label: '1 episodio nuevo' });
+    });
+
+    it('cuenta solo lo que ya salió', () => {
+      const media = series({
+        seasons: [T1, T2],
+        newEpisodesSince: marker,
+        lastAired: { seasonNumber: 2, episodeNumber: 2, airDate: '2026-09-10' },
+      });
+      expect(newEpisodesSummary(media)?.count).toBe(2);
+    });
+
+    it('se apaga cuando viste todo lo nuevo', () => {
+      const media = series({
+        seasons: [T1, T2],
+        newEpisodesSince: marker,
+        progress: { watched: { ...TODA_T1, 2: [1, 2, 3, 4, 5, 6, 7] } },
+      });
+      expect(newEpisodesSummary(media)).toBeNull();
+      expect(hasNewEpisodes(media)).toBe(false);
+    });
   });
 });

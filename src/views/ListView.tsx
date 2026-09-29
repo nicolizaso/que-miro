@@ -1,7 +1,16 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { Clapperboard, Compass, Search, SlidersHorizontal, Sparkles, Tv, X } from 'lucide-react';
+import {
+  BellDot,
+  Clapperboard,
+  Compass,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Tv,
+  X,
+} from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { MediaCard } from '@/components/MediaCard';
@@ -15,6 +24,7 @@ import {
   hasActiveFilters,
 } from '@/lib/library';
 import { MediaStatus, MediaType } from '@/types';
+import { hasNewEpisodes } from '@/lib/progress';
 import { cn } from '@/lib/utils';
 
 const TABS: { id: MediaStatus; label: string }[] = [
@@ -48,6 +58,12 @@ export function ListView() {
   const genres = useMemo(() => collectGenres(inStatus), [inStatus]);
   const providers = useMemo(() => collectProviders(inStatus), [inStatus]);
   const tags = useMemo(() => collectTags(inStatus), [inStatus]);
+  // El filtro de novedades aparece solo si en esta pestaña hay alguna: un
+  // botón que siempre da cero resultados es una excusa, no un filtro.
+  const withNews = useMemo(
+    () => inStatus.filter((media) => hasNewEpisodes(media)).length,
+    [inStatus],
+  );
   const collections = useMediaStore((state) => state.collections);
 
   const filteredList = useMemo(
@@ -138,31 +154,60 @@ export function ListView() {
           corte que más se usa y en el teléfono no tiene que costar dos toques.
           Tocar el que está prendido lo apaga y vuelve a mostrar todo. */}
       {mediaList.length > 0 && (
-        <div
-          role="group"
-          aria-label="Filtrar por tipo"
-          className="flex gap-2"
-        >
-          {TYPES.map(({ value, label, Icon }) => {
-            const isActive = filters.type === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => setFilters({ type: isActive ? null : value })}
-                className={cn(
-                  'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
-                  isActive
-                    ? 'bg-accent text-accent-contrast border-accent font-medium'
-                    : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
-                )}
-              >
-                <Icon size={16} aria-hidden="true" />
-                {label}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap gap-2">
+          <div
+            role="group"
+            aria-label="Filtrar por tipo"
+            className="flex gap-2"
+          >
+            {TYPES.map(({ value, label, Icon }) => {
+              const isActive = filters.type === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => setFilters({ type: isActive ? null : value })}
+                  className={cn(
+                    'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
+                    isActive
+                      ? 'bg-accent text-accent-contrast border-accent font-medium'
+                      : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
+                  )}
+                >
+                  <Icon size={16} aria-hidden="true" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {(withNews > 0 || filters.onlyNew) && (
+            <button
+              type="button"
+              aria-pressed={filters.onlyNew}
+              onClick={() => setFilters({ onlyNew: !filters.onlyNew })}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
+                filters.onlyNew
+                  ? 'bg-accent text-accent-contrast border-accent font-medium'
+                  : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
+              )}
+            >
+              <BellDot size={16} aria-hidden="true" />
+              Con episodios nuevos
+              {withNews > 0 && (
+                <span
+                  className={cn(
+                    'tabular-nums',
+                    filters.onlyNew ? 'opacity-80' : 'text-text-subtle',
+                  )}
+                >
+                  {withNews}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       )}
 

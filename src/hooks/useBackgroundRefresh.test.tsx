@@ -157,6 +157,25 @@ describe('useBackgroundRefresh', () => {
     expect(getMediaDetail).not.toHaveBeenCalled();
   });
 
+  it('una serie terminada que suma temporada queda con el aviso de novedades', async () => {
+    act(() =>
+      useMediaStore.getState().setMediaList([
+        series(1, {
+          status: 'completada',
+          progress: { watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8] } },
+        }),
+      ]),
+    );
+
+    renderHook(() => useBackgroundRefresh(), { wrapper });
+    await runRefresh();
+
+    const [media] = useMediaStore.getState().mediaList;
+    expect(media.newEpisodesSince).toMatchObject({ seasonNumber: 2, episodeNumber: 1 });
+    // El aviso no la mueve de lista: eso lo decide la persona.
+    expect(media.status).toBe('completada');
+  });
+
   it('si TMDB falla, deja el resto para la próxima visita', async () => {
     getMediaDetail.mockRejectedValueOnce(new Error('sin red'));
     act(() => useMediaStore.getState().setMediaList([series(1), series(2)]));

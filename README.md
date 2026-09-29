@@ -35,6 +35,11 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   temporada muestra sus episodios con nombre, fecha, duración e imagen; lo que
   todavía no salió aparece con su fecha, y la sinopsis de lo que no viste queda
   escondida hasta que la pedís.
+- **Al día y novedades** — una serie que sigue saliendo no se "termina": si
+  viste todo lo emitido, estás al día, y el porcentaje se cuenta contra lo que
+  ya salió. Cuando una serie que terminaste estrena temporada, la tarjeta avisa
+  —"T3 nueva", "2 episodios nuevos"— y ofrece volver a *Viendo*; en *Mis
+  listas* se pueden filtrar las que tienen episodios nuevos.
 - **Reseñas propias** — puntaje de 0,5 a 5 estrellas (con medias estrellas),
   comentario y etiquetas de ánimo.
 - **Historial de visionados** — volver a ver algo suma una entrada nueva en vez

@@ -28,6 +28,7 @@ import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
 import { enrichFromDetail, isStale } from '@/lib/enrich';
 import { pickProviders } from '@/lib/providers';
+import { newEpisodesSummary } from '@/lib/progress';
 import { getRegionName, usePreferences } from '@/preferences';
 
 interface Props {
@@ -80,7 +81,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const preferredRegion = usePreferences((state) => state.region);
-  const { addMedia, applyEnrichment } = useMediaActions();
+  const { addMedia, applyEnrichment, updateStatus } = useMediaActions();
   const { showToast } = useToast();
   /**
    * Lo que se acaba de guardar desde acá, hasta que el store lo devuelva.
@@ -176,6 +177,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   // El store manda; `justSaved` solo cubre el instante entre guardar y que el
   // título vuelva desde ahí.
   const saved = media ?? justSaved;
+  const news = saved?.mediaType === 'tv' ? newEpisodesSummary(saved) : null;
 
   const title = detail?.title || detail?.name || saved?.title || '';
   // Las cacheadas ganan: reflejan lo que la persona vio cuando marcó episodios.
@@ -340,13 +342,40 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                 <div className="flex flex-col gap-3">
                   <h3 className="text-section">Tu biblioteca</h3>
                   {saved ? (
-                    <p className="text-sm text-text-muted">
-                      Ya está en tu biblioteca, en{' '}
-                      <strong className="text-text-main">
-                        {STATUS_LABELS[saved.status]}
-                      </strong>
-                      .
-                    </p>
+                    <>
+                      <p className="text-sm text-text-muted">
+                        Ya está en tu biblioteca, en{' '}
+                        <strong className="text-text-main">
+                          {STATUS_LABELS[saved.status]}
+                        </strong>
+                        .
+                      </p>
+                      {/* El aviso ofrece volver a Viendo, pero no la mueve
+                          solo: puede que la persona quiera esperar a que
+                          salga la temporada entera. */}
+                      {news && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-accent/30 bg-accent/10 px-4 py-3">
+                          <p className="text-sm text-text-main">
+                            <strong className="text-accent">{news.label}</strong>{' '}
+                            {saved.status === 'completada'
+                              ? 'desde que la terminaste.'
+                              : 'desde la última vez que estabas al día.'}
+                          </p>
+                          {saved.status !== 'viendo' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void updateStatus(saved.tmdbId, 'viendo');
+                                showToast(`"${saved.title}" volvió a Viendo.`);
+                              }}
+                              className="btn btn-primary px-3 py-2 text-sm"
+                            >
+                              Pasar a Viendo
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <ul className="flex flex-wrap gap-2">
                       {QUICK_ADD.map(({ status, listName }) => (
