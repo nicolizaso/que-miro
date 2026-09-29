@@ -46,6 +46,14 @@ interface MediaState {
   updateStatus: (tmdbId: number, status: MediaStatus) => void;
   /** Cambios sueltos sobre un título: progreso, plataformas, colecciones. */
   patchMedia: (tmdbId: number, patch: Partial<SavedMedia>) => void;
+  /**
+   * Datos de TMDB refrescados, sin tocar `updatedAt`.
+   *
+   * `updatedAt` es la fecha en que la persona tocó el título —por ella se
+   * ordena "Agregados hace poco" y se decide quién gana en un conflicto—, y un
+   * refresco en segundo plano no es algo que la persona haya hecho.
+   */
+  enrichMedia: (tmdbId: number, patch: Partial<SavedMedia>) => void;
   addWatchEntry: (tmdbId: number, entry: WatchEntry) => void;
   /** Corrige una reseña ya guardada: puntaje, comentario o etiquetas. */
   updateWatchEntry: (tmdbId: number, entry: WatchEntry) => void;
@@ -129,6 +137,13 @@ export const useMediaStore = create<MediaState>()(
             ...media,
             ...patch,
           })),
+        })),
+
+      enrichMedia: (tmdbId, patch) =>
+        set((state) => ({
+          mediaList: state.mediaList.map((media) =>
+            media.tmdbId === tmdbId ? { ...media, ...patch } : media,
+          ),
         })),
 
       addWatchEntry: (tmdbId, entry) =>

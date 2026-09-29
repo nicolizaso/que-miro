@@ -5,7 +5,7 @@ import { usePreferences } from '@/preferences';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { getMediaDetail } from '@/lib/tmdb';
-import { enrichFromDetail } from '@/lib/enrich';
+import { MediaEnrichment, enrichFromDetail } from '@/lib/enrich';
 import { completeProgress } from '@/lib/progress';
 import { SavedMedia, MediaStatus, SeriesProgress, WatchEntry } from '@/types';
 
@@ -96,6 +96,29 @@ export function useMediaActions() {
   };
 
   /**
+   * Escribe datos refrescados de TMDB sin tocar `updatedAt`.
+   *
+   * Es la diferencia entre algo que hizo la persona y algo que hizo la app
+   * por su cuenta: `updatedAt` ordena "Agregados hace poco", y un refresco en
+   * segundo plano que lo moviera reacomodaría la lista en cada visita.
+   *
+   * Los errores no se avisan: nadie pidió este cambio, así que un toast de
+   * "no pudimos guardar" hablaría de algo que la persona no hizo. El próximo
+   * refresco lo vuelve a intentar.
+   */
+  const writeSilently = (tmdbId: number, patch: Partial<SavedMedia>) => {
+    if (!isAuth) {
+      useMediaStore.getState().enrichMedia(tmdbId, patch);
+      return;
+    }
+    setDoc(mediaDoc(tmdbId), sanitizeData(patch), { merge: true }).catch(
+      (error: unknown) => {
+        console.warn('[media] No se pudo guardar el refresco:', error);
+      },
+    );
+  };
+
+  /**
    * Los episodios que hay que marcar si el título pasa a completada.
    *
    * Solo en el paso a completada: una serie que ya lo estaba puede tener
@@ -144,10 +167,25 @@ export function useMediaActions() {
     }
   };
 
-  /** Vuelve a pedirle la ficha a TMDB y actualiza los datos cacheados. */
+  /**
+   * Vuelve a pedirle la ficha a TMDB y actualiza los datos cacheados.
+   *
+   * No toca el progreso: los episodios vistos se guardan por número de
+   * temporada, así que sobreviven a que la serie sume una temporada nueva.
+   */
   const refreshDetails = async (media: SavedMedia) => {
     const detail = await getMediaDetail(media.tmdbId, media.mediaType);
-    await write(media.tmdbId, enrichFromDetail(detail, region));
+    applyEnrichment(media, enrichFromDetail(detail, region));
+  };
+
+  /**
+   * Guarda datos de TMDB sobre un título ya guardado, sin moverlo de lugar.
+   *
+   * Es la puerta de todo lo que la app trae sola: el refresco en segundo
+   * plano, el completado del reparto y lo que la ficha completa al abrirse.
+   */
+  const applyEnrichment = (media: SavedMedia, enrichment: MediaEnrichment) => {
+    writeSilently(media.tmdbId, enrichment);
   };
 
   const updateStatus = async (tmdbId: number, status: MediaStatus) => {
@@ -268,6 +306,7 @@ export function useMediaActions() {
   return {
     addMedia,
     refreshDetails,
+    applyEnrichment,
     updateStatus,
     patchMedia,
     addWatchEntry,

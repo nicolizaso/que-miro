@@ -1,4 +1,5 @@
 import {
+  EpisodeRef,
   Keyword,
   MediaStatus,
   MediaType,
@@ -9,6 +10,8 @@ import {
   WatchEntry,
 } from '@/types';
 import { parseLanguage } from '@/lib/language';
+import { isDayKey } from '@/lib/dates';
+import { parseSeriesStatus } from '@/lib/enrich';
 
 /**
  * Versión del formato de la biblioteca.
@@ -208,6 +211,31 @@ function parseKeywords(value: unknown): Keyword[] | undefined {
   return keywords.length > 0 ? keywords : undefined;
 }
 
+/** Un episodio anunciado por TMDB, guardado con el título. */
+function parseEpisodeRef(value: unknown): EpisodeRef | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const seasonNumber = Number(value.seasonNumber);
+  const episodeNumber = Number(value.episodeNumber);
+  if (!Number.isInteger(seasonNumber) || seasonNumber < 0) return undefined;
+  if (!Number.isInteger(episodeNumber) || episodeNumber < 1) return undefined;
+  if (!isDayKey(value.airDate)) return undefined;
+
+  return {
+    seasonNumber,
+    episodeNumber,
+    airDate: value.airDate,
+    ...(typeof value.name === 'string' && value.name ? { name: value.name } : {}),
+  };
+}
+
+/** Una fecha ISO válida, o `undefined`. Sin inventar "ahora" como `isoOrNow`. */
+function parseIso(value: unknown): string | undefined {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value))
+    ? value
+    : undefined;
+}
+
 /** Un número finito, o `undefined` si no lo es. Admite el cero y los negativos. */
 function parseFiniteNumber(value: unknown): number | undefined {
   if (value === null || value === undefined) return undefined;
@@ -282,6 +310,16 @@ export function parseMedia(value: unknown): SavedMedia | null {
     // Uno desconocido cuenta como ausente: el título se refresca con el
     // idioma que corresponda, que es lo mismo que pasa con uno viejo.
     enrichedLanguage: parseLanguage(value.enrichedLanguage),
+    enrichedRegion:
+      typeof value.enrichedRegion === 'string' && /^[A-Z]{2}$/.test(value.enrichedRegion)
+        ? value.enrichedRegion
+        : undefined,
+    // Una fecha rota no es "ahora": sería dar por fresca una ficha que no se
+    // sabe cuándo se pidió. Ausente, se vuelve a pedir.
+    enrichedAt: parseIso(value.enrichedAt),
+    seriesStatus: mediaType === 'tv' ? parseSeriesStatus(value.seriesStatus) : undefined,
+    lastAired: mediaType === 'tv' ? parseEpisodeRef(value.lastAired) : undefined,
+    nextToAir: mediaType === 'tv' ? parseEpisodeRef(value.nextToAir) : undefined,
 
     progress: mediaType === 'tv' ? parseProgress(value.progress) : undefined,
     history: history.length > 0 ? history : undefined,

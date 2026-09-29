@@ -183,6 +183,31 @@ describe('useMediaStore', () => {
     expect(useMediaStore.getState().ownerUid).toBeNull();
   });
 
+  it('un refresco de TMDB no mueve updatedAt ni toca el progreso', () => {
+    // `updatedAt` ordena "Agregados hace poco": un refresco en segundo plano
+    // que lo moviera reacomodaría la lista en cada visita.
+    useMediaStore.getState().setMediaList([
+      makeMedia({
+        mediaType: 'tv',
+        progress: { watched: { 1: [1, 2, 3] } },
+        seasons: [{ seasonNumber: 1, name: 'Temporada 1', episodeCount: 9 }],
+      }),
+    ]);
+
+    useMediaStore.getState().enrichMedia(1, {
+      seasons: [
+        { seasonNumber: 1, name: 'Temporada 1', episodeCount: 9 },
+        { seasonNumber: 2, name: 'Temporada 2', episodeCount: 10 },
+      ],
+      totalEpisodes: 19,
+    });
+
+    const [media] = useMediaStore.getState().mediaList;
+    expect(media.updatedAt).toBe('2024-01-01T00:00:00.000Z');
+    expect(media.seasons).toHaveLength(2);
+    expect(media.progress?.watched[1]).toEqual([1, 2, 3]);
+  });
+
   it('ignora acciones sobre un tmdbId que no existe', () => {
     useMediaStore.getState().addMedia(makeMedia({ tmdbId: 1 }));
 

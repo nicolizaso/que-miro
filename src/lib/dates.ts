@@ -12,6 +12,24 @@ export function formatWatchDate(iso: string): string {
   });
 }
 
+/**
+ * El día de una fecha, `YYYY-MM-DD`, en la zona horaria del dispositivo.
+ *
+ * Es la forma en que TMDB da las fechas de emisión, así que comparar dos días
+ * es comparar dos textos. Local y no UTC a propósito: "ya salió" se decide
+ * con el calendario de quien mira, no con el de Greenwich.
+ */
+export function toDayKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** Si un texto tiene forma de día de TMDB, `YYYY-MM-DD`. */
+export function isDayKey(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 /** "mar 2026". Para ejes y listas donde el día no aporta. */
 export function formatMonth(iso: string): string {
   const date = new Date(iso);

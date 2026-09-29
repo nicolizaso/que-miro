@@ -80,7 +80,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const preferredRegion = usePreferences((state) => state.region);
-  const { addMedia, patchMedia } = useMediaActions();
+  const { addMedia, applyEnrichment } = useMediaActions();
   const { showToast } = useToast();
   /**
    * Lo que se acaba de guardar desde acá, hasta que el store lo devuelva.
@@ -134,12 +134,13 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   }, [id, mediaType, isOpen]);
 
   /**
-   * Completa los datos que el título no tenía cacheados.
+   * Completa los datos que el título no tenía cacheados, o que envejecieron.
    *
    * Cubre a los que se guardaron antes de que existieran las plataformas y las
-   * temporadas, y a los que quedaron con el catálogo de otro país. Como la
-   * ficha ya se pidió para mostrar el modal, sale gratis: es una escritura, sin
-   * llamada extra a TMDB.
+   * temporadas, a los que quedaron con el catálogo o el idioma de otro país, y
+   * a los que pasaron su fecha de vencimiento. Como la ficha ya se pidió para
+   * mostrar el modal, sale gratis: es una escritura, sin llamada extra a TMDB,
+   * y no mueve el título de lugar en la lista.
    */
   useEffect(() => {
     if (!detail || !media) return;
@@ -147,9 +148,9 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
     if (!isStale(media, preferredRegion)) return;
 
     backfilled.current = media.tmdbId;
-    void patchMedia(media.tmdbId, enrichFromDetail(detail, preferredRegion));
-    // `patchMedia` cambia de identidad en cada render del hook, así que queda
-    // afuera: lo que dispara este efecto es que llegue la ficha.
+    applyEnrichment(media, enrichFromDetail(detail, preferredRegion));
+    // `applyEnrichment` cambia de identidad en cada render del hook, así que
+    // queda afuera: lo que dispara este efecto es que llegue la ficha.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail, media, preferredRegion]);
 

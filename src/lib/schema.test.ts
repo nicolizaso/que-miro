@@ -295,3 +295,62 @@ describe('el idioma en que se enriqueció el título', () => {
     expect(parseMedia(v1Media())!.enrichedLanguage).toBeUndefined();
   });
 });
+
+describe('lo que el refresco sabe de una serie', () => {
+  const series = (overrides: Record<string, unknown>) =>
+    v1Media({ mediaType: 'tv', review: undefined, status: 'viendo', ...overrides });
+
+  it('conserva el estado, los episodios y cuándo se pidió la ficha', () => {
+    const media = parseMedia(
+      series({
+        seriesStatus: 'Returning Series',
+        lastAired: { seasonNumber: 2, episodeNumber: 3, airDate: '2026-09-10', name: 'Uno' },
+        nextToAir: { seasonNumber: 2, episodeNumber: 4, airDate: '2026-09-17' },
+        enrichedAt: '2026-09-11T10:00:00.000Z',
+        enrichedRegion: 'AR',
+      }),
+    )!;
+
+    expect(media.seriesStatus).toBe('Returning Series');
+    expect(media.lastAired).toEqual({
+      seasonNumber: 2,
+      episodeNumber: 3,
+      airDate: '2026-09-10',
+      name: 'Uno',
+    });
+    expect(media.nextToAir?.episodeNumber).toBe(4);
+    expect(media.enrichedAt).toBe('2026-09-11T10:00:00.000Z');
+    expect(media.enrichedRegion).toBe('AR');
+  });
+
+  it('descarta lo que viene roto sin voltear el título', () => {
+    const media = parseMedia(
+      series({
+        seriesStatus: 'Rumoreada',
+        lastAired: { seasonNumber: 1, episodeNumber: 0, airDate: '2026-09-10' },
+        nextToAir: { seasonNumber: 1, episodeNumber: 2, airDate: 'el jueves' },
+        enrichedAt: 'ayer',
+        enrichedRegion: 'argentina',
+      }),
+    )!;
+
+    expect(media.seriesStatus).toBeUndefined();
+    expect(media.lastAired).toBeUndefined();
+    expect(media.nextToAir).toBeUndefined();
+    // Una fecha rota no se toma por "ahora": el título se vuelve a pedir.
+    expect(media.enrichedAt).toBeUndefined();
+    expect(media.enrichedRegion).toBeUndefined();
+  });
+
+  it('en una película no guarda nada de series', () => {
+    const media = parseMedia(
+      v1Media({
+        seriesStatus: 'Ended',
+        nextToAir: { seasonNumber: 1, episodeNumber: 1, airDate: '2026-09-17' },
+      }),
+    )!;
+
+    expect(media.seriesStatus).toBeUndefined();
+    expect(media.nextToAir).toBeUndefined();
+  });
+});

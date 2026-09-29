@@ -27,6 +27,34 @@ export interface WatchEntry {
   completedAt: string; // ISO
 }
 
+/**
+ * En qué anda una serie, según el `status` de su ficha en TMDB.
+ *
+ * Es lo que decide cada cuánto vale la pena volver a preguntar: una serie en
+ * emisión suma episodios cada semana; una terminada, nunca más.
+ */
+export type SeriesStatus =
+  | 'Returning Series'
+  | 'Planned'
+  | 'In Production'
+  | 'Ended'
+  | 'Canceled'
+  | 'Pilot';
+
+/** Un episodio puntual de una serie, como lo anuncia TMDB. */
+export interface EpisodeRef {
+  seasonNumber: number;
+  episodeNumber: number;
+  /**
+   * El día en que sale, `YYYY-MM-DD`.
+   *
+   * TMDB da días y no horas, así que se guarda y se compara como día: pasarlo
+   * a una hora inventaría una precisión que el dato no tiene.
+   */
+  airDate: string;
+  name?: string;
+}
+
 /** Una temporada, como la describe TMDB. */
 export interface SeasonInfo {
   seasonNumber: number;
@@ -116,6 +144,27 @@ export interface SavedMedia {
    * refresca, sin migrar nada de golpe.
    */
   enrichedLanguage?: TmdbLanguage;
+  /**
+   * La región para la que se pidió la ficha.
+   *
+   * No es lo mismo que `providerRegion`, que es la región de la que salieron
+   * las plataformas: si en la elegida no había datos, esa es otra. Comparar
+   * contra aquella dejaba vencido para siempre a todo título sin catálogo en tu
+   * país, y el refresco en segundo plano lo volvía a pedir en cada visita.
+   */
+  enrichedRegion?: string;
+  /**
+   * Cuándo se pidió la ficha por última vez. Es lo que mide la antigüedad en
+   * `isStale`: sin esto, una serie guardada no se volvía a pedir nunca.
+   */
+  enrichedAt?: string; // ISO
+
+  /** En qué anda la serie según TMDB. Solo en series. */
+  seriesStatus?: SeriesStatus;
+  /** El último episodio que salió. Solo en series. */
+  lastAired?: EpisodeRef;
+  /** El próximo que sale, si ya tiene fecha. Solo en series. */
+  nextToAir?: EpisodeRef;
 
   /** Episodios vistos. Solo en series. */
   progress?: SeriesProgress;
@@ -179,6 +228,14 @@ export interface TMDbCompany {
   logo_path: string | null;
 }
 
+/** Un episodio como lo manda TMDB en `last_episode_to_air` y `next_episode_to_air`. */
+export interface TMDbEpisodeToAir {
+  season_number: number;
+  episode_number: number;
+  air_date: string | null;
+  name?: string;
+}
+
 export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
   genres: { id: number; name: string }[];
   /** Minutos. Solo en películas. */
@@ -233,6 +290,10 @@ export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
     name: string;
     episode_count: number;
   }[];
+  /** En series, en qué anda: "Returning Series", "Ended". En películas, otra cosa. */
+  status?: string;
+  last_episode_to_air?: TMDbEpisodeToAir | null;
+  next_episode_to_air?: TMDbEpisodeToAir | null;
   'watch/providers'?: {
     results: Record<string, {
       /**

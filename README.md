@@ -221,7 +221,11 @@ una vez y se anotan plataformas, duración, temporadas y total de episodios.
 Suena redundante teniendo la API a mano, pero quienes los usan —el filtro por
 plataforma, el progreso por episodio— trabajan sobre la biblioteca entera:
 pedir la ficha de cada título cada vez que alguien mueve un filtro no es viable.
-La contracara es que envejecen, y para eso está `isStale`.
+La contracara es que envejecen, y para eso está `isStale`: cada título vence
+según lo que es —una serie en emisión en pocos días, una terminada en meses, una
+película en un mes, por las plataformas—, o al día siguiente de que sale el
+episodio que su ficha anunciaba. Un refresco en segundo plano los va poniendo
+al día de a poco, lo que estás viendo primero, sin mover nada de lugar.
 
 **Las recomendaciones se arman en el cliente.** El servidor le pregunta a TMDB
 qué se parece a qué, qué más dirigió alguien o qué hay de terror bien puntuado, y

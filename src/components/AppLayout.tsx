@@ -8,6 +8,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { SyncIssueBanner } from '@/components/SyncIssueBanner';
 import { SyncManager } from '@/components/SyncManager';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBackgroundRefresh } from '@/hooks/useBackgroundRefresh';
 import { cn } from '@/lib/utils';
 
 // El Picker va al medio a propósito: es el botón destacado de la barra
@@ -32,6 +33,8 @@ const NAV_ITEMS = [
 export function AppLayout() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { authState, user } = useAuth();
+  // En el marco y no en una vista: tiene que correr entres por donde entres.
+  useBackgroundRefresh();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
