@@ -88,6 +88,31 @@ describe('useMediaStore', () => {
     expect(media.history![0].id).toBe('segunda');
   });
 
+  it('editar una reseña la corrige en su lugar, sin cambiarle la fecha', () => {
+    const { addMedia, addWatchEntry, updateWatchEntry } = useMediaStore.getState();
+    addMedia(makeMedia());
+    addWatchEntry(1, { id: 'vieja', rating: 3, completedAt: '2020-01-01T00:00:00.000Z' });
+    addWatchEntry(1, { id: 'nueva', rating: 5, completedAt: '2025-01-01T00:00:00.000Z' });
+
+    updateWatchEntry(1, {
+      id: 'vieja',
+      rating: 4,
+      text: 'Mejor de lo que me acordaba.',
+      tags: ['Para pensar'],
+      completedAt: '2020-01-01T00:00:00.000Z',
+    });
+
+    const [media] = useMediaStore.getState().mediaList;
+    expect(media.history!.map((e) => e.id)).toEqual(['nueva', 'vieja']);
+    expect(media.history![1]).toMatchObject({
+      rating: 4,
+      text: 'Mejor de lo que me acordaba.',
+      tags: ['Para pensar'],
+      completedAt: '2020-01-01T00:00:00.000Z',
+    });
+    expect(media.history![0].rating).toBe(5);
+  });
+
   it('borrar el único visionado devuelve el título a viendo', () => {
     const { addMedia, addWatchEntry, removeWatchEntry } = useMediaStore.getState();
     addMedia(makeMedia());
