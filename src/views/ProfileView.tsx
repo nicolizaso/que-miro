@@ -8,6 +8,7 @@ import { CollectionsSettings } from '@/components/CollectionsSettings';
 import { StatsDashboard } from '@/components/StatsDashboard';
 import { GoalsPanel } from '@/components/GoalsPanel';
 import { PublicProfileSettings } from '@/components/PublicProfileSettings';
+import { SubscriptionsSettings } from '@/components/SubscriptionsSettings';
 import { AboutSettings } from '@/components/Attribution';
 import { REGIONS, RegionCode, usePreferences } from '@/preferences';
 import { formatWatchDate } from '@/lib/dates';
@@ -256,6 +257,9 @@ export function ProfileSettings() {
   return (
     <div className="flex flex-col gap-10">
       <AppSettings />
+
+      {/* Al lado del país: la lista de plataformas es la de ese país. */}
+      <SubscriptionsSettings />
 
       <PublicProfileSettings />
 

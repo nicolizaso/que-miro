@@ -32,6 +32,7 @@
           { "name": "seasons", "type": "list", "required": false },
           { "name": "totalEpisodes", "type": "number", "required": false },
           { "name": "providers", "type": "list", "required": false },
+          { "name": "streaming", "type": "list", "required": false },
           { "name": "providerRegion", "type": "string", "required": false },
           { "name": "people", "type": "list", "required": false },
           { "name": "keywords", "type": "list", "required": false },
@@ -88,6 +89,21 @@
       "schema": {
         "fields": [
           { "name": "byYear", "type": "map", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/subscriptions",
+      "description": "Streaming platforms the user pays for, used by the 'available now' filter; synced newest-wins",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "providers", "type": "list", "required": true },
           { "name": "updatedAt", "type": "timestamp", "required": true }
         ]
       }

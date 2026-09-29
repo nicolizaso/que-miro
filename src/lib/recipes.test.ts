@@ -455,3 +455,42 @@ describe('lo abandonado', () => {
     expect(withDropped.weight).toBeLessThan(alone.weight);
   });
 });
+
+describe('la fila de plataformas con suscripciones', () => {
+  const subscriptions = {
+    providers: [{ id: 337, name: 'Disney Plus', logoPath: null }],
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  it('usa lo que la persona paga antes que lo deducido, y pesa más', () => {
+    const library = [
+      makeMedia({ tmdbId: 1, providers: ['Netflix'] }),
+      makeMedia({ tmdbId: 2, providers: ['Netflix'] }),
+    ];
+    const deduced = blocksFor(library).find((b) => b.id.startsWith('plataforma-'))!;
+
+    const blocks = buildBlocks({
+      taste: tasteProfile(library, NOW),
+      picks: emptyPicks(),
+      region: 'AR',
+      subscriptions,
+    }).filter((b) => b.id.startsWith('plataforma-'));
+
+    expect(blocks.map((b) => b.id)).toEqual(['plataforma-Disney Plus']);
+    expect(blocks[0].weight).toBeGreaterThan(deduced.weight);
+  });
+
+  it('sin suscripciones sigue saliendo de la biblioteca', () => {
+    const library = [
+      makeMedia({ tmdbId: 1, providers: ['Netflix'] }),
+      makeMedia({ tmdbId: 2, providers: ['Netflix'] }),
+    ];
+    const blocks = buildBlocks({
+      taste: tasteProfile(library, NOW),
+      picks: emptyPicks(),
+      region: 'AR',
+      subscriptions: { providers: [], updatedAt: '2026-01-01T00:00:00.000Z' },
+    });
+    expect(blocks.some((b) => b.id === 'plataforma-Netflix')).toBe(true);
+  });
+});

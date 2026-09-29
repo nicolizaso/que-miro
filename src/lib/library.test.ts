@@ -34,6 +34,7 @@ function makeFilters(overrides: Partial<LibraryFilters> = {}): LibraryFilters {
     collection: null,
     tag: null,
     onlyNew: false,
+    availableNow: false,
     sort: DEFAULT_SORT,
     ...overrides,
   };
@@ -283,5 +284,34 @@ describe('Archivadas', () => {
 
   it('las pestañas de siempre no muestran nada archivado', () => {
     expect(filterLibrary(list, makeFilters({ status: 'viendo' })).map((m) => m.tmdbId)).toEqual([1]);
+  });
+});
+
+describe('Lo que puedo ver ya', () => {
+  const list = [
+    makeMedia({ tmdbId: 1, title: 'Incluida', streaming: ['Netflix'] }),
+    // En la misma plataforma, pero para alquilar: no es "ya".
+    makeMedia({ tmdbId: 2, title: 'Alquiler', providers: ['Netflix'], streaming: [] }),
+    makeMedia({ tmdbId: 3, title: 'En otra', streaming: ['Max'] }),
+    makeMedia({ tmdbId: 4, title: 'Sin datos' }),
+  ];
+
+  it('deja lo incluido en alguna plataforma que pagás', () => {
+    const titles = filterLibrary(
+      list,
+      makeFilters({ availableNow: true }),
+      new Set(['netflix']),
+    ).map((m) => m.title);
+
+    expect(titles).toEqual(['Incluida']);
+  });
+
+  it('sin suscripciones no queda nada, y apagado no filtra', () => {
+    expect(filterLibrary(list, makeFilters({ availableNow: true }))).toEqual([]);
+    expect(filterLibrary(list, makeFilters(), new Set(['netflix']))).toHaveLength(4);
+  });
+
+  it('cuenta como filtro activo', () => {
+    expect(hasActiveFilters(makeFilters({ availableNow: true }))).toBe(true);
   });
 });

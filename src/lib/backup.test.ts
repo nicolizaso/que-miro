@@ -272,3 +272,15 @@ describe('las metas en el backup', () => {
     expect(parseBackup(JSON.stringify(backup)).goals).toBeNull();
   });
 });
+
+describe('las suscripciones en el backup', () => {
+  it('viajan con la biblioteca y vuelven enteras', () => {
+    const subscriptions = {
+      providers: [{ id: 8, name: 'Netflix', logoPath: '/n.png' }],
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+    const backup = buildBackup([makeMedia()], [], undefined, undefined, subscriptions);
+
+    expect(parseBackup(JSON.stringify(backup)).subscriptions).toEqual(subscriptions);
+  });
+});

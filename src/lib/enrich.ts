@@ -35,6 +35,7 @@ export type MediaEnrichment = Pick<
   | 'seasons'
   | 'totalEpisodes'
   | 'providers'
+  | 'streaming'
   | 'providerRegion'
   | 'people'
   | 'keywords'
@@ -207,6 +208,13 @@ export function enrichFromDetail(
     providers: picked?.providers
       .slice(0, MAX_PROVIDERS)
       .map((provider) => provider.provider_name),
+    // Solo de tu región: "lo puedo ver ya con lo que pago" no se contesta con
+    // el catálogo de España. Vacío y no ausente cuando no hay nada, para que
+    // un título sin catálogo no quede vencido para siempre.
+    streaming:
+      picked && picked.region === preferredRegion
+        ? picked.included.slice(0, MAX_PROVIDERS).map((provider) => provider.provider_name)
+        : [],
     providerRegion: picked?.region,
     // Siempre un array, aunque venga vacío: es lo que distingue "este título no
     // tiene reparto cargado en TMDB" de "todavía no le pedimos la ficha", que
@@ -323,6 +331,10 @@ export function isStale(
   // España, y para quien está en Latinoamérica eso es un título equivocado.
   const language = media.enrichedLanguage ?? DEFAULT_LANGUAGE;
   if (language !== languageForRegion(region)) return true;
+
+  // Lo enriquecido antes de que se separara lo incluido en una suscripción
+  // de lo que se alquila: se refresca una vez para saberlo.
+  if (media.streaming === undefined) return true;
 
   // Lo enriquecido antes de que se anotara la fecha no tiene edad conocida:
   // se refresca una vez y de ahí en más vence por antigüedad.

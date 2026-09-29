@@ -202,6 +202,16 @@ export interface SavedMedia {
   totalEpisodes?: number | null;
   /** Plataformas donde estaba disponible, según la región de abajo. */
   providers?: string[];
+  /**
+   * De esas, en las que está incluido con la suscripción —o gratis—, en tu
+   * región. `providers` junta eso con alquiler y compra, así que "está en
+   * Prime Video" podía ser cualquiera de las dos cosas.
+   *
+   * Aparte y no en lugar de `providers`: los filtros y los documentos viejos
+   * siguen leyendo aquel. Un array vacío es "no está incluido en ninguna"; la
+   * ausencia es "todavía no se calculó", y eso hace que se refresque.
+   */
+  streaming?: string[];
   /** Región cuyo catálogo se consultó al guardar. */
   providerRegion?: string;
 
@@ -424,6 +434,10 @@ export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
        */
       link?: string;
       flatrate?: { provider_name: string; logo_path: string }[];
+      /** Gratis, sin suscripción. No en todas las regiones. */
+      free?: { provider_name: string; logo_path: string }[];
+      /** Gratis con publicidad. No en todas las regiones. */
+      ads?: { provider_name: string; logo_path: string }[];
       rent?: { provider_name: string; logo_path: string }[];
       buy?: { provider_name: string; logo_path: string }[];
     }>;
@@ -470,6 +484,24 @@ export interface PickedStudio {
  * Todos los campos son opcionales a propósito: el cuestionario se puede
  * contestar de a una pregunta por vez, y con una sola ya hay filas nuevas.
  */
+/** Una plataforma elegida como suscripción, con lo que hace falta para mostrarla. */
+export interface SubscribedProvider {
+  id: number;
+  name: string;
+  logoPath: string | null;
+}
+
+/**
+ * Las plataformas que pagás, en `users/{uid}/profile/subscriptions`.
+ *
+ * Es de la cuenta y no del dispositivo: se paga una vez y vale en el celular y
+ * en la compu.
+ */
+export interface Subscriptions {
+  providers: SubscribedProvider[];
+  updatedAt: string; // ISO
+}
+
 /** La meta de un año. Cualquiera de las tres puede faltar. */
 export interface YearGoal {
   movies?: number;

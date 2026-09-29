@@ -13,6 +13,7 @@ import {
   Sparkles,
   Tv,
   X,
+  Zap,
 } from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +35,7 @@ import {
 import { MediaStatus, MediaType } from '@/types';
 import { hasNewEpisodes } from '@/lib/progress';
 import { idleLabel, isArchivedStatus, pauseSuggestion } from '@/lib/archive';
+import { hasSubscriptions, isAvailableNow, subscribedNames } from '@/lib/subscriptions';
 import { cn } from '@/lib/utils';
 
 const TABS: { id: MediaStatus; label: string }[] = [
@@ -106,9 +108,18 @@ export function ListView() {
   );
   const collections = useMediaStore((state) => state.collections);
 
+  // "Lo que puedo ver ya" aparece solo si hay suscripciones marcadas, y con
+  // algo para mostrar en esta pestaña: si no, es un filtro que siempre da cero.
+  const subscriptions = useMediaStore((state) => state.subscriptions);
+  const subscribed = useMemo(() => subscribedNames(subscriptions), [subscriptions]);
+  const availableCount = useMemo(
+    () => inStatus.filter((media) => isAvailableNow(media, subscribed)).length,
+    [inStatus, subscribed],
+  );
+
   const filteredList = useMemo(
-    () => filterLibrary(mediaList, filters),
-    [mediaList, filters],
+    () => filterLibrary(mediaList, filters, subscribed),
+    [mediaList, filters, subscribed],
   );
 
   const isFiltered = hasActiveFilters(filters);
@@ -328,6 +339,33 @@ export function ListView() {
             </button>
           )}
 
+          {hasSubscriptions(subscriptions) && (availableCount > 0 || filters.availableNow) && (
+            <button
+              type="button"
+              aria-pressed={filters.availableNow}
+              onClick={() => setFilters({ availableNow: !filters.availableNow })}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
+                filters.availableNow
+                  ? 'bg-accent text-accent-contrast border-accent font-medium'
+                  : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
+              )}
+            >
+              <Zap size={16} aria-hidden="true" />
+              Lo que puedo ver ya
+              {availableCount > 0 && (
+                <span
+                  className={cn(
+                    'tabular-nums',
+                    filters.availableNow ? 'opacity-80' : 'text-text-subtle',
+                  )}
+                >
+                  {availableCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* La puerta a Archivadas: al final de la fila y sin relleno, para
               que no compita con los filtros de todos los días. Sin nada
               archivado no existe. */}
@@ -475,7 +513,7 @@ export function ListView() {
                 {filteredList.length} de {inStatus.length}{' '}
                 {inStatus.length === 1 ? 'título' : 'títulos'}
                 {/* Filtrar por plataforma es mostrar datos de JustWatch. */}
-                {filters.provider && (
+                {(filters.provider || filters.availableNow) && (
                   <span className="text-text-subtle text-xs">
                     {' '}
                     · Plataformas según JustWatch

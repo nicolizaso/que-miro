@@ -3,6 +3,7 @@ import { latestRating } from '@/lib/schema';
 import { hasNewEpisodes, progressPercent } from '@/lib/progress';
 import { scoreOf } from '@/lib/duel';
 import { isArchivedStatus } from '@/lib/archive';
+import { isAvailableNow } from '@/lib/subscriptions';
 
 /**
  * Qué se está mirando de la biblioteca: una de las tres pestañas, uno de los
@@ -50,6 +51,8 @@ export interface LibraryFilters {
   tag: string | null;
   /** Solo las series con episodios nuevos que todavía no viste. */
   onlyNew: boolean;
+  /** Solo lo que está incluido en alguna plataforma que pagás. */
+  availableNow: boolean;
   sort: SortOption;
 }
 
@@ -61,6 +64,7 @@ export const EMPTY_FILTERS: Omit<LibraryFilters, 'status'> = {
   collection: null,
   tag: null,
   onlyNew: false,
+  availableNow: false,
   sort: DEFAULT_SORT,
 };
 
@@ -162,6 +166,8 @@ function compare(a: SavedMedia, b: SavedMedia, sort: SortOption): number {
 export function filterLibrary(
   list: SavedMedia[],
   filters: LibraryFilters,
+  /** Las plataformas que se pagan (ver `subscribedNames`), para "Lo que puedo ver ya". */
+  subscribed: Set<string> = new Set(),
 ): SavedMedia[] {
   const query = normalizeText(filters.query);
 
@@ -186,6 +192,7 @@ export function filterLibrary(
         return false;
       }
       if (filters.onlyNew && !hasNewEpisodes(media)) return false;
+      if (filters.availableNow && !isAvailableNow(media, subscribed)) return false;
       if (query && !normalizeText(media.title).includes(query)) return false;
       return true;
     })
@@ -202,6 +209,7 @@ export function hasActiveFilters(filters: LibraryFilters): boolean {
     filters.collection !== null ||
     filters.tag !== null ||
     filters.onlyNew ||
+    filters.availableNow ||
     filters.sort !== DEFAULT_SORT
   );
 }

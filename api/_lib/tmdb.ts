@@ -58,6 +58,11 @@ export const PERSON_TTL = 60 * 60 * 24;
  * anuncian, y una temporada en emisión suma uno por semana.
  */
 export const SEASON_TTL = 60 * 60 * 6;
+/**
+ * Las plataformas de una región cambian de a una por mes, cuando mucho: con
+ * un día sobra, y es lo que pide el ticket.
+ */
+export const PROVIDERS_TTL = 60 * 60 * 24;
 
 /** Error con el status HTTP que le corresponde devolver al cliente. */
 export class TmdbError extends Error {
@@ -697,22 +702,78 @@ async function getProviderId(
   region: string,
   name: string,
 ): Promise<number | null> {
-  const providers = await withCache(
-    `providers:${mediaType}:${region}`,
-    PERSON_TTL,
-    async () => {
-      const data = await fetchTMDB<{
-        results?: { provider_id: number; provider_name: string }[];
-      }>(`/watch/providers/${mediaType}`, { watch_region: region });
-      return data.results ?? [];
-    },
-  );
+  const providers = await providerList(mediaType, region);
 
   const wanted = name.trim().toLowerCase();
   return (
     providers.find((provider) => provider.provider_name.toLowerCase() === wanted)
       ?.provider_id ?? null
   );
+}
+
+interface RawProvider {
+  provider_id: number;
+  provider_name: string;
+  logo_path?: string | null;
+  display_priority?: number;
+  display_priorities?: Record<string, number>;
+}
+
+/**
+ * La lista de plataformas de TMDB para una región, tal como viene.
+ *
+ * La comparten la resolución de nombres de `/discover` y `/api/tmdb/providers`:
+ * es la misma llamada, así que es la misma entrada de la caché.
+ */
+function providerList(mediaType: MediaType, region: string): Promise<RawProvider[]> {
+  return withCache(`providers:${mediaType}:${region}`, PROVIDERS_TTL, async () => {
+    const data = await fetchTMDB<{ results?: RawProvider[] }>(
+      `/watch/providers/${mediaType}`,
+      { watch_region: region },
+    );
+    return data.results ?? [];
+  });
+}
+
+/** Una plataforma, con lo que la app muestra y nada más. */
+export interface ProviderInfo {
+  id: number;
+  name: string;
+  logoPath: string | null;
+  /** El orden en que TMDB la muestra en esa región: menos es más arriba. */
+  priority: number;
+}
+
+/** Valida el país: dos letras mayúsculas, ISO 3166-1. */
+export function parseRegion(value: unknown): string {
+  if (typeof value === 'string' && /^[A-Z]{2}$/.test(value)) return value;
+  throw new TmdbError("El parámetro 'region' debe ser un código ISO 3166-1.", 400);
+}
+
+/**
+ * Las plataformas de streaming de una región, en el orden en que se muestran
+ * ahí: primero las que más se usan.
+ *
+ * El orden es el de la región y no el global, que es el que manda TMDB por
+ * defecto: en Argentina Flow va arriba y en España, no. Sin orden de la región
+ * se usa el global, y sin ninguno, al final.
+ */
+export async function getProviders(
+  mediaType: MediaType,
+  region: string,
+): Promise<ProviderInfo[]> {
+  const providers = await providerList(mediaType, region);
+
+  return providers
+    .filter((provider) => Number.isInteger(provider.provider_id) && provider.provider_name)
+    .map((provider) => ({
+      id: provider.provider_id,
+      name: provider.provider_name,
+      logoPath: provider.logo_path ?? null,
+      priority:
+        provider.display_priorities?.[region] ?? provider.display_priority ?? Number.MAX_SAFE_INTEGER,
+    }))
+    .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
 }
 
 /** Los parámetros de TMDB que salen de unos criterios ya validados. */

@@ -22,6 +22,8 @@ export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 export const TMDB_IMAGE_ORIGINAL_URL = 'https://image.tmdb.org/t/p/original';
 /** Las imágenes de episodio van chicas: con 300 px de ancho sobra. */
 export const TMDB_STILL_URL = 'https://image.tmdb.org/t/p/w300';
+/** Logos de plataformas: se muestran a 48 px, y el de 500 pesaba diez veces más. */
+export const TMDB_LOGO_URL = 'https://image.tmdb.org/t/p/w92';
 
 /** Error de red o de la API, con un mensaje ya listo para mostrarle al usuario. */
 export class TMDbRequestError extends Error {}
@@ -177,6 +179,41 @@ export async function getMediaDetail(
 export async function getSeason(id: number, seasonNumber: number): Promise<TMDbSeason> {
   return fetchApi<TMDbSeason>(
     withLanguage(`/api/tmdb/season?id=${id}&season=${seasonNumber}`),
+  );
+}
+
+/** Una plataforma de streaming de un país, como la manda `/api/tmdb/providers`. */
+export interface RegionProvider {
+  id: number;
+  name: string;
+  logoPath: string | null;
+  priority: number;
+}
+
+/**
+ * Las plataformas de un país, de películas y de series juntas.
+ *
+ * Son dos listas en TMDB, y casi todas las plataformas están en las dos: se
+ * juntan por id y queda el mejor lugar de cada una, que es lo que alguien
+ * espera ver primero al elegir qué paga.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function getRegionProviders(region: string): Promise<RegionProvider[]> {
+  const lists = await Promise.all(
+    (['movie', 'tv'] as const).map((type) =>
+      fetchApi<{ results: RegionProvider[] }>(
+        `/api/tmdb/providers?type=${type}&region=${encodeURIComponent(region)}`,
+      ),
+    ),
+  );
+
+  const byId = new Map<number, RegionProvider>();
+  for (const provider of lists.flatMap(({ results }) => results)) {
+    const current = byId.get(provider.id);
+    if (!current || provider.priority < current.priority) byId.set(provider.id, provider);
+  }
+  return Array.from(byId.values()).sort(
+    (a, b) => a.priority - b.priority || a.name.localeCompare(b.name, 'es'),
   );
 }
 

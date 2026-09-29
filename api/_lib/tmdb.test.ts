@@ -5,6 +5,7 @@ import {
   getList,
   getMediaDetail,
   getPersonCredits,
+  getProviders,
   getRecommendations,
   getSeason,
   getTrending,
@@ -13,6 +14,7 @@ import {
   parseLanguage,
   parseListKind,
   parseMediaType,
+  parseRegion,
   parseSearchKind,
   parseSeasonNumber,
   parseTrendingWindow,
@@ -899,5 +901,62 @@ describe('la temporada de una serie', () => {
     await getSeason(95396, 1, 'es-MX');
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('las plataformas de una región', () => {
+  beforeEach(() => {
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('valida el país', () => {
+    expect(parseRegion('AR')).toBe('AR');
+    for (const value of ['ar', 'ARG', '', undefined, 'A1']) {
+      expect(() => parseRegion(value)).toThrow(TmdbError);
+    }
+  });
+
+  it('ordena por la prioridad de esa región y manda solo lo que se usa', async () => {
+    stubFetch([
+      {
+        provider_id: 8,
+        provider_name: 'Netflix',
+        logo_path: '/netflix.png',
+        display_priority: 1,
+        display_priorities: { AR: 3, ES: 1 },
+      },
+      {
+        provider_id: 300,
+        provider_name: 'Flow',
+        logo_path: '/flow.png',
+        display_priority: 40,
+        display_priorities: { AR: 1 },
+      },
+      { provider_id: 9, provider_name: 'Sin orden', logo_path: null },
+    ]);
+
+    const providers = await getProviders('tv', 'AR');
+
+    expect(providers).toEqual([
+      { id: 300, name: 'Flow', logoPath: '/flow.png', priority: 1 },
+      { id: 8, name: 'Netflix', logoPath: '/netflix.png', priority: 3 },
+      { id: 9, name: 'Sin orden', logoPath: null, priority: Number.MAX_SAFE_INTEGER },
+    ]);
+  });
+
+  it('le pide a TMDB una sola vez por tipo y país', async () => {
+    const fetchMock = stubFetch([]);
+    await getProviders('movie', 'AR');
+    await getProviders('movie', 'AR');
+    await getProviders('movie', 'ES');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('watch_region=AR');
   });
 });

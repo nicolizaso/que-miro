@@ -47,12 +47,14 @@ export interface ExploreFeed {
 export function useExploreFeed(): ExploreFeed {
   const mediaList = useMediaStore((state) => state.mediaList);
   const storedPicks = useMediaStore((state) => state.picks);
+  const storedSubscriptions = useMediaStore((state) => state.subscriptions);
   const region = usePreferences((state) => state.region);
 
   const [seed, setSeed] = useState(randomSeed);
   const [pages, setPages] = useState(1);
   const [library, setLibrary] = useState(mediaList);
   const [picks, setPicksSnapshot] = useState(storedPicks);
+  const [subscriptions, setSubscriptionsSnapshot] = useState(storedSubscriptions);
 
   useEffect(() => {
     if (library.length === 0 && mediaList.length > 0) setLibrary(mediaList);
@@ -67,11 +69,19 @@ export function useExploreFeed(): ExploreFeed {
     }
   }, [storedPicks, picks.updatedAt]);
 
+  // Las suscripciones, igual: marcar una plataforma en Ajustes y volver no
+  // tiene que esperar a barajar, pero tampoco reordenar mientras se mira.
+  useEffect(() => {
+    if (Date.parse(storedSubscriptions.updatedAt) > Date.parse(subscriptions.updatedAt)) {
+      setSubscriptionsSnapshot(storedSubscriptions);
+    }
+  }, [storedSubscriptions, subscriptions.updatedAt]);
+
   const taste = useMemo(() => tasteProfile(library), [library]);
 
   const blocks = useMemo(
-    () => orderBlocks(buildBlocks({ taste, picks, region }), seed),
-    [taste, picks, region, seed],
+    () => orderBlocks(buildBlocks({ taste, picks, region, subscriptions }), seed),
+    [taste, picks, region, subscriptions, seed],
   );
 
   // Un registro nuevo por cada orden nuevo: si no, las filas rearmadas
@@ -93,6 +103,7 @@ export function useExploreFeed(): ExploreFeed {
     setPages(1);
     setLibrary(useMediaStore.getState().mediaList);
     setPicksSnapshot(useMediaStore.getState().picks);
+    setSubscriptionsSnapshot(useMediaStore.getState().subscriptions);
   }, []);
 
   const visible = blocks.slice(0, pages * PAGE_SIZE);

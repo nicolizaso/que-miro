@@ -29,6 +29,7 @@ const PARAMS = {
   collection: 'lista',
   tag: 'tag',
   onlyNew: 'nuevos',
+  availableNow: 'ya',
   sort: 'orden',
 } as const;
 
@@ -57,6 +58,7 @@ export function useLibraryFilters() {
       collection: searchParams.get(PARAMS.collection) || null,
       tag: searchParams.get(PARAMS.tag) || null,
       onlyNew: searchParams.get(PARAMS.onlyNew) === '1',
+      availableNow: searchParams.get(PARAMS.availableNow) === '1',
       sort: SORT_OPTIONS.some((option) => option.value === sort)
         ? (sort as SortOption)
         : DEFAULT_SORT,
@@ -101,6 +103,7 @@ export function useLibraryFilters() {
       collection: null,
       tag: null,
       onlyNew: false,
+      availableNow: false,
       sort: DEFAULT_SORT,
     });
   }, [setFilters]);

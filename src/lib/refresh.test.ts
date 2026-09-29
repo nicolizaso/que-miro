@@ -27,6 +27,7 @@ function enrichedDaysAgo(days: number, overrides: Partial<SavedMedia> = {}) {
     enrichedRegion: 'AR',
     enrichedLanguage: 'es-MX',
     enrichedAt: new Date(NOW.getTime() - days * DAY).toISOString(),
+    streaming: [],
     ...overrides,
   });
 }

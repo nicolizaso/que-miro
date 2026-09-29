@@ -149,3 +149,16 @@ describe('lo archivado', () => {
     expect(candidates(list, filters()).map((m) => m.tmdbId)).toEqual([1]);
   });
 });
+
+describe('Lo que puedo ver ya, en el picker', () => {
+  it('sortea solo entre lo incluido en lo que pagás', () => {
+    const list = [
+      makeMedia({ tmdbId: 1, streaming: ['Disney Plus'] }),
+      makeMedia({ tmdbId: 2, streaming: ['Netflix'] }),
+      makeMedia({ tmdbId: 3 }),
+    ];
+
+    const ids = candidates(list, filters({ availableNow: true }), new Set(['disney plus']));
+    expect(ids.map((m) => m.tmdbId)).toEqual([1]);
+  });
+});

@@ -16,7 +16,12 @@ export interface ProviderLogo {
 
 export interface PickedProviders {
   region: string;
+  /** Todas, sin repetir: lo que se guardaba siempre. */
   providers: ProviderLogo[];
+  /** Incluidas con la suscripción, o gratis. */
+  included: ProviderLogo[];
+  /** Solo para alquilar o comprar: las que no están en `included`. */
+  rentOrBuy: ProviderLogo[];
   /**
    * La página de TMDB con dónde verlo en esa región.
    *
@@ -48,23 +53,34 @@ export function pickProviders(
     const entry = results[region];
     if (!entry) continue;
 
-    const providers = [
+    const included = unique([
       ...(entry.flatrate ?? []),
-      ...(entry.rent ?? []),
-      ...(entry.buy ?? []),
-    ].filter(
-      (provider, index, list) =>
-        list.findIndex((p) => p.provider_name === provider.provider_name) === index,
+      ...(entry.free ?? []),
+      ...(entry.ads ?? []),
+    ]);
+    const includedNames = new Set(included.map((provider) => provider.provider_name));
+    const rentOrBuy = unique([...(entry.rent ?? []), ...(entry.buy ?? [])]).filter(
+      (provider) => !includedNames.has(provider.provider_name),
     );
+    const providers = [...included, ...rentOrBuy];
     if (providers.length === 0) continue;
 
     // El enlace es el de la región que se terminó usando: el de la preferida
     // llevaría a una página que dice que no está en ningún lado.
     const link = safeTmdbLink(entry.link);
-    return link ? { region, providers, link } : { region, providers };
+    const picked = { region, providers, included, rentOrBuy };
+    return link ? { ...picked, link } : picked;
   }
 
   return null;
+}
+
+/** Sin repetir por nombre: TMDB puede listar la misma dos veces. */
+function unique(list: ProviderLogo[]): ProviderLogo[] {
+  return list.filter(
+    (provider, index) =>
+      list.findIndex((p) => p.provider_name === provider.provider_name) === index,
+  );
 }
 
 /**

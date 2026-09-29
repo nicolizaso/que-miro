@@ -19,8 +19,9 @@ service cloud.firestore {
         allow read, write: if isOwner();
       }
 
-      // "Contanos de vos" (`profile/taste`) y las metas del año
-      // (`profile/goals`): documentos de la cuenta. Mismo dueño y mismas
+      // "Contanos de vos" (`profile/taste`), las metas del año
+      // (`profile/goals`) y las plataformas que se pagan
+      // (`profile/subscriptions`): documentos de la cuenta. Mismo dueño y mismas
       // reglas que la biblioteca — son datos de la persona, no algo publicado.
       // Un documento nuevo acá no necesita regla nueva: `{docId}` ya lo cubre.
       match /profile/{docId} {

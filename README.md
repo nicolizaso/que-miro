@@ -36,6 +36,10 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo,
   plataforma, lista o ánimo. Los filtros viven en la URL, así que la vista se
   puede compartir.
+- **Tus plataformas** — marcá en Ajustes, con sus logos, las plataformas que
+  pagás. "Lo que puedo ver ya" filtra la biblioteca y el picker por lo que
+  está incluido en ellas (no en alquiler), la ficha separa "Incluido en" de
+  "Alquiler o compra", y Explorar muestra primero su catálogo.
 - **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está
   disponible, según el país que elijas, con un enlace a la página que lleva
   directo a cada una.

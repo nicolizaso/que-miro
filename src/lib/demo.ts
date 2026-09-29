@@ -4,10 +4,12 @@ import { enrichFromDetail } from '@/lib/enrich';
 import { newWatchId } from '@/lib/schema';
 import { emptyPicks, parsePicks } from '@/lib/picks';
 import { emptyGoals, parseGoals } from '@/lib/goals';
+import { emptySubscriptions, parseSubscriptions } from '@/lib/subscriptions';
 import {
   EpisodeRef,
   Goals,
   MediaStatus,
+  Subscriptions,
   MediaType,
   SavedMedia,
   SeriesProgress,
@@ -69,6 +71,17 @@ export function buildDemoPicks(): TastePicks {
  * Las metas del demo, para el año en curso: una ya cumplida —así se ve la
  * tarjeta para compartir— y otra en camino, con su ritmo.
  */
+/**
+ * Las plataformas del demo: una sola, para que "Lo que puedo ver ya" deje
+ * algunas afuera. Sin logo: el de verdad llega con la lista de la región.
+ */
+export function buildDemoSubscriptions(now = new Date()): Subscriptions {
+  return {
+    providers: [{ id: 8, name: 'Netflix', logoPath: null }],
+    updatedAt: now.toISOString(),
+  };
+}
+
 export function buildDemoGoals(now = new Date()): Goals {
   return {
     byYear: { [String(now.getFullYear())]: { movies: 6, series: 3 } },
@@ -101,6 +114,11 @@ interface DemoSeedEntry {
   watched?: Record<number, number[]>;
   /** Puntajes de algunos episodios vistos (`"2x5"`), para "tu mejor episodio". */
   episodeRatings?: Record<string, number>;
+  /**
+   * Dónde está incluido, para que "Lo que puedo ver ya" tenga algo que
+   * mostrar aunque TMDB no conteste. Si contesta, gana lo de TMDB.
+   */
+  streaming?: string[];
   /**
    * En qué anda la serie y qué salió, para que el demo muestre "al día" y
    * las novedades aunque TMDB no conteste. Si contesta, gana lo de TMDB.
@@ -298,6 +316,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     releaseYear: '2021',
     genres: ['Ciencia Ficción', 'Aventura'],
     status: 'por_ver',
+    streaming: ['Max'],
     daysAgo: 2,
   },
   {
@@ -307,6 +326,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     releaseYear: '2001',
     genres: ['Animación', 'Familia', 'Fantasía'],
     status: 'por_ver',
+    streaming: ['Netflix'],
     daysAgo: 5,
   },
   {
@@ -326,6 +346,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     releaseYear: '2017',
     genres: ['Drama', 'Misterio', 'Sci-Fi y Fantasía'],
     status: 'por_ver',
+    streaming: ['Netflix'],
     daysAgo: 14,
   },
   {
@@ -345,6 +366,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     releaseYear: '2018',
     genres: ['Drama'],
     status: 'por_ver',
+    streaming: ['Max'],
     daysAgo: 30,
   },
   {
@@ -433,6 +455,8 @@ export function buildDemoLibrary(): SavedMedia[] {
       releaseYear: entry.releaseYear,
       genres: entry.genres,
       status: entry.status,
+      providers: entry.streaming,
+      streaming: entry.streaming,
       updatedAt: daysAgoToIso(entry.daysAgo),
       seasons,
       progress,
@@ -543,14 +567,24 @@ export async function hydrateDemoLibrary(region: string): Promise<void> {
  * para poder devolvérselo al salir.
  */
 export function enterDemoMode(): void {
-  const { mediaList, picks, goals, ownerUid, setMediaList, setPicks, setGoals, setOwnerUid } =
-    useMediaStore.getState();
+  const {
+    mediaList,
+    picks,
+    goals,
+    subscriptions,
+    ownerUid,
+    setMediaList,
+    setPicks,
+    setGoals,
+    setSubscriptions,
+    setOwnerUid,
+  } = useMediaStore.getState();
 
   if (ownerUid !== DEMO_OWNER_UID) {
     try {
       localStorage.setItem(
         SNAPSHOT_KEY,
-        JSON.stringify({ media: mediaList, picks, goals }),
+        JSON.stringify({ media: mediaList, picks, goals, subscriptions }),
       );
     } catch {
       // Sin storage disponible se pierde el respaldo, pero el demo funciona.
@@ -560,16 +594,19 @@ export function enterDemoMode(): void {
   setMediaList(buildDemoLibrary());
   setPicks(buildDemoPicks());
   setGoals(buildDemoGoals());
+  setSubscriptions(buildDemoSubscriptions());
   setOwnerUid(DEMO_OWNER_UID);
 }
 
 /** Sale del demo y restituye lo que había antes: biblioteca y respuestas. */
 export function exitDemoMode(): void {
-  const { setMediaList, setPicks, setGoals, setOwnerUid } = useMediaStore.getState();
+  const { setMediaList, setPicks, setGoals, setSubscriptions, setOwnerUid } =
+    useMediaStore.getState();
 
   let media: SavedMedia[] = [];
   let picks: TastePicks = emptyPicks();
   let goals: Goals = emptyGoals();
+  let subscriptions: Subscriptions = emptySubscriptions();
 
   try {
     const snapshot = localStorage.getItem(SNAPSHOT_KEY);
@@ -581,12 +618,18 @@ export function exitDemoMode(): void {
       if (Array.isArray(parsed)) {
         media = parsed as SavedMedia[];
       } else if (parsed && typeof parsed === 'object') {
-        const snapshotObject = parsed as { media?: unknown; picks?: unknown; goals?: unknown };
+        const snapshotObject = parsed as {
+          media?: unknown;
+          picks?: unknown;
+          goals?: unknown;
+          subscriptions?: unknown;
+        };
         media = Array.isArray(snapshotObject.media)
           ? (snapshotObject.media as SavedMedia[])
           : [];
         picks = parsePicks(snapshotObject.picks);
         goals = parseGoals(snapshotObject.goals);
+        subscriptions = parseSubscriptions(snapshotObject.subscriptions);
       }
     }
     localStorage.removeItem(SNAPSHOT_KEY);
@@ -597,5 +640,6 @@ export function exitDemoMode(): void {
   setMediaList(media);
   setPicks(picks);
   setGoals(goals);
+  setSubscriptions(subscriptions);
   setOwnerUid(null);
 }

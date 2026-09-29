@@ -19,6 +19,7 @@ import {
 import { clearRescue, readRescue } from '@/lib/rescue';
 import { useTastePicks } from '@/hooks/useTastePicks';
 import { useGoals } from '@/hooks/useGoals';
+import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { formatWatchDate } from '@/lib/dates';
 
 type PendingDialog = 'import' | 'clear' | 'delete' | null;
@@ -33,6 +34,7 @@ export function DataSettings() {
   const { mediaList, collections } = useMediaStore();
   const { picks, savePicks } = useTastePicks();
   const { goals, replaceGoals } = useGoals();
+  const { subscriptions, replaceSubscriptions } = useSubscriptions();
   const { authState } = useAuth();
   const { showToast } = useToast();
   const { saveMany } = useMediaActions();
@@ -53,7 +55,11 @@ export function DataSettings() {
   const handleExportJson = () => {
     downloadFile(
       backupFilename('json'),
-      JSON.stringify(buildBackup(mediaList, collections, picks, goals), null, 2),
+      JSON.stringify(
+        buildBackup(mediaList, collections, picks, goals, subscriptions),
+        null,
+        2,
+      ),
       'application/json',
     );
     showToast('Descargamos tu biblioteca en JSON.');
@@ -72,6 +78,7 @@ export function DataSettings() {
       collections: rescue.collections,
       picks: null,
       goals: null,
+      subscriptions: null,
       skipped: 0,
     });
     setDialog('import');
@@ -140,6 +147,13 @@ export function DataSettings() {
         Date.parse(incomingGoals.updatedAt) > Date.parse(goals.updatedAt)
       ) {
         replaceGoals(incomingGoals);
+      }
+      const incomingSubscriptions = pendingImport.subscriptions;
+      if (
+        incomingSubscriptions &&
+        Date.parse(incomingSubscriptions.updatedAt) > Date.parse(subscriptions.updatedAt)
+      ) {
+        replaceSubscriptions(incomingSubscriptions);
       }
 
       showToast(

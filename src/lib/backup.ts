@@ -1,4 +1,4 @@
-import { Collection, Goals, SavedMedia, TastePicks } from '@/types';
+import { Collection, Goals, SavedMedia, Subscriptions, TastePicks } from '@/types';
 import {
   SCHEMA_VERSION,
   parseCollection,
@@ -7,6 +7,7 @@ import {
 } from '@/lib/schema';
 import { hasPicks, parsePicks } from '@/lib/picks';
 import { hasGoals, parseGoals } from '@/lib/goals';
+import { hasSubscriptions, parseSubscriptions } from '@/lib/subscriptions';
 import { progressPercent, watchedEpisodes } from '@/lib/progress';
 
 export { SCHEMA_VERSION };
@@ -26,6 +27,8 @@ export interface LibraryBackup {
   picks?: TastePicks;
   /** Las metas por año, si había alguna. */
   goals?: Goals;
+  /** Las plataformas que se pagan, si había alguna. */
+  subscriptions?: Subscriptions;
 }
 
 /** Error de importación con un mensaje pensado para mostrarle a la persona. */
@@ -41,6 +44,7 @@ export function buildBackup(
   collections: Collection[] = [],
   picks?: TastePicks,
   goals?: Goals,
+  subscriptions?: Subscriptions,
 ): LibraryBackup {
   return {
     app: 'que-miro',
@@ -56,6 +60,7 @@ export function buildBackup(
     ...(picks && hasPicks(picks) ? { picks } : {}),
     // Lo mismo con las metas: sin ninguna, no van.
     ...(goals && hasGoals(goals) ? { goals } : {}),
+    ...(subscriptions && hasSubscriptions(subscriptions) ? { subscriptions } : {}),
   };
 }
 
@@ -66,6 +71,8 @@ export interface ParsedBackup {
   picks: TastePicks | null;
   /** `null` si no traía metas. */
   goals: Goals | null;
+  /** `null` si no traía suscripciones. */
+  subscriptions: Subscriptions | null;
   /** Títulos descartados por estar incompletos o corruptos. */
   skipped: number;
 }
@@ -113,12 +120,15 @@ export function parseBackup(contents: string): ParsedBackup {
 
   const picks = raw.picks === undefined ? null : parsePicks(raw.picks);
   const goals = raw.goals === undefined ? null : parseGoals(raw.goals);
+  const subscriptions =
+    raw.subscriptions === undefined ? null : parseSubscriptions(raw.subscriptions);
 
   return {
     media,
     collections,
     picks: picks && hasPicks(picks) ? picks : null,
     goals: goals && hasGoals(goals) ? goals : null,
+    subscriptions: subscriptions && hasSubscriptions(subscriptions) ? subscriptions : null,
     skipped,
   };
 }
@@ -166,6 +176,7 @@ const CSV_HEADERS = [
   'estado',
   'generos',
   'plataformas',
+  'incluido_en',
   'veces_visto',
   'puntaje',
   'tags',
@@ -200,6 +211,7 @@ export function toCsv(media: SavedMedia[]): string {
       csvCell(item.status),
       csvCell(item.genres.join(', ')),
       csvCell(item.providers?.join(', ')),
+      csvCell(item.streaming?.join(', ')),
       csvCell(item.history?.length ?? 0),
       csvCell(latest?.rating),
       csvCell(latest?.tags?.join(', ')),

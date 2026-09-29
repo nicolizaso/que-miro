@@ -13,6 +13,7 @@ import { cacheHeaders } from './api/_lib/cache.js';
 import {
   DISCOVER_TTL,
   PERSON_TTL,
+  PROVIDERS_TTL,
   RECOMMENDATIONS_TTL,
   SEASON_TTL,
   TRENDING_TTL,
@@ -20,6 +21,7 @@ import {
   getList,
   getMediaDetail,
   getPersonCredits,
+  getProviders,
   getRecommendations,
   getSaga,
   getSeason,
@@ -31,6 +33,7 @@ import {
   parseListKind,
   parseMediaType,
   parsePersonRole,
+  parseRegion,
   parseSearchKind,
   parseSeasonNumber,
   parseTrendingWindow,
@@ -157,6 +160,20 @@ async function startServer() {
         parseLanguage(req.query.lang),
       );
       res.set(cacheHeaders(PERSON_TTL));
+      return res.status(200).json({ results });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/providers', async (req, res) => {
+    try {
+      const results = await getProviders(
+        parseMediaType(req.query.type),
+        parseRegion(req.query.region),
+      );
+      res.set(cacheHeaders(PROVIDERS_TTL));
       return res.status(200).json({ results });
     } catch (error) {
       const { status, body } = toErrorResponse(error);

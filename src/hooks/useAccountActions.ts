@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMediaStore } from '@/store';
 import { picksPath } from '@/hooks/useTastePicks';
 import { goalsPath } from '@/hooks/useGoals';
+import { subscriptionsPath } from '@/hooks/useSubscriptions';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -80,8 +81,9 @@ export function useAccountActions() {
       // borrar el documento de un usuario no borra sus subcolecciones: sin
       // esta línea el cuestionario sobreviviría a la cuenta que lo escribió.
       await deleteDoc(doc(db, picksPath(user.uid)));
-      // Las metas viven al lado y tienen el mismo problema.
+      // Las metas y las suscripciones viven al lado y tienen el mismo problema.
       await deleteDoc(doc(db, goalsPath(user.uid)));
+      await deleteDoc(doc(db, subscriptionsPath(user.uid)));
     } catch (error) {
       console.error('[cuenta] No se pudieron borrar los datos:', error);
       throw new AccountDeletionError(

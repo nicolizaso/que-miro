@@ -397,6 +397,9 @@ export function parseMedia(value: unknown): SavedMedia | null {
     providers: parseStringArray(value.providers).length
       ? parseStringArray(value.providers)
       : undefined,
+    // Un array vacío se conserva: dice "no está incluido en ninguna", que no es
+    // lo mismo que no saberlo (ver `isStale`).
+    streaming: Array.isArray(value.streaming) ? parseStringArray(value.streaming) : undefined,
     providerRegion:
       typeof value.providerRegion === 'string' ? value.providerRegion : undefined,
 

@@ -45,6 +45,7 @@ vi.mock('@/lib/tmdb', () => ({
   },
   currentLanguage: () => 'es-ES',
   TMDB_IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',
+  TMDB_LOGO_URL: 'https://image.tmdb.org/t/p/w92',
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
   TMDB_STILL_URL: 'https://image.tmdb.org/t/p/w300',
 }));

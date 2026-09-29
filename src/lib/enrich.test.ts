@@ -131,12 +131,19 @@ describe('isStale', () => {
       enrichedRegion: 'AR',
       enrichedLanguage: 'es-MX',
       enrichedAt: new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000).toISOString(),
+      streaming: [],
       ...overrides,
     });
   }
 
   it('un título sin datos cacheados hay que completarlo', () => {
     expect(isStale(makeMedia(), 'AR', NOW)).toBe(true);
+  });
+
+  it('lo enriquecido antes de separar lo incluido se refresca una vez', () => {
+    expect(isStale(enrichedDaysAgo(1, { streaming: undefined }), 'AR', NOW)).toBe(true);
+    // Vacío es "no está incluido en ninguna": ya se sabe, no vence por eso.
+    expect(isStale(enrichedDaysAgo(1, { streaming: [] }), 'AR', NOW)).toBe(false);
   });
 
   it('cambiar de país invalida las plataformas guardadas', () => {
@@ -267,6 +274,7 @@ describe('isStale', () => {
         enrichedRegion: 'AR',
         enrichedLanguage: 'es-MX',
         enrichedAt: new Date(2026, 8, 15, 9).toISOString(),
+        streaming: [],
         nextToAir: { seasonNumber: 2, episodeNumber: 4, airDate: '2026-09-14' },
       });
       expect(isStale(media, 'AR', NOW)).toBe(false);
@@ -543,5 +551,41 @@ describe('lo que se sabe de una serie', () => {
     expect('progress' in enrichment).toBe(false);
     expect(enrichment.seasons).toHaveLength(2);
     expect(enrichment.totalEpisodes).toBe(19);
+  });
+});
+
+describe('lo incluido en una suscripción', () => {
+  const detail = (providers: Record<string, unknown>) =>
+    makeDetail({ 'watch/providers': { results: providers } } as Partial<TMDbDetail>);
+
+  it('separa lo incluido —suscripción, gratis o con publicidad— de lo que se alquila', () => {
+    const enrichment = enrichFromDetail(
+      detail({
+        AR: {
+          flatrate: [{ provider_name: 'Netflix', logo_path: '/n.png' }],
+          ads: [{ provider_name: 'Pluto TV', logo_path: '/p.png' }],
+          rent: [{ provider_name: 'Apple TV', logo_path: '/a.png' }],
+          buy: [{ provider_name: 'Apple TV', logo_path: '/a.png' }],
+        },
+      }),
+      'AR',
+    );
+
+    expect(enrichment.providers).toEqual(['Netflix', 'Pluto TV', 'Apple TV']);
+    expect(enrichment.streaming).toEqual(['Netflix', 'Pluto TV']);
+  });
+
+  it('solo cuenta lo de tu región: el catálogo de otro país no es "lo puedo ver ya"', () => {
+    const enrichment = enrichFromDetail(
+      detail({ ES: { flatrate: [{ provider_name: 'Movistar Plus+', logo_path: '/m.png' }] } }),
+      'AR',
+    );
+
+    expect(enrichment.providers).toEqual(['Movistar Plus+']);
+    expect(enrichment.streaming).toEqual([]);
+  });
+
+  it('sin catálogo en ningún lado queda vacío, no ausente', () => {
+    expect(enrichFromDetail(detail({}), 'AR').streaming).toEqual([]);
   });
 });

@@ -6,6 +6,7 @@ import {
   Goals,
   SavedMedia,
   SeriesProgress,
+  Subscriptions,
   TastePicks,
   WatchEntry,
 } from './types';
@@ -18,6 +19,7 @@ import {
 import { isArchivedStatus } from './lib/archive';
 import { emptyPicks, parsePicks } from './lib/picks';
 import { emptyGoals, parseGoals } from './lib/goals';
+import { emptySubscriptions, parseSubscriptions } from './lib/subscriptions';
 
 interface MediaState {
   mediaList: SavedMedia[];
@@ -37,6 +39,8 @@ interface MediaState {
    * van al backup y tienen el mismo dueño que la biblioteca.
    */
   goals: Goals;
+  /** Las plataformas que la persona paga. De la cuenta, como las metas. */
+  subscriptions: Subscriptions;
   /**
    * UID del usuario dueño de los datos que hay en memoria/localStorage.
    * `null` significa "datos de invitado", todavía no asociados a ninguna cuenta.
@@ -77,6 +81,7 @@ interface MediaState {
 
   setPicks: (picks: TastePicks) => void;
   setGoals: (goals: Goals) => void;
+  setSubscriptions: (subscriptions: Subscriptions) => void;
 
   setCollections: (collections: Collection[]) => void;
   addCollection: (collection: Collection) => void;
@@ -110,11 +115,13 @@ export const useMediaStore = create<MediaState>()(
       collections: [],
       picks: emptyPicks(),
       goals: emptyGoals(),
+      subscriptions: emptySubscriptions(),
       ownerUid: null,
       syncedUid: null,
       setMediaList: (list) => set({ mediaList: list }),
       setPicks: (picks) => set({ picks }),
       setGoals: (goals) => set({ goals }),
+      setSubscriptions: (subscriptions) => set({ subscriptions }),
       setOwnerUid: (uid) => set({ ownerUid: uid }),
       setSyncedUid: (uid) => set({ syncedUid: uid }),
       reset: () =>
@@ -123,6 +130,7 @@ export const useMediaStore = create<MediaState>()(
           collections: [],
           picks: emptyPicks(),
           goals: emptyGoals(),
+          subscriptions: emptySubscriptions(),
           ownerUid: null,
           syncedUid: null,
         }),
@@ -263,7 +271,12 @@ export const useMediaStore = create<MediaState>()(
        */
       merge: (persisted, current) => {
         const state = { ...current, ...(persisted as Partial<MediaState>) };
-        return { ...state, picks: parsePicks(state.picks), goals: parseGoals(state.goals) };
+        return {
+          ...state,
+          picks: parsePicks(state.picks),
+          goals: parseGoals(state.goals),
+          subscriptions: parseSubscriptions(state.subscriptions),
+        };
       },
       /**
        * Migra lo que ya estaba guardado en el dispositivo.
@@ -289,6 +302,7 @@ export const useMediaStore = create<MediaState>()(
             .filter((collection): collection is Collection => collection !== null),
           picks: parsePicks(state?.picks),
           goals: parseGoals(state?.goals),
+          subscriptions: parseSubscriptions(state?.subscriptions),
         } as MediaState;
       },
     },

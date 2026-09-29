@@ -97,3 +97,31 @@ describe('pickProviders', () => {
     expect(pickProviders(null, 'AR')).toBeNull();
   });
 });
+
+describe('lo incluido y lo que se alquila', () => {
+  it('separa suscripción, gratis y con publicidad de alquiler y compra', () => {
+    const picked = pickProviders(
+      {
+        'watch/providers': {
+          results: {
+            AR: {
+              flatrate: [{ provider_name: 'Netflix', logo_path: '/n.png' }],
+              free: [{ provider_name: 'Cine.ar', logo_path: '/c.png' }],
+              rent: [
+                { provider_name: 'Apple TV', logo_path: '/a.png' },
+                { provider_name: 'Netflix', logo_path: '/n.png' },
+              ],
+              buy: [{ provider_name: 'Apple TV', logo_path: '/a.png' }],
+            },
+          },
+        },
+      } as unknown as TMDbDetail,
+      'AR',
+    )!;
+
+    expect(picked.included.map((p) => p.provider_name)).toEqual(['Netflix', 'Cine.ar']);
+    // Apple TV una sola vez; Netflix no, porque ya está incluido.
+    expect(picked.rentOrBuy.map((p) => p.provider_name)).toEqual(['Apple TV']);
+    expect(picked.providers.map((p) => p.provider_name)).toEqual(['Netflix', 'Cine.ar', 'Apple TV']);
+  });
+});

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Shuffle, X } from 'lucide-react';
+import { Shuffle, X, Zap } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { SavedMedia } from '@/types';
 import { useMediaStore } from '@/store';
@@ -19,6 +19,7 @@ import {
 } from '@/lib/picker';
 import { MediaType } from '@/types';
 import { cn } from '@/lib/utils';
+import { hasSubscriptions, subscribedNames } from '@/lib/subscriptions';
 
 /** Cuánto dura la vuelta de la ruleta. */
 const SPIN_MS = 1400;
@@ -47,7 +48,12 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
   const genres = useMemo(() => collectGenres(pending), [pending]);
   const providers = useMemo(() => collectProviders(pending), [pending]);
   const tags = useMemo(() => collectTags(pending), [pending]);
-  const pool = useMemo(() => candidates(pending, filters), [pending, filters]);
+  const subscriptions = useMediaStore((state) => state.subscriptions);
+  const subscribed = useMemo(() => subscribedNames(subscriptions), [subscriptions]);
+  const pool = useMemo(
+    () => candidates(pending, filters, subscribed),
+    [pending, filters, subscribed],
+  );
 
   useEffect(
     () => () => {
@@ -87,7 +93,9 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
     setPicked(null);
   };
 
-  const isFiltered = Object.values(filters).some((value) => value !== null);
+  const isFiltered = Object.values(filters).some(
+    (value) => value !== null && value !== false,
+  );
 
   const spinning = pool[frame % Math.max(pool.length, 1)];
 
@@ -203,6 +211,27 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
           )}
         </div>
 
+        {/* Solo con suscripciones marcadas: sin ellas, "lo que puedo ver
+            ya" no tiene contra qué compararse. */}
+        {hasSubscriptions(subscriptions) && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              aria-pressed={filters.availableNow}
+              onClick={() => setFilters((f) => ({ ...f, availableNow: !f.availableNow }))}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
+                filters.availableNow
+                  ? 'bg-accent text-accent-contrast border-accent font-medium'
+                  : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
+              )}
+            >
+              <Zap size={16} aria-hidden="true" />
+              Lo que puedo ver ya
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-center gap-3 text-sm">
           <p aria-live="polite" className="text-text-muted">
             {pool.length === 0
@@ -221,7 +250,9 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
         </div>
 
         {/* Sortear por plataforma es usar los datos de JustWatch. */}
-        {filters.provider && <JustWatchCredit className="text-center" />}
+        {(filters.provider || filters.availableNow) && (
+          <JustWatchCredit className="text-center" />
+        )}
       </div>
 
       {isSpinning ? (

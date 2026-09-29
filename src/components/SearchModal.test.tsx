@@ -54,6 +54,7 @@ vi.mock('@/lib/tmdb', () => ({
   getGenreNames: (ids: number[]) =>
     ids.map((id) => (id === 10765 ? 'Sci-Fi y Fantasía' : '')).filter(Boolean),
   TMDB_IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',
+  TMDB_LOGO_URL: 'https://image.tmdb.org/t/p/w92',
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
 }));
 

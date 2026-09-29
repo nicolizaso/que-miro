@@ -3,6 +3,7 @@ import {
   getMediaDetail,
   TMDB_IMAGE_BASE_URL,
   TMDB_IMAGE_ORIGINAL_URL,
+  TMDB_LOGO_URL,
 } from '@/lib/tmdb';
 import { canonicalGenreNames } from '@/lib/genres';
 import { MediaStatus, SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
@@ -28,9 +29,12 @@ import { JustWatchCredit } from '@/components/Attribution';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
 import { enrichFromDetail, isStale } from '@/lib/enrich';
-import { pickProviders } from '@/lib/providers';
+import { ProviderLogo, pickProviders } from '@/lib/providers';
+import { paysFor, subscribedNames } from '@/lib/subscriptions';
 import { newEpisodesSummary } from '@/lib/progress';
 import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
+import { cn } from '@/lib/utils';
+import { useMediaStore } from '@/store';
 import { getRegionName, usePreferences } from '@/preferences';
 
 interface Props {
@@ -71,6 +75,59 @@ const QUICK_ADD: { status: MediaStatus; listName: string }[] = [
   // que es como se llama la pestaña a la que fue a parar.
   { status: 'completada', listName: 'Completadas' },
 ];
+
+/**
+ * Un grupo de plataformas —incluidas o de alquiler— con sus logos. Las que
+ * pagás llevan un anillo y lo dicen: es lo que responde "¿lo puedo ver ya?".
+ */
+function ProviderGroup({
+  label,
+  providers,
+  subscribed,
+}: {
+  label: string;
+  providers: ProviderLogo[];
+  subscribed: Set<string>;
+}) {
+  if (providers.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-eyebrow text-text-subtle">{label}</span>
+      <ul className="flex flex-wrap gap-3">
+        {providers.slice(0, 6).map((provider) => {
+          const isMine = paysFor(subscribed, provider.provider_name);
+          return (
+            <li
+              key={provider.provider_name}
+              className="flex flex-col items-center gap-1 w-14"
+              title={provider.provider_name}
+            >
+              <span
+                className={cn(
+                  'block w-12 h-12 rounded-control bg-border-card overflow-hidden',
+                  isMine && 'ring-2 ring-accent ring-offset-2 ring-offset-bg-card',
+                )}
+              >
+                <img
+                  src={`${TMDB_LOGO_URL}${provider.logo_path}`}
+                  alt={isMine ? `${provider.provider_name} (la pagás)` : provider.provider_name}
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+              </span>
+              {isMine && (
+                <span aria-hidden="true" className="text-[10px] font-medium text-accent">
+                  La pagás
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Props) {
   const [detail, setDetail] = useState<TMDbDetail | null>(null);
@@ -168,7 +225,9 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   const cast = detail?.credits?.cast?.slice(0, 5) ?? [];
 
   const picked = pickProviders(detail, preferredRegion);
-  const allProviders = picked?.providers.slice(0, 4) ?? [];
+  const allProviders = picked?.providers ?? [];
+  const subscriptions = useMediaStore((state) => state.subscriptions);
+  const subscribed = subscribedNames(subscriptions);
 
   // El store manda; `justSaved` solo cubre el instante entre guardar y que el
   // título vuelva desde ahí.
@@ -532,22 +591,21 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                           cambiar el país en tu perfil.
                         </p>
                       )}
-                      <ul className="flex gap-3 mt-3">
-                        {allProviders.map((p) => (
-                          <li
-                            key={p.provider_name}
-                            className="w-12 h-12 rounded-control bg-border-card overflow-hidden shrink-0"
-                            title={p.provider_name}
-                          >
-                            <img
-                              src={`${TMDB_IMAGE_BASE_URL}${p.logo_path}`}
-                              alt={p.provider_name}
-                              loading="lazy"
-                              className="w-full h-full object-cover"
-                            />
-                          </li>
-                        ))}
-                      </ul>
+                      {/* Incluido primero y aparte: "está en Prime Video" podía
+                          ser incluido o alquiler, y para decidir qué ver esta
+                          noche son dos respuestas opuestas. */}
+                      <div className="flex flex-col gap-4 mt-3">
+                        <ProviderGroup
+                          label="Incluido en"
+                          providers={picked.included}
+                          subscribed={subscribed}
+                        />
+                        <ProviderGroup
+                          label="Alquiler o compra"
+                          providers={picked.rentOrBuy}
+                          subscribed={subscribed}
+                        />
+                      </div>
                       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-3">
                         {/* La API da nombres y logos, pero los enlaces a cada
                             plataforma viven en la página de TMDB. */}

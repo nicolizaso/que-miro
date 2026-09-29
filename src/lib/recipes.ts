@@ -1,4 +1,4 @@
-import { SavedMedia, TMDbResult, TastePicks } from '@/types';
+import { SavedMedia, Subscriptions, TMDbResult, TastePicks } from '@/types';
 import { Taste, directedAbandoned, resemblesAbandoned } from '@/lib/taste';
 import {
   getDiscover,
@@ -62,6 +62,11 @@ export interface RecipeContext {
   picks: TastePicks;
   /** País para el catálogo de plataformas. */
   region: string;
+  /**
+   * Las plataformas que la persona dijo que paga. Opcional: sin ellas, la
+   * fila de plataforma sale de las que aparecen en su biblioteca.
+   */
+  subscriptions?: Subscriptions;
 }
 
 /** Una forma de armar filas. Si no hay señal, no devuelve ninguna. */
@@ -408,26 +413,39 @@ export const RECIPES: Recipe[] = [
   {
     // 12. Lo que podés mirar esta noche sin pagar nada nuevo.
     id: 'plataforma',
-    build: ({ taste, region }) =>
-      taste.providers
-        .filter((provider) => provider.count >= 2)
-        .slice(0, 2)
-        .map((provider) => ({
-          id: `plataforma-${provider.name}`,
-          family: 'catalogo',
-          title: `Está en tu ${provider.name}`,
-          // El catálogo de cada plataforma es de JustWatch, y hay que decirlo
-          // donde se muestra.
-          subtitle: 'Bien puntuadas y disponibles donde ya mirás, según JustWatch.',
-          weight: 8,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              provider: provider.name,
-              region,
-              sort: 'rating',
-            }),
-        })),
+    build: ({ taste, region, subscriptions }) => {
+      // Lo declarado primero, como en QM-3: si dijiste qué pagás, no hay nada
+      // que deducir, y pesa más que lo que salió de contar logos en tu
+      // biblioteca.
+      const declared = subscriptions?.providers ?? [];
+      const sources =
+        declared.length > 0
+          ? declared.slice(0, 2).map((provider) => ({ name: provider.name, weight: 10 }))
+          : taste.providers
+              .filter((provider) => provider.count >= 2)
+              .slice(0, 2)
+              .map((provider) => ({ name: provider.name, weight: 8 }));
+
+      return sources.map(({ name, weight }) => ({
+        id: `plataforma-${name}`,
+        family: 'catalogo',
+        title: `Está en tu ${name}`,
+        // El catálogo de cada plataforma es de JustWatch, y hay que decirlo
+        // donde se muestra.
+        subtitle:
+          declared.length > 0
+            ? 'Bien puntuadas e incluidas en lo que pagás, según JustWatch.'
+            : 'Bien puntuadas y disponibles donde ya mirás, según JustWatch.',
+        weight,
+        fetch: () =>
+          getDiscover({
+            mediaType: 'movie',
+            provider: name,
+            region,
+            sort: 'rating',
+          }),
+      }));
+    },
   },
   {
     // 13. Para la noche en la que no da para tres horas.
