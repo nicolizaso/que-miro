@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import {
   BellDot,
@@ -366,97 +366,89 @@ export function ListView() {
       )}
 
       {/*
-        `mode="wait"`, y con una llave en cada rama.
+        Sin AnimatePresence, a propósito: cada rama se funde al entrar y se va
+        sin animación.
 
-        Antes era `popLayout` y la rama de la grilla no llevaba `key`, que son
-        dos maneras de pedirle a AnimatePresence lo que no sabe hacer:
-        `popLayout` saca de flujo a lo que sale —lo reposiciona en absoluto
-        para medirlo— y sirve entre hermanos de una lista, no entre dos
-        pantallas que se reemplazan; y sin llave no puede distinguir una rama
-        de la otra, así que la salida queda mal contabilizada y termina
-        animando nodos que ya no están en el documento. De ahí el
-        `Cannot read properties of undefined (reading 'startTime')` al entrar
-        a una lista: motion intenta resolver los fotogramas de un elemento
-        que ya se fue.
-
-        Con `wait` la saliente termina antes de que entre la otra: una sola
-        pantalla viva a la vez y nada que medir fuera de flujo.
+        Antes esto era un AnimatePresence en modo `wait`, que hace esperar a la
+        pantalla que entra hasta que termina de irse la que sale. Si en esos
+        150 ms cambiaba lo que había que mostrar —cargar el demo y tocar
+        enseguida otra pestaña—, la grilla entraba con la foto vieja y se
+        quedaba así: la pestaña decía "Completadas" y las tarjetas eran las de
+        "Por Ver". Y antes de eso, con `popLayout`, animaba nodos que ya no
+        estaban en el documento (el `reading 'startTime'`). Un fundido de
+        salida de 150 ms no vale ninguno de los dos problemas.
       */}
-      <AnimatePresence mode="wait" initial={false}>
-        {filteredList.length === 0 ? (
-          <motion.div
-            key="vacio"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="flex flex-col items-center justify-center py-20 text-text-muted text-center"
-          >
-            {isFiltered ? (
-              <>
-                <p>Ningún título coincide con estos filtros.</p>
-                <button
-                  onClick={clearFilters}
-                  className="text-sm mt-3 text-accent underline underline-offset-4"
-                >
-                  Limpiar filtros
-                </button>
-              </>
-            ) : (
-              <>
-                <p>No tenés títulos en esta lista.</p>
-                <p className="text-sm mt-2">
-                  Buscá algo con ⌘K, o mirá qué se está viendo.
-                </p>
-                <Link
-                  to="/explorar"
-                  className="btn btn-primary mt-6 px-4 py-2.5 text-sm"
-                >
-                  <Compass size={16} aria-hidden="true" />
-                  Explorar títulos
-                </Link>
-                {/* Con la biblioteca entera vacía, ofrecer el demo es más útil
-                    que un cartel: es también la única puerta al demo cuando la
-                    instalación no tiene Firebase y nunca se ve el login. */}
-                {mediaList.length === 0 && authState !== 'demo' && (
-                  <button
-                    onClick={startDemo}
-                    className="btn btn-secondary bg-transparent mt-3 px-4 py-2.5 text-sm"
-                  >
-                    <Sparkles size={16} aria-hidden="true" />
-                    Ver una biblioteca de ejemplo
-                  </button>
-                )}
-              </>
-            )}
-          </motion.div>
-        ) : (
-          <motion.div
-            // La grilla no lleva `layout`: es una grilla de CSS, su alto sale
-            // del contenido y proyectarla solo agregaba medición a cada
-            // cambio de lista. El `layout` que importa es el de cada tarjeta,
-            // que es lo que se reordena al cambiar el orden.
-            key="grilla"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-          >
-            {filteredList.map((media) => (
-              <motion.div
-                key={media.tmdbId}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.2 }}
+      {filteredList.length === 0 ? (
+        <motion.div
+          key="vacio"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.15 }}
+          className="flex flex-col items-center justify-center py-20 text-text-muted text-center"
+        >
+          {isFiltered ? (
+            <>
+              <p>Ningún título coincide con estos filtros.</p>
+              <button
+                onClick={clearFilters}
+                className="text-sm mt-3 text-accent underline underline-offset-4"
               >
-                <MediaCard media={media} />
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                Limpiar filtros
+              </button>
+            </>
+          ) : (
+            <>
+              <p>No tenés títulos en esta lista.</p>
+              <p className="text-sm mt-2">
+                Buscá algo con ⌘K, o mirá qué se está viendo.
+              </p>
+              <Link
+                to="/explorar"
+                className="btn btn-primary mt-6 px-4 py-2.5 text-sm"
+              >
+                <Compass size={16} aria-hidden="true" />
+                Explorar títulos
+              </Link>
+              {/* Con la biblioteca entera vacía, ofrecer el demo es más útil
+                  que un cartel: es también la única puerta al demo cuando la
+                  instalación no tiene Firebase y nunca se ve el login. */}
+              {mediaList.length === 0 && authState !== 'demo' && (
+                <button
+                  onClick={startDemo}
+                  className="btn btn-secondary bg-transparent mt-3 px-4 py-2.5 text-sm"
+                >
+                  <Sparkles size={16} aria-hidden="true" />
+                  Ver una biblioteca de ejemplo
+                </button>
+              )}
+            </>
+          )}
+        </motion.div>
+      ) : (
+        <motion.div
+          // La grilla no lleva `layout`: es una grilla de CSS, su alto sale
+          // del contenido y proyectarla solo agregaba medición a cada
+          // cambio de lista. El `layout` que importa es el de cada tarjeta,
+          // que es lo que se reordena al cambiar el orden.
+          key="grilla"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.15 }}
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+        >
+          {filteredList.map((media) => (
+            <motion.div
+              key={media.tmdbId}
+              layout
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              <MediaCard media={media} />
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
     </div>
   );
 }
