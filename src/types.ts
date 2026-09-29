@@ -60,6 +60,15 @@ export interface SeasonInfo {
   seasonNumber: number;
   name: string;
   episodeCount: number;
+  /**
+   * Minutos que dura la temporada entera, sumando episodio por episodio.
+   *
+   * Opcional: se conoce recién cuando alguien despliega la temporada y llegan
+   * sus episodios, y solo si todos traen duración. Es mejor dato que "lo que
+   * dura el primer episodio por la cantidad de episodios", que en una serie
+   * con un piloto largo o un final de dos horas se equivoca feo.
+   */
+  totalRuntime?: number;
 }
 
 /**
@@ -226,6 +235,28 @@ export interface TMDbCompany {
   id: number;
   name: string;
   logo_path: string | null;
+}
+
+/** Un episodio de una temporada, como lo reenvía `/api/tmdb/season`. */
+export interface TMDbEpisode {
+  episode_number: number;
+  name: string;
+  overview: string;
+  /** `YYYY-MM-DD`, o `null` si todavía no tiene fecha. */
+  air_date: string | null;
+  /** Minutos, o `null` si todavía no se sabe. */
+  runtime: number | null;
+  still_path: string | null;
+  vote_average: number;
+  /** `standard`, `mid_season` o `finale`. */
+  episode_type: string | null;
+}
+
+/** Una temporada con sus episodios. */
+export interface TMDbSeason {
+  season_number: number;
+  name: string;
+  episodes: TMDbEpisode[];
 }
 
 /** Un episodio como lo manda TMDB en `last_episode_to_air` y `next_episode_to_air`. */

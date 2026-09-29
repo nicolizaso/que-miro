@@ -31,7 +31,10 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   disponible, según el país que elijas, con un enlace a la página que lleva
   directo a cada una.
 - **Progreso de series** — marcá episodios de a uno o por temporada entera, con
-  barra de progreso y un "vas por T2E5" para retomar donde dejaste.
+  barra de progreso y un "vas por T2E5" para retomar donde dejaste. Cada
+  temporada muestra sus episodios con nombre, fecha, duración e imagen; lo que
+  todavía no salió aparece con su fecha, y la sinopsis de lo que no viste queda
+  escondida hasta que la pedís.
 - **Reseñas propias** — puntaje de 0,5 a 5 estrellas (con medias estrellas),
   comentario y etiquetas de ánimo.
 - **Historial de visionados** — volver a ver algo suma una entrada nueva en vez
@@ -177,6 +180,7 @@ api/                  Funciones serverless (Vercel)
   tmdb/discover.ts    GET /api/tmdb/discover?type=&genre=&from=&original=&provider=…
   tmdb/person.ts      GET /api/tmdb/person?id=&role=reparto|direccion
   tmdb/saga.ts        GET /api/tmdb/saga?id=
+  tmdb/season.ts      GET /api/tmdb/season?id=&season= (episodios, recortados)
                       (todos aceptan &lang=es-ES|es-MX; sin él, es-ES)
   u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
 e2e/                  Tests de punta a punta (Playwright)

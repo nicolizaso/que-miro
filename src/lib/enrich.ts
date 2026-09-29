@@ -3,6 +3,7 @@ import {
   Keyword,
   Person,
   SavedMedia,
+  SeasonInfo,
   SeriesStatus,
   TMDbDetail,
   TMDbEpisodeToAir,
@@ -229,6 +230,28 @@ export function enrichFromDetail(
         }
       : {}),
   };
+}
+
+/**
+ * Las temporadas recién traídas, con lo que la biblioteca ya sabía de ellas.
+ *
+ * La ficha de TMDB no trae la duración de cada temporada: esa se calcula
+ * cuando alguien la despliega. Sin esto, cada refresco la borraría. Se
+ * conserva solo si la temporada tiene los mismos episodios que cuando se
+ * calculó: si sumó uno, esa suma ya no es cierta.
+ */
+export function mergeSeasons(
+  fresh: SeasonInfo[] | undefined,
+  saved: SeasonInfo[] | undefined,
+): SeasonInfo[] | undefined {
+  if (!fresh || !saved?.length) return fresh;
+
+  return fresh.map((season) => {
+    const previous = saved.find((item) => item.seasonNumber === season.seasonNumber);
+    return previous?.totalRuntime && previous.episodeCount === season.episodeCount
+      ? { ...season, totalRuntime: previous.totalRuntime }
+      : season;
+  });
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

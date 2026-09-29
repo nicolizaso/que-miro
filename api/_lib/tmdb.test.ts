@@ -6,6 +6,7 @@ import {
   getMediaDetail,
   getPersonCredits,
   getRecommendations,
+  getSeason,
   getTrending,
   parseDiscoverQuery,
   parseId,
@@ -13,6 +14,7 @@ import {
   parseListKind,
   parseMediaType,
   parseSearchKind,
+  parseSeasonNumber,
   parseTrendingWindow,
   searchCompanies,
   searchMulti,
@@ -756,5 +758,146 @@ describe('el idioma de los textos', () => {
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe('la temporada de una serie', () => {
+  const originalKey = process.env.TMDB_API_KEY;
+
+  beforeEach(() => {
+    process.env.TMDB_API_KEY = 'test-key';
+    clearCache();
+  });
+
+  afterEach(() => {
+    process.env.TMDB_API_KEY = originalKey;
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  /** Un episodio como lo manda TMDB, con todo lo que la app no usa. */
+  function rawEpisode(number: number, overrides: Record<string, unknown> = {}) {
+    return {
+      id: 1000 + number,
+      episode_number: number,
+      season_number: 2,
+      name: `Episodio ${number}`,
+      overview: `Pasa algo en el ${number}.`,
+      air_date: '2025-01-17',
+      runtime: 52,
+      still_path: `/still-${number}.jpg`,
+      vote_average: 8.4,
+      vote_count: 120,
+      episode_type: 'standard',
+      production_code: '',
+      show_id: 95396,
+      crew: [{ id: 1, name: 'Alguien', job: 'Director' }],
+      guest_stars: [{ id: 2, name: 'Otra persona', character: 'Invitada' }],
+      ...overrides,
+    };
+  }
+
+  function stubSeason(byLanguage: Record<string, unknown>) {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      const language = new URL(url).searchParams.get('language') ?? '';
+      return { ok: true, status: 200, json: async () => byLanguage[language] };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  describe('parseSeasonNumber', () => {
+    it('acepta los especiales y las temporadas normales', () => {
+      expect(parseSeasonNumber('0')).toBe(0);
+      expect(parseSeasonNumber(3)).toBe(3);
+    });
+
+    it.each([undefined, '', '-1', '1.5', 'dos', '201'])('rechaza %o con un 400', (value) => {
+      expect(() => parseSeasonNumber(value)).toThrow(TmdbError);
+    });
+  });
+
+  it('reenvía solo lo que la app dibuja de cada episodio', async () => {
+    stubSeason({
+      'es-ES': {
+        _id: 'x',
+        season_number: 2,
+        name: 'Temporada 2',
+        overview: 'La temporada entera.',
+        episodes: [rawEpisode(1, { episode_type: 'finale' })],
+      },
+    });
+
+    const season = await getSeason(95396, 2);
+
+    expect(season).toEqual({
+      season_number: 2,
+      name: 'Temporada 2',
+      episodes: [
+        {
+          episode_number: 1,
+          name: 'Episodio 1',
+          overview: 'Pasa algo en el 1.',
+          air_date: '2025-01-17',
+          runtime: 52,
+          still_path: '/still-1.jpg',
+          vote_average: 8.4,
+          episode_type: 'finale',
+        },
+      ],
+    });
+    // Ni el equipo ni las invitadas: son cientos de personas por temporada.
+    expect(JSON.stringify(season)).not.toContain('guest_stars');
+    expect(JSON.stringify(season)).not.toContain('crew');
+  });
+
+  it('un episodio sin anunciar llega con fecha y duración vacías', async () => {
+    stubSeason({
+      'es-ES': {
+        season_number: 3,
+        episodes: [rawEpisode(1, { air_date: '', runtime: null, still_path: null })],
+      },
+    });
+
+    const [episode] = (await getSeason(95396, 3)).episodes;
+
+    expect(episode.air_date).toBeNull();
+    expect(episode.runtime).toBeNull();
+    expect(episode.still_path).toBeNull();
+  });
+
+  it('en latino completa las sinopsis que faltan con las de España', async () => {
+    const fetchMock = stubSeason({
+      'es-MX': {
+        season_number: 2,
+        episodes: [rawEpisode(1), rawEpisode(2, { overview: '' })],
+      },
+      'es-ES': {
+        season_number: 2,
+        episodes: [rawEpisode(1, { overview: 'Otra' }), rawEpisode(2, { overview: 'La de España.' })],
+      },
+    });
+
+    const season = await getSeason(95396, 2, 'es-MX');
+
+    expect(season.episodes.map((episode) => episode.overview)).toEqual([
+      'Pasa algo en el 1.',
+      'La de España.',
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('cachea por serie, temporada e idioma', async () => {
+    const fetchMock = stubSeason({
+      'es-ES': { season_number: 1, episodes: [rawEpisode(1)] },
+      'es-MX': { season_number: 1, episodes: [rawEpisode(1)] },
+    });
+
+    await getSeason(95396, 1);
+    await getSeason(95396, 1);
+    await getSeason(95396, 2);
+    await getSeason(95396, 1, 'es-MX');
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

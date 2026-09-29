@@ -91,6 +91,44 @@ describe('runtimeMinutes', () => {
 
     expect(runtimeMinutes(serie)).toBe(50 * 10);
   });
+
+  it('prefiere la duración real de la temporada a estimarla con el primer episodio', () => {
+    // El piloto dura 70 y el resto 45: "70 × 8" se pasaba por más de tres horas.
+    const serie = makeMedia({
+      mediaType: 'tv',
+      runtime: 70,
+      totalEpisodes: 8,
+      seasons: [{ seasonNumber: 1, name: 'T1', episodeCount: 8, totalRuntime: 70 + 45 * 7 }],
+    });
+
+    expect(runtimeMinutes(serie)).toBe(385);
+  });
+
+  it('mezcla temporadas conocidas y estimadas', () => {
+    const serie = makeMedia({
+      mediaType: 'tv',
+      runtime: 50,
+      seasons: [
+        { seasonNumber: 1, name: 'T1', episodeCount: 8, totalRuntime: 380 },
+        { seasonNumber: 2, name: 'T2', episodeCount: 10 },
+      ],
+    });
+
+    expect(runtimeMinutes(serie)).toBe(380 + 50 * 10);
+  });
+
+  it('los especiales no suman, ni con su duración conocida', () => {
+    const serie = makeMedia({
+      mediaType: 'tv',
+      runtime: 50,
+      seasons: [
+        { seasonNumber: 0, name: 'Especiales', episodeCount: 3, totalRuntime: 200 },
+        { seasonNumber: 1, name: 'T1', episodeCount: 8, totalRuntime: 400 },
+      ],
+    });
+
+    expect(runtimeMinutes(serie)).toBe(400);
+  });
 });
 
 describe('totalMinutes', () => {
@@ -120,6 +158,24 @@ describe('totalMinutes', () => {
     ];
 
     expect(totalMinutes(list)).toBe(150);
+  });
+
+  it('en una serie a medias, lo marcado usa la duración real de su temporada', () => {
+    const list = [
+      makeMedia({
+        mediaType: 'tv',
+        status: 'viendo',
+        runtime: 70,
+        seasons: [
+          { seasonNumber: 1, name: 'T1', episodeCount: 4, totalRuntime: 200 },
+          { seasonNumber: 2, name: 'T2', episodeCount: 4 },
+        ],
+        progress: { watched: { 1: [1, 2], 2: [1] } },
+      }),
+    ];
+
+    // Dos de la primera a 50 de promedio, uno de la segunda estimado en 70.
+    expect(totalMinutes(list)).toBe(2 * 50 + 70);
   });
 
   it('una serie terminada cuenta entera, no solo lo marcado', () => {

@@ -52,6 +52,12 @@ export const RECOMMENDATIONS_TTL = 60 * 60 * 24;
 export const DISCOVER_TTL = 60 * 60 * 6;
 /** La filmografía de una persona y las partes de una saga: un día entero. */
 export const PERSON_TTL = 60 * 60 * 24;
+/**
+ * Una temporada: seis horas. Los episodios que ya salieron no cambian, pero a
+ * los que vienen TMDB les va cargando fecha, nombre y duración a medida que se
+ * anuncian, y una temporada en emisión suma uno por semana.
+ */
+export const SEASON_TTL = 60 * 60 * 6;
 
 /** Error con el status HTTP que le corresponde devolver al cliente. */
 export class TmdbError extends Error {
@@ -335,6 +341,125 @@ export async function getMediaDetail(
   }
 
   return detail;
+}
+
+/**
+ * El número de temporada más alto que se acepta.
+ *
+ * Holgado: hay series de noticias y concursos con más de cincuenta. El tope
+ * existe para que la ruta pública no sirva para barrer números al azar.
+ */
+export const MAX_SEASON = 200;
+
+/** Valida el número de temporada: un entero, del 0 (especiales) al tope. */
+export function parseSeasonNumber(value: unknown): number {
+  const season = value === '' || value === undefined ? NaN : Number(value);
+  if (!Number.isInteger(season) || season < 0 || season > MAX_SEASON) {
+    throw new TmdbError(
+      `El parámetro 'season' debe ser un entero entre 0 y ${MAX_SEASON}.`,
+      400,
+    );
+  }
+  return season;
+}
+
+/** Un episodio con los campos que la app dibuja y ninguno más. */
+export interface SeasonEpisode {
+  episode_number: number;
+  name: string;
+  overview: string;
+  air_date: string | null;
+  runtime: number | null;
+  still_path: string | null;
+  vote_average: number;
+  /** `standard`, `mid_season` o `finale`: así marca TMDB los finales. */
+  episode_type: string | null;
+}
+
+export interface SeasonDetail {
+  season_number: number;
+  name: string;
+  episodes: SeasonEpisode[];
+}
+
+/** Un episodio crudo de TMDB, con lo poco que se lee de él. */
+type RawEpisode = Record<string, unknown>;
+
+/**
+ * Recorta un episodio a lo que la app usa.
+ *
+ * Cada episodio de TMDB trae su `crew` y sus `guest_stars` enteros —en una
+ * temporada larga, cientos de personas— que acá no mira nadie y multiplican
+ * el peso de la respuesta.
+ */
+export function trimEpisode(raw: RawEpisode): SeasonEpisode {
+  const runtime = Number(raw.runtime);
+  const vote = Number(raw.vote_average);
+  return {
+    episode_number: Number(raw.episode_number) || 0,
+    name: typeof raw.name === 'string' ? raw.name : '',
+    overview: typeof raw.overview === 'string' ? raw.overview : '',
+    air_date: typeof raw.air_date === 'string' && raw.air_date ? raw.air_date : null,
+    runtime: Number.isFinite(runtime) && runtime > 0 ? runtime : null,
+    still_path: typeof raw.still_path === 'string' ? raw.still_path : null,
+    vote_average: Number.isFinite(vote) ? vote : 0,
+    episode_type: typeof raw.episode_type === 'string' ? raw.episode_type : null,
+  };
+}
+
+/**
+ * Los episodios de una temporada, con nombre, fecha, duración e imagen.
+ *
+ * En latino, igual que en la ficha, las sinopsis que falten se completan con
+ * las de España: una segunda llamada, solo si hace falta, que queda cacheada
+ * con la primera.
+ */
+export async function getSeason(
+  id: number,
+  season: number,
+  language: Language = DEFAULT_LANGUAGE,
+): Promise<SeasonDetail> {
+  return withCache(`season:${id}:${season}:${language}`, SEASON_TTL, async () => {
+    const data = await fetchTMDB<{
+      season_number?: number;
+      name?: string;
+      episodes?: RawEpisode[];
+    }>(`/tv/${id}/season/${season}`, {}, language);
+
+    const episodes = (data.episodes ?? [])
+      .map(trimEpisode)
+      .filter((episode) => episode.episode_number > 0);
+
+    if (language !== DEFAULT_LANGUAGE && episodes.some((episode) => !episode.overview)) {
+      try {
+        const fallback = await fetchTMDB<{ episodes?: RawEpisode[] }>(
+          `/tv/${id}/season/${season}`,
+          {},
+          DEFAULT_LANGUAGE,
+        );
+        const overviews = new Map(
+          (fallback.episodes ?? []).map((raw) => [
+            Number(raw.episode_number),
+            typeof raw.overview === 'string' ? raw.overview : '',
+          ]),
+        );
+        for (const episode of episodes) {
+          if (!episode.overview) {
+            episode.overview = overviews.get(episode.episode_number) ?? '';
+          }
+        }
+      } catch {
+        // Sin respaldo, quedan las que había: una sinopsis que falta no
+        // justifica perder la temporada entera.
+      }
+    }
+
+    return {
+      season_number: Number(data.season_number ?? season),
+      name: data.name || `Temporada ${season}`,
+      episodes,
+    };
+  });
 }
 
 /** Valida el `mediaType` que llega por la request antes de pegarle a TMDB. */

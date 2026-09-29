@@ -5,7 +5,7 @@ import { usePreferences } from '@/preferences';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { getMediaDetail } from '@/lib/tmdb';
-import { MediaEnrichment, enrichFromDetail } from '@/lib/enrich';
+import { MediaEnrichment, enrichFromDetail, mergeSeasons } from '@/lib/enrich';
 import { completeProgress } from '@/lib/progress';
 import { SavedMedia, MediaStatus, SeriesProgress, WatchEntry } from '@/types';
 
@@ -185,7 +185,12 @@ export function useMediaActions() {
    * plano, el completado del reparto y lo que la ficha completa al abrirse.
    */
   const applyEnrichment = (media: SavedMedia, enrichment: MediaEnrichment) => {
-    writeSilently(media.tmdbId, enrichment);
+    writeSilently(
+      media.tmdbId,
+      'seasons' in enrichment
+        ? { ...enrichment, seasons: mergeSeasons(enrichment.seasons, media.seasons) }
+        : enrichment,
+    );
   };
 
   const updateStatus = async (tmdbId: number, status: MediaStatus) => {

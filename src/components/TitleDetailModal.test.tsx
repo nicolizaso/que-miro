@@ -39,8 +39,14 @@ const getMediaDetail = vi.fn(async () => detail);
 
 vi.mock('@/lib/tmdb', () => ({
   getMediaDetail: (...args: unknown[]) => getMediaDetail(...(args as [])),
+  // Sin los episodios, la temporada queda en su grilla de números.
+  getSeason: async () => {
+    throw new Error('sin red');
+  },
+  currentLanguage: () => 'es-ES',
   TMDB_IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
+  TMDB_STILL_URL: 'https://image.tmdb.org/t/p/w300',
 }));
 
 const { TitleDetailModal } = await import('@/components/TitleDetailModal');

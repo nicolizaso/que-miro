@@ -1,4 +1,4 @@
-import { SavedMedia, WatchEntry } from '@/types';
+import { SavedMedia, SeasonInfo, WatchEntry } from '@/types';
 import { countableSeasons, watchedEpisodes } from '@/lib/progress';
 
 /** Un visionado junto al título al que pertenece. */
@@ -31,18 +31,53 @@ export function allWatches(list: SavedMedia[]): Watch[] {
     );
 }
 
-/** Minutos que lleva ver un título una vez, de punta a punta. */
+/**
+ * Minutos que dura un episodio de esa temporada, en promedio.
+ *
+ * Si ya se sabe cuánto dura la temporada entera, sale de ahí; si no, de lo
+ * que dura un episodio de la serie según TMDB, que en realidad es el primero.
+ */
+function minutesPerEpisode(media: SavedMedia, season: SeasonInfo): number {
+  if (season.totalRuntime && season.episodeCount > 0) {
+    return season.totalRuntime / season.episodeCount;
+  }
+  return media.runtime || DEFAULT_EPISODE_RUNTIME;
+}
+
+/**
+ * Minutos que lleva ver un título una vez, de punta a punta.
+ *
+ * En una serie, temporada por temporada: la que ya se desplegó alguna vez
+ * aporta su duración real, sumada episodio por episodio, y el resto se
+ * estima con la del primer episodio. Estimar todo así se equivocaba feo con un
+ * piloto largo o un final de dos horas.
+ */
 export function runtimeMinutes(media: SavedMedia): number {
   if (media.mediaType === 'movie') {
     return media.runtime || DEFAULT_MOVIE_RUNTIME;
   }
 
-  const perEpisode = media.runtime || DEFAULT_EPISODE_RUNTIME;
-  const episodes =
-    media.totalEpisodes ||
-    countableSeasons(media).reduce((total, s) => total + s.episodeCount, 0);
+  const seasons = countableSeasons(media);
+  if (seasons.length === 0) {
+    return (media.runtime || DEFAULT_EPISODE_RUNTIME) * (media.totalEpisodes || 0);
+  }
 
-  return perEpisode * episodes;
+  return seasons.reduce(
+    (total, season) =>
+      total + (season.totalRuntime ?? minutesPerEpisode(media, season) * season.episodeCount),
+    0,
+  );
+}
+
+/** Minutos de los episodios marcados, temporada por temporada. */
+function watchedMinutes(media: SavedMedia): number {
+  const watched = media.progress?.watched;
+  if (!watched) return 0;
+
+  return countableSeasons(media).reduce((total, season) => {
+    const seen = Math.min(watched[season.seasonNumber]?.length ?? 0, season.episodeCount);
+    return total + seen * minutesPerEpisode(media, season);
+  }, 0);
 }
 
 /**
@@ -59,8 +94,7 @@ export function totalMinutes(list: SavedMedia[]): number {
 
     if (media.mediaType !== 'tv' || times > 0) return total + completed;
 
-    const perEpisode = media.runtime || DEFAULT_EPISODE_RUNTIME;
-    return total + watchedEpisodes(media) * perEpisode;
+    return total + watchedMinutes(media);
   }, 0);
 }
 

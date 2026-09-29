@@ -9,6 +9,7 @@ import {
   TMDbDetail,
   TMDbPerson,
   TMDbResult,
+  TMDbSeason,
 } from '@/types';
 import { usePreferences } from '@/preferences';
 import {
@@ -19,6 +20,8 @@ import {
 
 export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 export const TMDB_IMAGE_ORIGINAL_URL = 'https://image.tmdb.org/t/p/original';
+/** Las imágenes de episodio van chicas: con 300 px de ancho sobra. */
+export const TMDB_STILL_URL = 'https://image.tmdb.org/t/p/w300';
 
 /** Error de red o de la API, con un mensaje ya listo para mostrarle al usuario. */
 export class TMDbRequestError extends Error {}
@@ -164,6 +167,16 @@ export async function getMediaDetail(
 ): Promise<TMDbDetail> {
   return fetchApi<TMDbDetail>(
     withLanguage(`/api/tmdb/detail?type=${mediaType}&id=${id}`),
+  );
+}
+
+/**
+ * Los episodios de una temporada: nombre, sinopsis, fecha, duración e imagen.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function getSeason(id: number, seasonNumber: number): Promise<TMDbSeason> {
+  return fetchApi<TMDbSeason>(
+    withLanguage(`/api/tmdb/season?id=${id}&season=${seasonNumber}`),
   );
 }
 

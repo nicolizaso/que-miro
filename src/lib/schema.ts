@@ -121,6 +121,8 @@ function parseSeasons(value: unknown): SeasonInfo[] | undefined {
       if (!Number.isInteger(seasonNumber) || seasonNumber < 0) return null;
       if (!Number.isInteger(episodeCount) || episodeCount < 0) return null;
 
+      const totalRuntime = Number(season.totalRuntime);
+
       return {
         seasonNumber,
         name:
@@ -128,6 +130,7 @@ function parseSeasons(value: unknown): SeasonInfo[] | undefined {
             ? season.name
             : `Temporada ${seasonNumber}`,
         episodeCount,
+        ...(Number.isFinite(totalRuntime) && totalRuntime > 0 ? { totalRuntime } : {}),
       };
     })
     .filter((season): season is SeasonInfo => season !== null);

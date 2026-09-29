@@ -25,6 +25,36 @@ export function toDayKey(date: Date): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+/**
+ * El día de TMDB como fecha local, a las 00:00.
+ *
+ * `new Date('2026-10-03')` lo lee como medianoche en UTC, que en Buenos Aires
+ * es el día anterior a las 21: un episodio que sale el 3 se mostraría el 2.
+ */
+export function fromDayKey(dayKey: string): Date {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/** "3 de octubre de 2026", para un día de TMDB, sin mover zonas horarias. */
+export function formatDay(dayKey: string): string {
+  if (!isDayKey(dayKey)) return '';
+  return fromDayKey(dayKey).toLocaleDateString(LOCALE, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+/** "3 oct", para listas donde el año se sobreentiende. */
+export function formatShortDay(dayKey: string): string {
+  if (!isDayKey(dayKey)) return '';
+  return fromDayKey(dayKey).toLocaleDateString(LOCALE, {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 /** Si un texto tiene forma de día de TMDB, `YYYY-MM-DD`. */
 export function isDayKey(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);

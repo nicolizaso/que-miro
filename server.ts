@@ -14,6 +14,7 @@ import {
   DISCOVER_TTL,
   PERSON_TTL,
   RECOMMENDATIONS_TTL,
+  SEASON_TTL,
   TRENDING_TTL,
   getDiscover,
   getList,
@@ -21,6 +22,7 @@ import {
   getPersonCredits,
   getRecommendations,
   getSaga,
+  getSeason,
   getSimilar,
   getTrending,
   parseDiscoverQuery,
@@ -30,6 +32,7 @@ import {
   parseMediaType,
   parsePersonRole,
   parseSearchKind,
+  parseSeasonNumber,
   parseTrendingWindow,
   searchCompanies,
   searchMulti,
@@ -155,6 +158,21 @@ async function startServer() {
       );
       res.set(cacheHeaders(PERSON_TTL));
       return res.status(200).json({ results });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/season', async (req, res) => {
+    try {
+      const result = await getSeason(
+        parseId(req.query.id),
+        parseSeasonNumber(req.query.season),
+        parseLanguage(req.query.lang),
+      );
+      res.set(cacheHeaders(SEASON_TTL));
+      return res.status(200).json(result);
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);
