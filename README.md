@@ -284,17 +284,19 @@ api/                  Funciones serverless (Vercel)
   _lib/notify.ts      A quién avisarle qué: la lógica pura del cron de avisos
   _lib/firebaseAdmin.ts  Firebase Admin con credenciales por variables de entorno
   cron/notify.ts      El cron diario de avisos de episodios (ver `vercel.json`)
-  tmdb/search.ts      GET /api/tmdb/search?query=[&kind=person|company]
-  tmdb/detail.ts      GET /api/tmdb/detail?type=&id=
-  tmdb/trending.ts    GET /api/tmdb/trending (tendencias, populares, top)
-  tmdb/recommendations.ts  GET /api/tmdb/recommendations?type=&id=[&mode=similar]
-  tmdb/discover.ts    GET /api/tmdb/discover?type=&genre=&from=&original=&provider=…
-  tmdb/person.ts      GET /api/tmdb/person?id=&role=reparto|direccion
-  tmdb/person-page.ts GET /api/tmdb/person-page?id= (datos y filmografía, en una)
-  tmdb/saga.ts        GET /api/tmdb/saga?id=
-  tmdb/season.ts      GET /api/tmdb/season?id=&season= (episodios, recortados)
-  tmdb/providers.ts   GET /api/tmdb/providers?type=&region= (plataformas del país)
-  tmdb/find.ts        GET /api/tmdb/find?imdb=tt… | ?type=&query=&year= (importar)
+  tmdb/[endpoint].ts  Una sola función para todo /api/tmdb/* (ver _tmdb/routes.ts)
+  _tmdb/routes.ts     Qué nombre va a qué handler: Vercel Hobby admite 12 funciones
+  _tmdb/search.ts     GET /api/tmdb/search?query=[&kind=person|company]
+  _tmdb/detail.ts     GET /api/tmdb/detail?type=&id=
+  _tmdb/trending.ts   GET /api/tmdb/trending (tendencias, populares, top)
+  _tmdb/recommendations.ts GET /api/tmdb/recommendations?type=&id=[&mode=similar]
+  _tmdb/discover.ts   GET /api/tmdb/discover?type=&genre=&from=&original=&provider=…
+  _tmdb/person.ts     GET /api/tmdb/person?id=&role=reparto|direccion
+  _tmdb/person-page.ts GET /api/tmdb/person-page?id= (datos y filmografía, en una)
+  _tmdb/saga.ts       GET /api/tmdb/saga?id=
+  _tmdb/season.ts     GET /api/tmdb/season?id=&season= (episodios, recortados)
+  _tmdb/providers.ts  GET /api/tmdb/providers?type=&region= (plataformas del país)
+  _tmdb/find.ts       GET /api/tmdb/find?imdb=tt… | ?type=&query=&year= (importar)
                       (todos aceptan &lang=es-ES|es-MX; sin él, es-ES)
   u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
   l/[id].ts           Lo mismo para una lista compartida (`/l/{id}`)
@@ -410,6 +412,9 @@ El plan de las próximas etapas está en [`docs/roadmap.md`](docs/roadmap.md).
 El proyecto está configurado para Vercel ([`vercel.json`](vercel.json)):
 
 1. Importá el repo en Vercel — detecta Vite y las funciones de `api/` solo.
+   En el plan Hobby entran hasta 12 funciones por deploy: por eso todo
+   `/api/tmdb/*` es una sola (`api/tmdb/[endpoint].ts`), y un test avisa si
+   `api/` se pasa del tope.
 2. Cargá las variables de entorno en **Settings → Environment Variables**.
 3. Agregá el dominio de Vercel a los dominios autorizados de Firebase.
 

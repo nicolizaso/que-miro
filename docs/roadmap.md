@@ -714,6 +714,13 @@ Explorar armara su fila, sin saber qué de eso ya habías visto.
   biografía, se completa con la de España.
 - *De paso:* el buscador se cierra al cambiar de página y la ficha al irse a
   una persona, para no quedar encima de la página nueva.
+- *Quince funciones no entran en el plan Hobby.* Vercel admite 12 por deploy
+  y cada archivo de `api/` es una; con los endpoints de estas tandas eran
+  quince y el deploy se rechazaba entero (desde las listas compartibles, que
+  hicieron la número trece). Todo `/api/tmdb/*` pasó a ser una sola función,
+  `api/tmdb/[endpoint].ts`, que despacha a los handlers de siempre, ahora en
+  `api/_tmdb/`; las URLs no cambiaron. Un test cuenta las funciones y falla
+  si se pasa del tope.
 
 **Resultado:** se puede llegar con años de historial de otra app y revisarlo
 antes de que toque la biblioteca, y cada nombre del reparto es una puerta
