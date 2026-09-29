@@ -9,6 +9,10 @@
       "destination": "/api/u/:slug"
     },
     {
+      "source": "/cal/:token.ics",
+      "destination": "/api/cal/:token"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

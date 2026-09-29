@@ -10,6 +10,7 @@ import { GoalsPanel } from '@/components/GoalsPanel';
 import { PublicProfileSettings } from '@/components/PublicProfileSettings';
 import { SubscriptionsSettings } from '@/components/SubscriptionsSettings';
 import { NotificationsSettings } from '@/components/NotificationsSettings';
+import { CalendarFeedSettings } from '@/components/CalendarFeedSettings';
 import { AboutSettings } from '@/components/Attribution';
 import { REGIONS, RegionCode, usePreferences } from '@/preferences';
 import { formatWatchDate } from '@/lib/dates';
@@ -263,6 +264,8 @@ export function ProfileSettings() {
       <SubscriptionsSettings />
 
       <NotificationsSettings />
+
+      <CalendarFeedSettings />
 
       <PublicProfileSettings />
 

@@ -112,6 +112,40 @@
       }
     },
     {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/calendar",
+      "description": "Which token the account's subscribable calendar uses; null when turned off. Not in the backup: it is a capability link, not data",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "token", "type": "string", "required": false },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "calendar_feeds",
+      "path": "/calendar_feeds/{token}",
+      "description": "Snapshot behind /cal/{token}.ics: only upcoming episodes (series, season, episode, name, date). Public get by long random token, list forbidden, owner-only writes with immutable uid",
+      "access": {
+        "get": "true",
+        "list": "false",
+        "create": "request.auth != null && request.auth.uid == request.resource.data.uid && token.matches('^[A-Za-z0-9_-]{32,64}$')",
+        "update": "request.auth != null && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid",
+        "delete": "request.auth != null && request.auth.uid == resource.data.uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "events", "type": "list", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
       "collection": "push_subscriptions",
       "path": "/push_subscriptions/{uid}",
       "description": "Snapshot read by the daily episode-alerts cron: device tokens, region, language and only the ids of series with alerts on. Outside users/ so the server never reads the library; owner-only, closed keys",

@@ -19,6 +19,7 @@ import { DeepLinkedTitle } from '@/components/DeepLinkedTitle';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBackgroundRefresh } from '@/hooks/useBackgroundRefresh';
 import { usePushSnapshot } from '@/hooks/usePushSnapshot';
+import { useCalendarFeedSync } from '@/hooks/useCalendarFeed';
 import { cn } from '@/lib/utils';
 
 // El Picker va al medio a propósito: es el botón destacado de la barra
@@ -59,6 +60,7 @@ export function AppLayout() {
   // En el marco y no en una vista: tiene que correr entres por donde entres.
   useBackgroundRefresh();
   usePushSnapshot();
+  useCalendarFeedSync();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

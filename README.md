@@ -88,6 +88,10 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   Ver* con fecha de estreno, agrupado en hoy, esta semana, las próximas y más
   adelante. Una temporada que se estrena entera se ve como tal, y las que
   siguen en emisión sin fecha van aparte.
+- **Tu calendario en la agenda** — una dirección `.ics` para suscribirte desde
+  Google Calendar, Apple Calendar u Outlook: los próximos episodios aparecen
+  solos como eventos de todo el día, y se actualizan cuando abrís la app. Si
+  la compartiste de más, se genera una nueva y la anterior deja de andar.
 - **Smart Picker** — elige al azar de tu lista *Por Ver*, filtrando por duración,
   tipo, género, plataforma, lista o ánimo.
 - **Modo duelo** — comparaciones de a dos que arman un ranking de tu lista, con
@@ -265,6 +269,8 @@ api/                  Funciones serverless (Vercel)
   tmdb/providers.ts   GET /api/tmdb/providers?type=&region= (plataformas del país)
                       (todos aceptan &lang=es-ES|es-MX; sin él, es-ES)
   u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
+  cal/[token].ts      GET /cal/{token}.ics: el calendario suscribible
+  _lib/ics.ts         El generador .ics (RFC 5545): escape, plegado, UID estable
 e2e/                  Tests de punta a punta (Playwright)
 src/
   components/         MediaCard, SearchModal, TitleDetailModal, ReviewDrawer, SyncManager

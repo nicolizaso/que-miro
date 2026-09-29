@@ -27,11 +27,12 @@ precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
 // Cualquier ruta de la app se sirve con `index.html`, igual con o sin red: el
-// router de React se encarga del resto. `/api/` queda afuera: esas son del
-// servidor.
+// router de React se encarga del resto. `/api/` y `/cal/` quedan afuera: son
+// del servidor, y abrir el link del calendario tiene que bajar el `.ics`, no
+// la app.
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('index.html'), {
-    denylist: [/^\/api\//],
+    denylist: [/^\/api\//, /^\/cal\//],
   }),
 );
 

@@ -196,6 +196,14 @@ async function startServer() {
     }
   });
 
+  // El calendario suscribible, con la misma dirección que en producción
+  // (`/cal/{token}.ics`, ver el rewrite de `vercel.json`).
+  app.get('/cal/:token.ics', async (req, res) => {
+    const { default: calendar } = await import('./api/cal/[token].js');
+    req.query.token = req.params.token;
+    return calendar(req as never, res as never);
+  });
+
   // El cron de avisos, para poder dispararlo a mano en local con el mismo
   // `Authorization: Bearer $CRON_SECRET` que manda Vercel. Se importa recién
   // cuando se lo llama: Firebase Admin es pesado y el resto del server no lo

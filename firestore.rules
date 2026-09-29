@@ -20,8 +20,9 @@ service cloud.firestore {
       }
 
       // "Contanos de vos" (`profile/taste`), las metas del año
-      // (`profile/goals`) y las plataformas que se pagan
-      // (`profile/subscriptions`): documentos de la cuenta. Mismo dueño y mismas
+      // (`profile/goals`), las plataformas que se pagan
+      // (`profile/subscriptions`) y el token del calendario suscribible
+      // (`profile/calendar`): documentos de la cuenta. Mismo dueño y mismas
       // reglas que la biblioteca — son datos de la persona, no algo publicado.
       // Un documento nuevo acá no necesita regla nueva: `{docId}` ya lo cubre.
       match /profile/{docId} {
@@ -50,6 +51,43 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.auth.uid == resource.data.uid
         && request.resource.data.uid == resource.data.uid;
+
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+    }
+
+    /**
+     * Calendarios para suscribirse (`/cal/{token}.ics`, ver `api/cal/[token].ts`).
+     *
+     * Google Calendar y compañía piden la dirección sin sesión, así que el
+     * documento se lee sin sesión: `get` es público. Pero solo de a uno y
+     * sabiendo el token —largo y al azar, no el slug del perfil, que se
+     * adivina—: `list` está prohibido para que no se puedan enumerar. Lo que
+     * hay adentro es solo la lista de próximos episodios.
+     *
+     * Escribir exige ser el dueño, y el `uid` no cambia nunca: sin eso,
+     * alguien que conociera un token podría quedárselo reescribiéndolo. El
+     * token tiene que ser largo también acá, no solo en la app.
+     */
+    match /calendar_feeds/{token} {
+      function validFeed() {
+        return request.resource.data.keys().hasOnly(['uid', 'events', 'updatedAt'])
+          && request.resource.data.events is list
+          && request.resource.data.events.size() <= 500;
+      }
+
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.uid
+        && token.matches('^[A-Za-z0-9_-]{32,64}$')
+        && validFeed();
+
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.resource.data.uid == resource.data.uid
+        && validFeed();
 
       allow delete: if request.auth != null
         && request.auth.uid == resource.data.uid;

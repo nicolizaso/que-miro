@@ -14,6 +14,7 @@ import { goalsPath } from '@/hooks/useGoals';
 import { subscriptionsPath } from '@/hooks/useSubscriptions';
 import { pushPath } from '@/lib/push';
 import { releasePushDevice } from '@/lib/pushDevice';
+import { deleteCalendarFeed } from '@/hooks/useCalendarFeed';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -89,6 +90,8 @@ export function useAccountActions() {
       // La instantánea de avisos está fuera de `users/`: sin esto, el cron
       // seguiría avisándole a una cuenta que ya no existe.
       await deleteDoc(doc(db, pushPath(user.uid)));
+      // El calendario publicado también: su link seguiría andando.
+      await deleteCalendarFeed(user.uid);
     } catch (error) {
       console.error('[cuenta] No se pudieron borrar los datos:', error);
       throw new AccountDeletionError(
