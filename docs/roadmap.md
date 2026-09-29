@@ -492,6 +492,91 @@ se lee igual, y una versión vieja de la app no rompe nada nuevo.
 
 ---
 
+## QM-6 — Plataformas y avisos
+
+*Qué podés ver ya, qué llegó y qué sale hoy, sin tener que ir a buscarlo.*
+
+**Qué estaba mal**
+
+"Está en Prime Video" podía ser incluido o alquiler: el enriquecimiento
+juntaba `flatrate`, `rent` y `buy` en una sola lista. La app no sabía qué
+plataformas pagabas, así que no podía responder "¿qué puedo ver esta noche?".
+Las plataformas se anotaban una vez, al guardar el título, y nadie se enteraba
+cuando algo de *Por Ver* llegaba a una. Y para saber que salía un episodio
+había que abrir la app: no había avisos ni forma de llevar el calendario a la
+agenda.
+
+**Cómo quedó implementado**
+
+- **Tus plataformas.** `streaming` guarda lo incluido en una suscripción
+  (`flatrate`, `free`, `ads`) y `providers` queda como estaba, para no romper
+  filtros ni documentos viejos. Las suscripciones se eligen en Ajustes con sus
+  logos (`/api/tmdb/providers`, cacheado un día) y son de la cuenta:
+  `profile/subscriptions`. "Lo que puedo ver ya" filtra biblioteca y picker,
+  Explorar usa lo declarado antes que lo deducido, y la ficha separa "Incluido
+  en" de "Alquiler o compra".
+- **Llegó a tu plataforma.** El refresco en segundo plano compara las
+  plataformas nuevas con las guardadas —con los nombres normalizados: *HBO
+  Max* y *Max* son la misma— y anota `availabilityNews`. Para las películas
+  anotadas antes de salir, el servidor recorta de `release_dates` solo el
+  estreno digital de cada país. Las novedades van en una fila del inicio y no
+  arriba de *Por Ver*: la pregunta "¿qué puedo ver que antes no podía?" se
+  hace al abrir la app. Se descartan con un toque y no vuelven. El servidor no
+  se entera de nada: es el cliente cruzando lo que refrescó.
+- **Avisos push.** `vite-plugin-pwa` pasó a `injectManifest` con un
+  `src/sw.ts` propio que conserva el precache y la caché de pósters, y suma
+  `push` y `notificationclick`, que abre la ficha con `/?ficha=tv:ID`. El
+  permiso se pide solo desde un toque ("Avisame de episodios nuevos", en la
+  ficha o en Ajustes). Lo que ve el servidor es `push_subscriptions/{uid}`:
+  tokens, país, idioma y los ids de las series con aviso, con las claves
+  cerradas en las reglas. El cron diario (`api/cron/notify.ts`, con
+  `CRON_SECRET`) lo lee con `firebase-admin`, pide cada serie una sola vez y
+  manda un aviso por dispositivo —tres series el mismo día son un aviso, no
+  tres—. Los tokens muertos se borran; cerrar sesión saca el del dispositivo.
+  La lógica de a quién avisarle qué es pura y tiene tests. En iPhone y iPad
+  con Safari se explica cómo instalar la app en vez de mostrar un botón que no
+  anda.
+- **Calendario en la agenda.** `calendar_feeds/{token}` es una instantánea con
+  los episodios —serie, temporada, episodio, nombre y fecha— detrás de un
+  token largo y al azar: `get` público, `list` prohibido, `uid` inmutable.
+  `api/cal/[token].ts` la lee por la API REST y arma el `.ics`: eventos de
+  día completo, UID estable por episodio, escape y plegado según RFC 5545. La
+  app la republica con debounce cuando cambia el calendario, y conserva el
+  último mes para que la agenda no borre lo que ya salió. Regenerar el token
+  revoca el link anterior (el borde lo cachea cinco minutos, no más).
+
+**Decisiones y hallazgos**
+
+- *Una temporada que sale entera es un evento*, no diez apilados en el mismo
+  día. Su UID es el del primer episodio, así que sigue siendo estable.
+- *El pedido decía "con debounce, como `usePublishProfile`"*, pero ese hook no
+  tenía debounce: publicaba a mano. El debounce se escribió acá, y la tanda
+  QM-7 lo reusa para el perfil que se actualiza solo.
+- *Dos dispositivos no se pelean.* La instantánea de avisos y la del
+  calendario solo se reescriben cuando cambia lo que calcula ese dispositivo,
+  no cuando otro publica algo distinto; si no, dos pestañas con otro país se
+  corregirían entre sí para siempre.
+- *Un test que pasaba sin probar nada.* El escape del punto y coma del `.ics`
+  había quedado como `'\;'` —en JavaScript, un `;` a secas— en el código y en
+  el test a la vez. Lo encontró pasar un feed de verdad por un parser externo
+  (`icalendar`); los dos quedaron corregidos.
+- *El plan de Vercel.* El proyecto está en Hobby. Ahí los cron jobs corren
+  como mucho una vez por día y con precisión de hora (el de las 13:00 UTC
+  puede dispararse hasta las 13:59), y la función tiene 60 segundos
+  (`maxDuration`), holgados para pedir unas cientos de series con concurrencia
+  acotada. Una corrida diaria alcanza. No se pudo abrir la página de límites de
+  Vercel desde este entorno: conviene confirmarlo en *Settings → Cron Jobs*
+  después del primer deploy.
+
+**Resultado:** la app sabe qué pagás y qué llegó, avisa el día que sale un
+episodio y lleva el calendario a la agenda. El servidor sigue sin leer la
+biblioteca de nadie: todo lo que usa son instantáneas curadas, cada una con
+sus reglas. **Hay que publicar las reglas de Firestore** (`push_subscriptions`
+y `calendar_feeds` son nuevas) y cargar las variables de los avisos (ver el
+README).
+
+---
+
 ## Resumen
 
 ```
@@ -505,4 +590,5 @@ QM3 Contanos       cuestionario de favoritos, 9 recetas declaradas
 Pre Previa         atribución a JustWatch y TMDB, castellano latino
 QM4 Series vivas   refresco, fichas de episodio, al día, continuar, calendario
 QM5 Historial fino fecha por episodio, en pausa y abandonada, puntajes, metas
+QM6 Plataformas    suscripciones, llegó a tu plataforma, avisos push, calendario .ics
 ```
