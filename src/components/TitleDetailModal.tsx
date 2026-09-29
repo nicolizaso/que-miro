@@ -5,7 +5,15 @@ import {
   TMDB_IMAGE_ORIGINAL_URL,
 } from '@/lib/tmdb';
 import { MediaStatus, SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
-import { X, Play, AlertCircle, Check, Loader2, Plus } from 'lucide-react';
+import {
+  X,
+  Play,
+  AlertCircle,
+  Check,
+  ExternalLink,
+  Loader2,
+  Plus,
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
 import { ScrollRail } from '@/components/ui/ScrollRail';
@@ -14,6 +22,7 @@ import { CollectionPicker } from '@/components/CollectionPicker';
 import { WatchHistory } from '@/components/WatchHistory';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { ShareButton } from '@/components/ShareButton';
+import { JustWatchCredit } from '@/components/Attribution';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
 import { enrichFromDetail, isStale } from '@/lib/enrich';
@@ -506,6 +515,23 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                           </li>
                         ))}
                       </ul>
+                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-3">
+                        {/* La API da nombres y logos, pero los enlaces a cada
+                            plataforma viven en la página de TMDB. */}
+                        {picked.link && (
+                          <a
+                            href={picked.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline underline-offset-4"
+                          >
+                            Ver dónde verlo
+                            <ExternalLink size={14} aria-hidden="true" />
+                            <span className="sr-only">(se abre en TMDB)</span>
+                          </a>
+                        )}
+                        <JustWatchCredit />
+                      </div>
                     </div>
                   )}
 

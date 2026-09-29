@@ -5,6 +5,7 @@ import { SavedMedia } from '@/types';
 import { useMediaStore } from '@/store';
 import { MediaCard } from '@/components/MediaCard';
 import { ShareButton } from '@/components/ShareButton';
+import { JustWatchCredit } from '@/components/Attribution';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { collectGenres, collectProviders, collectTags } from '@/lib/library';
 import {
@@ -218,6 +219,9 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
             </button>
           )}
         </div>
+
+        {/* Sortear por plataforma es usar los datos de JustWatch. */}
+        {filters.provider && <JustWatchCredit className="text-center" />}
       </div>
 
       {isSpinning ? (

@@ -295,6 +295,13 @@ export function ListView() {
               <p className="text-text-muted">
                 {filteredList.length} de {inStatus.length}{' '}
                 {inStatus.length === 1 ? 'título' : 'títulos'}
+                {/* Filtrar por plataforma es mostrar datos de JustWatch. */}
+                {filters.provider && (
+                  <span className="text-text-subtle text-xs">
+                    {' '}
+                    · Plataformas según JustWatch
+                  </span>
+                )}
               </p>
               <button
                 onClick={clearFilters}

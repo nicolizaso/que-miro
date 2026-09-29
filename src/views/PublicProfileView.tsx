@@ -211,11 +211,28 @@ export function PublicProfileView() {
         )}
       </main>
 
-      <footer className="border-t border-border-card px-4 py-6 text-center text-sm text-text-subtle">
-        Hecho con{' '}
-        <Link to="/" className="text-accent hover:underline">
-          Qué Miro?
-        </Link>
+      <footer className="border-t border-border-card px-4 py-6 text-center text-sm text-text-subtle flex flex-col gap-2">
+        <p>
+          Hecho con{' '}
+          <Link to="/" className="text-accent hover:underline">
+            Qué Miro?
+          </Link>
+        </p>
+        {/* Quien llega por un link no ve nunca los Ajustes, que es donde vive
+            el resto de la atribución: los pósters de acá también son de TMDB. */}
+        <p className="text-xs">
+          Datos de películas y series de{' '}
+          <a
+            href="https://www.themoviedb.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-text-main"
+          >
+            TMDB
+          </a>
+          . Este producto usa la API de TMDB pero no está avalado ni certificado
+          por TMDB.
+        </p>
       </footer>
     </div>
   );

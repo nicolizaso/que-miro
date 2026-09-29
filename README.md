@@ -25,7 +25,8 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   plataforma, lista o ánimo. Los filtros viven en la URL, así que la vista se
   puede compartir.
 - **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está
-  disponible, según el país que elijas.
+  disponible, según el país que elijas, con un enlace a la página que lleva
+  directo a cada una.
 - **Progreso de series** — marcá episodios de a uno o por temporada entera, con
   barra de progreso y un "vas por T2E5" para retomar donde dejaste.
 - **Reseñas propias** — puntaje de 0,5 a 5 estrellas (con medias estrellas),
@@ -289,3 +290,8 @@ rutas relativas.
 
 Los datos de películas y series vienen de [TMDB](https://www.themoviedb.org/).
 Este producto usa la API de TMDB pero no está avalado ni certificado por TMDB.
+
+Los datos de plataformas —en qué servicio de streaming está cada título— son de
+[JustWatch](https://www.justwatch.com/), y llegan a través de TMDB. La app los
+atribuye donde los muestra: en la ficha de cada título y en la sección
+*Acerca de* de Ajustes, junto al logo y el aviso de TMDB.

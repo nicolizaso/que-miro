@@ -46,6 +46,7 @@ vi.mock('@/lib/tmdb', () => ({
 const { TitleDetailModal } = await import('@/components/TitleDetailModal');
 const { ToastProvider } = await import('@/contexts/ToastContext');
 const { useMediaStore } = await import('@/store');
+const { usePreferences } = await import('@/preferences');
 
 function makeCollection(name: string): Collection {
   return {
@@ -195,5 +196,31 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
       ]),
     );
     expect(useMediaStore.getState().mediaList).toHaveLength(1);
+  });
+});
+
+describe('TitleDetailModal, las plataformas', () => {
+  it('ofrece la página de TMDB con dónde verlo y le atribuye los datos a JustWatch', async () => {
+    const link = 'https://www.themoviedb.org/tv/95396-severance/watch?locale=AR';
+    // jsdom anuncia `en-US`: sin fijarla, la región detectada sería otra.
+    act(() => usePreferences.setState({ region: 'AR' }));
+    getMediaDetail.mockResolvedValueOnce({
+      ...detail,
+      'watch/providers': {
+        results: {
+          AR: {
+            link,
+            flatrate: [{ provider_name: 'Apple TV+', logo_path: '/apple.jpg' }],
+          },
+        },
+      },
+    });
+
+    await renderExploreDetail();
+
+    const whereToWatch = await screen.findByRole('link', { name: /Ver dónde verlo/ });
+    expect(whereToWatch).toHaveAttribute('href', link);
+    expect(whereToWatch).toHaveAttribute('target', '_blank');
+    expect(screen.getByText(/Datos de plataformas/)).toHaveTextContent('JustWatch');
   });
 });

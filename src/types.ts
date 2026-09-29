@@ -219,6 +219,11 @@ export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
   }[];
   'watch/providers'?: {
     results: Record<string, {
+      /**
+       * La página de TMDB con dónde verlo en esa región. Es la que tiene los
+       * enlaces directos a cada plataforma, que la API no manda.
+       */
+      link?: string;
       flatrate?: { provider_name: string; logo_path: string }[];
       rent?: { provider_name: string; logo_path: string }[];
       buy?: { provider_name: string; logo_path: string }[];

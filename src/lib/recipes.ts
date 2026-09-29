@@ -399,7 +399,9 @@ export const RECIPES: Recipe[] = [
           id: `plataforma-${provider.name}`,
           family: 'catalogo',
           title: `Está en tu ${provider.name}`,
-          subtitle: 'Bien puntuadas, y disponibles donde ya mirás.',
+          // El catálogo de cada plataforma es de JustWatch, y hay que decirlo
+          // donde se muestra.
+          subtitle: 'Bien puntuadas y disponibles donde ya mirás, según JustWatch.',
           weight: 8,
           fetch: () =>
             getDiscover({

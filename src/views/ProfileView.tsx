@@ -7,6 +7,7 @@ import { DataSettings } from '@/components/DataSettings';
 import { CollectionsSettings } from '@/components/CollectionsSettings';
 import { StatsDashboard } from '@/components/StatsDashboard';
 import { PublicProfileSettings } from '@/components/PublicProfileSettings';
+import { AboutSettings } from '@/components/Attribution';
 import { REGIONS, RegionCode, usePreferences } from '@/preferences';
 import { formatWatchDate } from '@/lib/dates';
 import { allWatches } from '@/lib/stats';
@@ -258,6 +259,10 @@ export function ProfileSettings() {
       <CollectionsSettings />
 
       <DataSettings />
+
+      {/* Al final, que es donde se busca: es lo que se consulta una vez, no lo
+          que se toca seguido. */}
+      <AboutSettings />
     </div>
   );
 }
