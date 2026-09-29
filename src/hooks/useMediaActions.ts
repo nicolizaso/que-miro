@@ -90,11 +90,23 @@ export function useMediaActions() {
   };
 
   /**
-   * Escribe un cambio parcial sobre un título.
+   * Escribe los campos de un cambio parcial, cada uno entero.
    *
-   * Con `merge` a propósito: el documento remoto puede tener campos más nuevos
-   * que los del estado local, y reescribirlo entero desde acá los perdería.
+   * Parcial a propósito: el documento remoto puede tener campos más nuevos que
+   * los del estado local, y reescribirlo entero desde acá los perdería.
+   *
+   * Pero `mergeFields` y no `merge: true`. Con `merge`, Firestore mezcla
+   * también los mapas de adentro: lo que se borró acá de `progress` —la
+   * temporada que se desmarcó entera, el puntaje que se sacó— no viajaba, y
+   * seguía vivo allá hasta volver con el próximo snapshot. Lo mismo el nombre
+   * de un episodio de `nextToAir` que ya no es el próximo. Así, cada campo que
+   * se manda queda exactamente como se mandó, y los que no se mandan no se
+   * tocan.
    */
+  const setFields = (tmdbId: number, data: Record<string, unknown>) =>
+    setDoc(mediaDoc(tmdbId), data, { mergeFields: Object.keys(data) });
+
+  /** Escribe un cambio parcial sobre un título (ver {@link setFields}). */
   const write = async (tmdbId: number, patch: Partial<SavedMedia>) => {
     const withTimestamp = {
       ...withArchive(patch),
@@ -105,11 +117,7 @@ export function useMediaActions() {
       useMediaStore.getState().patchMedia(tmdbId, withTimestamp);
       return;
     }
-    fireAndForget(
-      setDoc(mediaDoc(tmdbId), sanitizeData(toStoredPatch(withTimestamp)), {
-        merge: true,
-      }),
-    );
+    fireAndForget(setFields(tmdbId, sanitizeData(toStoredPatch(withTimestamp))));
   };
 
   /**
@@ -128,11 +136,11 @@ export function useMediaActions() {
       useMediaStore.getState().enrichMedia(tmdbId, patch);
       return;
     }
-    setDoc(mediaDoc(tmdbId), sanitizeData(toStoredPatch(patch)), { merge: true }).catch(
-      (error: unknown) => {
-        console.warn('[media] No se pudo guardar el refresco:', error);
-      },
-    );
+    const data = sanitizeData(toStoredPatch(patch));
+    if (Object.keys(data).length === 0) return;
+    setFields(tmdbId, data).catch((error: unknown) => {
+      console.warn('[media] No se pudo guardar el refresco:', error);
+    });
   };
 
   /**
