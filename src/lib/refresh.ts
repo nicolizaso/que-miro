@@ -20,9 +20,13 @@ export const REFRESH_PER_VISIT = 8;
  *    sigue saliendo es la que te va a sorprender con una temporada nueva.
  * 3. *Por Ver*: lo que todavía no empezaste puede llegar a tu plataforma.
  * 4. Todo lo demás, que solo cambia de plataforma cada tanto.
+ * 5. Lo abandonado.
  */
 export function refreshPriority(media: SavedMedia): number {
   if (media.status === 'viendo') return 0;
+  // Lo abandonado va último, detrás de todo: nada de lo que traiga el
+  // refresco se muestra en ningún lado hasta que lo retomes.
+  if (media.status === 'abandonada') return 4;
   if (media.mediaType === 'tv' && isStillAiring(media)) return 1;
   if (media.status === 'por_ver') return 2;
   return 3;

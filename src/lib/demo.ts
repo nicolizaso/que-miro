@@ -11,6 +11,7 @@ import {
   SeriesProgress,
   SeriesStatus,
   TastePicks,
+  WatchEntry,
 } from '@/types';
 import { toDayKey } from '@/lib/dates';
 
@@ -96,6 +97,11 @@ interface DemoSeedEntry {
   nextToAir?: { season: number; episode: number; inDays: number; name?: string };
   /** Desde qué episodio hay novedades sin ver, para el aviso de la tarjeta. */
   newSince?: { season: number; episode: number };
+  /**
+   * Para las que están en pausa o abandonadas: hace cuánto, y el motivo y el
+   * puntaje que se dejaron al abandonar.
+   */
+  archive?: { daysAgo: number; reason?: string; rating?: number };
 }
 
 export const DEMO_SEED: DemoSeedEntry[] = [
@@ -233,6 +239,40 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     status: 'viendo',
     daysAgo: 8,
     watched: { 1: [1, 2, 3, 4, 5] },
+  },
+  {
+    // En pausa: la primera temporada entera y un poco de la segunda. Es la
+    // que muestra Archivadas y el "Retomar".
+    tmdbId: 65494,
+    mediaType: 'tv',
+    seasons: { 1: 10, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10 },
+    title: 'The Crown',
+    releaseYear: '2016',
+    genres: ['Drama'],
+    status: 'en_pausa',
+    daysAgo: 20,
+    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2: [1, 2, 3] },
+    seriesStatus: 'Ended',
+    archive: { daysAgo: 20 },
+  },
+  {
+    // Abandonada con motivo y puntaje: le da algo que mostrar a "Lo que
+    // dejás" en las estadísticas.
+    tmdbId: 63247,
+    mediaType: 'tv',
+    seasons: { 1: 10, 2: 10, 3: 8, 4: 8 },
+    title: 'Westworld',
+    releaseYear: '2016',
+    genres: ['Drama', 'Ciencia Ficción', 'Western'],
+    status: 'abandonada',
+    daysAgo: 45,
+    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2: [1, 2, 3, 4] },
+    seriesStatus: 'Canceled',
+    archive: {
+      daysAgo: 45,
+      reason: 'Se volvió un laberinto en la segunda temporada',
+      rating: 2.5,
+    },
   },
   {
     tmdbId: 438631,
@@ -397,20 +437,41 @@ export function buildDemoLibrary(): SavedMedia[] {
             detectedAt: daysAgoToIso(entry.lastAired?.daysAgo ?? 1),
           }
         : undefined,
-      history:
-        entry.rating === undefined
-          ? undefined
-          : [
-              {
-                id: newWatchId(),
-                rating: entry.rating,
-                text: entry.reviewText,
-                tags: entry.tags,
-                completedAt: daysAgoToIso(entry.daysAgo),
-              },
-            ],
+      history: seedHistory(entry),
+      archive: entry.archive
+        ? {
+            at: daysAgoToIso(entry.archive.daysAgo),
+            ...(entry.archive.reason ? { reason: entry.archive.reason } : {}),
+          }
+        : undefined,
     };
   });
+}
+
+/** La reseña del seed, o el puntaje que se dejó al abandonar. */
+function seedHistory(entry: DemoSeedEntry): WatchEntry[] | undefined {
+  if (entry.rating !== undefined) {
+    return [
+      {
+        id: newWatchId(),
+        rating: entry.rating,
+        text: entry.reviewText,
+        tags: entry.tags,
+        completedAt: daysAgoToIso(entry.daysAgo),
+      },
+    ];
+  }
+  if (entry.archive?.rating !== undefined) {
+    return [
+      {
+        id: newWatchId(),
+        rating: entry.archive.rating,
+        completedAt: daysAgoToIso(entry.archive.daysAgo),
+        abandoned: true,
+      },
+    ];
+  }
+  return undefined;
 }
 
 /**

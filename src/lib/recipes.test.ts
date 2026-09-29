@@ -400,3 +400,58 @@ describe('las filas que salen de "Contanos de vos"', () => {
     expect(ids.some((id) => id.includes('elegida'))).toBe(false);
   });
 });
+
+describe('lo abandonado', () => {
+  const series = {
+    mediaType: 'tv' as const,
+    history: undefined,
+    seasons: [{ seasonNumber: 1, name: 'T1', episodeCount: 8 }],
+    progress: { watched: { 1: [1, 2, 3] } },
+  };
+
+  it('sale de "Terminá lo que empezaste"', () => {
+    const blocks = blocksFor([
+      makeMedia({ tmdbId: 1, title: 'Dejada', status: 'abandonada', ...series }),
+    ]);
+
+    expect(blocks.some((block) => block.id === 'terminar')).toBe(false);
+  });
+
+  it('no es un pendiente del que salga "Porque tenés… en Por Ver"', () => {
+    const blocks = blocksFor([makeMedia({ tmdbId: 1, status: 'abandonada' })]);
+    expect(blocks.some((block) => block.id.startsWith('pendiente'))).toBe(false);
+  });
+
+  it('no siembra "Porque viste", aunque la hayas puntuado alto', () => {
+    const blocks = blocksFor([
+      makeMedia({ tmdbId: 1, status: 'abandonada', history: [watch(5)] }),
+    ]);
+    expect(blocks.some((block) => block.id.startsWith('porque-viste'))).toBe(false);
+  });
+
+  it('le baja el peso a la fila de algo muy parecido', () => {
+    const favorite = makeMedia({ tmdbId: 1, title: 'Alien', sagaId: 8091, history: [watch(5)] });
+    const alone = blocksFor([favorite]).find((b) => b.id === 'porque-viste-1')!;
+
+    const withDropped = blocksFor([
+      favorite,
+      makeMedia({ tmdbId: 2, title: 'Alien 3', sagaId: 8091, status: 'abandonada' }),
+    ]).find((b) => b.id === 'porque-viste-1')!;
+
+    expect(withDropped.weight).toBeLessThan(alone.weight);
+    expect(withDropped.weight).toBeGreaterThan(0);
+  });
+
+  it('y a la del director de algo que dejaste', () => {
+    const director = person(1, 'Una Directora', 'direccion');
+    const loved = makeMedia({ tmdbId: 1, history: [watch(5)], people: [director] });
+    const alone = blocksFor([loved]).find((b) => b.id === 'director-1')!;
+
+    const withDropped = blocksFor([
+      loved,
+      makeMedia({ tmdbId: 2, status: 'abandonada', people: [director] }),
+    ]).find((b) => b.id === 'director-1')!;
+
+    expect(withDropped.weight).toBeLessThan(alone.weight);
+  });
+});

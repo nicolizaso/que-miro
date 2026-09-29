@@ -348,6 +348,13 @@ describe('episodios nuevos', () => {
     });
   });
 
+  it('una abandonada no avisa: ahí ya decidiste', () => {
+    const before = series({ status: 'abandonada', seriesStatus: 'Ended' });
+    const after = { ...before, seasons: [T1, T2], seriesStatus: 'Returning Series' as const };
+
+    expect(detectNewEpisodes(before, after, NOW)).toBeUndefined();
+  });
+
   it('una al día que suma episodios también', () => {
     const before = series({
       status: 'viendo',

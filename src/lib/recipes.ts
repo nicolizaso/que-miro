@@ -1,5 +1,5 @@
 import { SavedMedia, TMDbResult, TastePicks } from '@/types';
-import { Taste } from '@/lib/taste';
+import { Taste, directedAbandoned, resemblesAbandoned } from '@/lib/taste';
 import {
   getDiscover,
   getGenreId,
@@ -68,6 +68,19 @@ export interface RecipeContext {
 export interface Recipe {
   id: string;
   build: (context: RecipeContext) => FeedBlock[];
+}
+
+/**
+ * Cuánto pesa una fila que se parece mucho a algo que abandonaste.
+ *
+ * La mitad y no cero: "porque viste" una película de la misma saga que una que
+ * dejaste sigue teniendo algo que decir, solo que ya no abre el feed.
+ */
+const ABANDONED_WEIGHT = 0.5;
+
+/** El peso de una fila que sale de un título tuyo, rebajado si ese título se parece a algo abandonado. */
+function seedWeight(weight: number, taste: Taste, seed: SavedMedia): number {
+  return resemblesAbandoned(seed, taste.abandoned) ? weight * ABANDONED_WEIGHT : weight;
 }
 
 /** "4,5" y no "4.5": los puntajes se escriben como se leen en castellano. */
@@ -163,7 +176,7 @@ export const RECIPES: Recipe[] = [
         family: 'semilla',
         title: `Porque viste ${media.title}`,
         subtitle: `Le pusiste ${formatRating(rating)} estrellas.`,
-        weight: 10,
+        weight: seedWeight(10, taste, media),
         fetch: () => getRecommendations(media.tmdbId, media.mediaType),
       })),
   },
@@ -177,7 +190,7 @@ export const RECIPES: Recipe[] = [
         family: 'semilla',
         title: `En la misma línea que ${media.title}`,
         subtitle: 'Mismo género, misma época, mismo clima.',
-        weight: 7,
+        weight: seedWeight(7, taste, media),
         fetch: () => getSimilar(media.tmdbId, media.mediaType),
       })),
   },
@@ -194,7 +207,11 @@ export const RECIPES: Recipe[] = [
           name: signal.person.name,
           profilePath: signal.person.profilePath,
         },
-        weight: 9,
+        // Si también dirigió algo que dejaste, sus otros trabajos ya no son
+        // una apuesta tan segura.
+        weight: directedAbandoned(signal.person.id, taste.abandoned)
+          ? 9 * ABANDONED_WEIGHT
+          : 9,
         fetch: () => getPersonCredits(signal.person.id, 'direccion'),
       })),
   },
@@ -551,7 +568,7 @@ export const RECIPES: Recipe[] = [
           family: 'semilla',
           title: `Otra "${mood.tag}"`,
           subtitle: `Así etiquetaste ${seed.media.title}.`,
-          weight: 7,
+          weight: seedWeight(7, taste, seed.media),
           fetch: () =>
             getRecommendations(seed.media.tmdbId, seed.media.mediaType),
         },
@@ -568,7 +585,7 @@ export const RECIPES: Recipe[] = [
         family: 'semilla',
         title: `Porque tenés ${media.title} en Por Ver`,
         subtitle: 'Todavía no lo viste, pero algo te llamó.',
-        weight: 6,
+        weight: seedWeight(6, taste, media),
         fetch: () => getRecommendations(media.tmdbId, media.mediaType),
       })),
   },

@@ -20,6 +20,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ScrollRail } from '@/components/ui/ScrollRail';
 import { SeriesProgress } from '@/components/SeriesProgress';
 import { CollectionPicker } from '@/components/CollectionPicker';
+import { StatusActions } from '@/components/StatusActions';
 import { WatchHistory } from '@/components/WatchHistory';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { ShareButton } from '@/components/ShareButton';
@@ -29,6 +30,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { enrichFromDetail, isStale } from '@/lib/enrich';
 import { pickProviders } from '@/lib/providers';
 import { newEpisodesSummary } from '@/lib/progress';
+import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
 import { getRegionName, usePreferences } from '@/preferences';
 
 interface Props {
@@ -54,12 +56,6 @@ function seasonsFromDetail(detail: TMDbDetail | null): SeasonInfo[] {
       episodeCount: season.episode_count,
     }));
 }
-
-const STATUS_LABELS: Record<MediaStatus, string> = {
-  por_ver: 'Por Ver',
-  viendo: 'Viendo',
-  completada: 'Completada',
-};
 
 /**
  * Las dos listas a las que se llega de un clic desde la ficha.
@@ -346,7 +342,9 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                       <p className="text-sm text-text-muted">
                         Ya está en tu biblioteca, en{' '}
                         <strong className="text-text-main">
-                          {STATUS_LABELS[saved.status]}
+                          {isArchivedStatus(saved.status)
+                            ? 'Archivadas'
+                            : STATUS_LABELS[saved.status]}
                         </strong>
                         .
                       </p>
@@ -361,7 +359,10 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                               ? 'desde que la terminaste.'
                               : 'desde la última vez que estabas al día.'}
                           </p>
-                          {saved.status !== 'viendo' && (
+                          {/* Una en pausa ya ofrece "Retomar" abajo: dos
+                              botones que hacen lo mismo se leen como dos
+                              cosas distintas. */}
+                          {saved.status !== 'viendo' && !isArchivedStatus(saved.status) && (
                             <button
                               type="button"
                               onClick={() => {
@@ -375,6 +376,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                           )}
                         </div>
                       )}
+                      <StatusActions media={saved} />
                     </>
                   ) : (
                     <ul className="flex flex-wrap gap-2">

@@ -74,8 +74,15 @@ export interface Taste {
   pending: SavedMedia[];
   /** Pendientes de hace más de medio año. */
   stalePending: SavedMedia[];
-  /** Series empezadas y sin terminar. */
+  /** Series empezadas y sin terminar. Las abandonadas no: ya decidiste. */
   unfinished: SavedMedia[];
+  /**
+   * Lo que abandonaste, de lo último a lo primero.
+   *
+   * Es señal en contra: nada de acá es semilla de "porque viste", y lo que se
+   * le parece mucho pesa menos en el feed (ver {@link resemblesAbandoned}).
+   */
+  abandoned: SavedMedia[];
   /** Lo que amaste hace más de un año: candidato a volver a ver. */
   rewatchables: SavedMedia[];
   /** El año del que más favoritos tenés. */
@@ -87,6 +94,16 @@ export interface Taste {
   /** Si hay con qué personalizar algo, aunque sea una fila. */
   hasSignal: boolean;
 }
+
+/**
+ * Cuánto le resta a un género cada título abandonado: lo mismo que un
+ * puntaje de 1,5 —cinco comedias que te gustaron no se caen por una que
+ * dejaste, dos o tres abandonadas del mismo género sí se notan—.
+ */
+const ABANDONED_GENRE_PENALTY = 1;
+
+/** Cuántos temas en común hacen "muy parecido": uno o dos los comparte medio catálogo. */
+const SHARED_KEYWORDS = 3;
 
 /** Medio año, que es cuando un pendiente ya se te olvidó. */
 const STALE_PENDING_DAYS = 180;
@@ -205,6 +222,56 @@ function collectGenres(rated: RatedTitle[]): GenreSignal[] {
   );
 }
 
+/**
+ * Si un título se parece mucho a algo que abandonaste.
+ *
+ * "Mucho" es concreto a propósito: la misma saga, la misma dirección o
+ * creación, o varios temas en común. Compartir género no alcanza —abandonar
+ * una comedia no dice nada de las otras mil—; eso ya lo pesa el puntaje de
+ * cada género.
+ */
+export function resemblesAbandoned(media: SavedMedia, abandoned: SavedMedia[]): boolean {
+  const directors = new Set(
+    (media.people ?? []).filter((p) => p.role === 'direccion').map((p) => p.id),
+  );
+  const keywords = new Set((media.keywords ?? []).map((keyword) => keyword.id));
+
+  return abandoned.some((other) => {
+    if (other.tmdbId === media.tmdbId) return true;
+    if (media.sagaId && other.sagaId === media.sagaId) return true;
+    if (
+      (other.people ?? []).some((p) => p.role === 'direccion' && directors.has(p.id))
+    ) {
+      return true;
+    }
+    const shared = (other.keywords ?? []).filter((keyword) => keywords.has(keyword.id));
+    return shared.length >= SHARED_KEYWORDS;
+  });
+}
+
+/** Si alguien dirigió o creó algo que abandonaste. */
+export function directedAbandoned(personId: number, abandoned: SavedMedia[]): boolean {
+  return abandoned.some((media) =>
+    (media.people ?? []).some((p) => p.role === 'direccion' && p.id === personId),
+  );
+}
+
+/** Le resta a cada género lo que abandonaste de él, y los reordena. */
+function penalizeAbandoned(genres: GenreSignal[], abandoned: SavedMedia[]): GenreSignal[] {
+  const penalty = new Map<string, number>();
+  for (const media of abandoned) {
+    for (const name of media.genres) {
+      penalty.set(name, (penalty.get(name) ?? 0) + ABANDONED_GENRE_PENALTY);
+    }
+  }
+
+  return genres
+    .map((genre) => ({ ...genre, score: genre.score - (penalty.get(genre.name) ?? 0) }))
+    .sort(
+      (a, b) => b.score - a.score || b.count - a.count || a.name.localeCompare(b.name, 'es'),
+    );
+}
+
 /** El año del que más favoritos tenés, si hay más de uno. */
 function findBestYear(favorites: RatedTitle[]): number | undefined {
   const years = tally(
@@ -227,11 +294,21 @@ function findBestYear(favorites: RatedTitle[]): number | undefined {
  * olvidó, lo que podrías volver a ver— que dependen de cuánto tiempo pasó.
  */
 export function tasteProfile(list: SavedMedia[], now = new Date()): Taste {
-  const rated = ratedTitles(list);
+  const abandoned = list
+    .filter((media) => media.status === 'abandonada')
+    .sort(
+      (a, b) =>
+        Date.parse(b.archive?.at ?? b.updatedAt) - Date.parse(a.archive?.at ?? a.updatedAt),
+    );
+  // Lo abandonado no es semilla de nada positivo, aunque alguna vez lo hayas
+  // terminado y puntuado alto: la última palabra fue dejarlo.
+  const kept = list.filter((media) => media.status !== 'abandonada');
+
+  const rated = ratedTitles(kept);
   const favorites = rated.filter(({ rating }) => rating >= FAVORITE);
   const liked = rated.filter(({ rating }) => rating >= LIKED);
 
-  const genres = collectGenres(liked);
+  const genres = penalizeAbandoned(collectGenres(liked), abandoned);
 
   const pending = list
     .filter((media) => media.status === 'por_ver')
@@ -251,7 +328,7 @@ export function tasteProfile(list: SavedMedia[], now = new Date()): Taste {
     }
   }
 
-  const moodTags = allWatches(list)
+  const moodTags = allWatches(kept)
     .filter(({ entry }) => entry.rating >= FAVORITE)
     .flatMap(({ entry }) => entry.tags ?? []);
 
@@ -294,7 +371,7 @@ export function tasteProfile(list: SavedMedia[], now = new Date()): Taste {
       (media) =>
         now.getTime() - Date.parse(media.updatedAt) > STALE_PENDING_DAYS * DAY_MS,
     ),
-    unfinished: list
+    unfinished: kept
       .filter(
         (media) =>
           media.mediaType === 'tv' &&
@@ -314,6 +391,7 @@ export function tasteProfile(list: SavedMedia[], now = new Date()): Taste {
           now.getTime() - Date.parse(watchedAt) > REWATCH_DAYS * DAY_MS,
       )
       .map(({ media }) => media),
+    abandoned,
     bestYear: findBestYear(favorites),
     movies: list.filter((media) => media.mediaType === 'movie').length,
     series: list.filter((media) => media.mediaType === 'tv').length,

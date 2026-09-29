@@ -190,3 +190,17 @@ describe('seasonsToFetch', () => {
     expect(seasonsToFetch(list, TODAY)).toEqual([{ tmdbId: 1, seasonNumber: 2 }]);
   });
 });
+
+describe('lo archivado en el calendario', () => {
+  it('lo que está en pausa sigue entrando; lo abandonado no', () => {
+    const list = [
+      series(1, { status: 'en_pausa', nextToAir: next(2, 3, '2026-09-18') }),
+      series(2, { status: 'abandonada', nextToAir: next(2, 3, '2026-09-18') }),
+      series(3, { status: 'abandonada' }),
+    ];
+
+    const { groups, undated } = buildCalendar(list, TODAY);
+    expect(groups.flatMap((g) => g.items.map((i) => i.media.tmdbId))).toEqual([1]);
+    expect(undated).toEqual([]);
+  });
+});

@@ -137,3 +137,15 @@ describe('rememberPick', () => {
     expect(recent[0]).toBe(6);
   });
 });
+
+describe('lo archivado', () => {
+  it('no entra al picker: ni lo abandonado ni lo que está en pausa', () => {
+    const list = [
+      makeMedia({ tmdbId: 1, status: 'por_ver' }),
+      makeMedia({ tmdbId: 2, status: 'abandonada' }),
+      makeMedia({ tmdbId: 3, status: 'en_pausa' }),
+    ];
+
+    expect(candidates(list, filters()).map((m) => m.tmdbId)).toEqual([1]);
+  });
+});

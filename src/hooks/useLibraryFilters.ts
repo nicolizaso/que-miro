@@ -3,13 +3,21 @@ import { useSearchParams } from 'react-router-dom';
 import {
   DEFAULT_SORT,
   LibraryFilters,
+  LibraryStatus,
   SORT_OPTIONS,
   SortOption,
 } from '@/lib/library';
-import { MediaStatus, MediaType } from '@/types';
+import { MediaType } from '@/types';
 
-const VALID_STATUSES: MediaStatus[] = ['por_ver', 'viendo', 'completada'];
-const DEFAULT_STATUS: MediaStatus = 'por_ver';
+const VALID_STATUSES: LibraryStatus[] = [
+  'por_ver',
+  'viendo',
+  'completada',
+  'archivadas',
+  'en_pausa',
+  'abandonada',
+];
+const DEFAULT_STATUS: LibraryStatus = 'por_ver';
 
 /** Nombres de los parámetros en la URL, en español para que el link se lea. */
 const PARAMS = {
@@ -36,7 +44,7 @@ export function useLibraryFilters() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo<LibraryFilters>(() => {
-    const status = searchParams.get(PARAMS.status) as MediaStatus | null;
+    const status = searchParams.get(PARAMS.status) as LibraryStatus | null;
     const type = searchParams.get(PARAMS.type) as MediaType | null;
     const sort = searchParams.get(PARAMS.sort) as SortOption | null;
 

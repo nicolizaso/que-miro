@@ -118,3 +118,12 @@ describe('refreshQueue', () => {
     expect(refreshQueue([], 'AR', NOW)).toEqual([]);
   });
 });
+
+describe('lo abandonado', () => {
+  it('se refresca último, detrás de todo lo demás', () => {
+    const dropped = makeMedia({ status: 'abandonada', mediaType: 'tv', seriesStatus: 'Returning Series' });
+    const other = makeMedia({ status: 'completada' });
+
+    expect(refreshPriority(dropped)).toBeGreaterThan(refreshPriority(other));
+  });
+});

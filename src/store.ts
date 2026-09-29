@@ -8,7 +8,13 @@ import {
   TastePicks,
   WatchEntry,
 } from './types';
-import { SCHEMA_VERSION, parseCollection, parseMedia } from './lib/schema';
+import {
+  SCHEMA_VERSION,
+  parseCollection,
+  parseMedia,
+  withArchive,
+} from './lib/schema';
+import { isArchivedStatus } from './lib/archive';
 import { emptyPicks, parsePicks } from './lib/picks';
 
 interface MediaState {
@@ -127,7 +133,7 @@ export const useMediaStore = create<MediaState>()(
         set((state) => ({
           mediaList: mapMedia(state.mediaList, tmdbId, (media) => ({
             ...media,
-            status,
+            ...withArchive({ status }),
           })),
         })),
 
@@ -135,7 +141,7 @@ export const useMediaStore = create<MediaState>()(
         set((state) => ({
           mediaList: mapMedia(state.mediaList, tmdbId, (media) => ({
             ...media,
-            ...patch,
+            ...withArchive(patch),
           })),
         })),
 
@@ -152,7 +158,10 @@ export const useMediaStore = create<MediaState>()(
             ...media,
             // Al frente: el historial va de lo más reciente a lo más viejo.
             history: [entry, ...(media.history ?? [])],
-            status: 'completada',
+            // Reseñar algo abandonado no lo termina: es opinar de lo que viste.
+            ...(media.status === 'abandonada'
+              ? {}
+              : withArchive({ status: 'completada' })),
           })),
         })),
 
@@ -176,7 +185,11 @@ export const useMediaStore = create<MediaState>()(
               history: history.length > 0 ? history : undefined,
               // Borrar el último visionado deja el título como "viendo": lo
               // tenías, lo abriste, pero ya no consta que lo hayas terminado.
-              status: history.length > 0 ? 'completada' : 'viendo',
+              // Uno archivado se queda donde está: borrar una reseña no lo
+              // saca de la pausa ni lo retoma.
+              ...(isArchivedStatus(media.status)
+                ? {}
+                : { status: history.length > 0 ? 'completada' : 'viendo' }),
             };
           }),
         })),

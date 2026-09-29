@@ -11,7 +11,15 @@ import {
   detectNewEpisodes,
   hasNewEpisodes,
 } from '@/lib/progress';
-import { SavedMedia, MediaStatus, SeriesProgress, WatchEntry } from '@/types';
+import {
+  ArchivedStatus,
+  SavedMedia,
+  MediaStatus,
+  SeriesProgress,
+  WatchEntry,
+} from '@/types';
+import { newWatchId, toStoredMedia, toStoredPatch, withArchive } from '@/lib/schema';
+import { isArchivedStatus } from '@/lib/archive';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -88,14 +96,19 @@ export function useMediaActions() {
    * que los del estado local, y reescribirlo entero desde acá los perdería.
    */
   const write = async (tmdbId: number, patch: Partial<SavedMedia>) => {
-    const withTimestamp = { ...patch, updatedAt: new Date().toISOString() };
+    const withTimestamp = {
+      ...withArchive(patch),
+      updatedAt: new Date().toISOString(),
+    };
 
     if (!isAuth) {
       useMediaStore.getState().patchMedia(tmdbId, withTimestamp);
       return;
     }
     fireAndForget(
-      setDoc(mediaDoc(tmdbId), sanitizeData(withTimestamp), { merge: true }),
+      setDoc(mediaDoc(tmdbId), sanitizeData(toStoredPatch(withTimestamp)), {
+        merge: true,
+      }),
     );
   };
 
@@ -115,7 +128,7 @@ export function useMediaActions() {
       useMediaStore.getState().enrichMedia(tmdbId, patch);
       return;
     }
-    setDoc(mediaDoc(tmdbId), sanitizeData(patch), { merge: true }).catch(
+    setDoc(mediaDoc(tmdbId), sanitizeData(toStoredPatch(patch)), { merge: true }).catch(
       (error: unknown) => {
         console.warn('[media] No se pudo guardar el refresco:', error);
       },
@@ -152,7 +165,9 @@ export function useMediaActions() {
       useMediaStore.getState().addMedia(media);
     } else {
       const fullMedia = { ...media, updatedAt: new Date().toISOString() };
-      fireAndForget(setDoc(mediaDoc(media.tmdbId), sanitizeData(fullMedia)));
+      fireAndForget(
+        setDoc(mediaDoc(media.tmdbId), sanitizeData(toStoredMedia(fullMedia))),
+      );
     }
 
     try {
@@ -226,15 +241,19 @@ export function useMediaActions() {
    * dos veces lo mismo con el mismo puntaje y sin comentario se perdería.
    */
   const addWatchEntry = async (media: SavedMedia, entry: WatchEntry) => {
-    const progress = progressOnComplete(media);
+    // Reseñar algo que abandonaste es opinar de lo que viste, no terminarlo:
+    // no se mueve a Completadas ni se le marcan los episodios que faltaban.
+    const isAbandoned = media.status === 'abandonada';
+    const progress = isAbandoned ? undefined : progressOnComplete(media);
+    const saved: WatchEntry = isAbandoned ? { ...entry, abandoned: true } : entry;
     if (!isAuth) {
-      useMediaStore.getState().addWatchEntry(media.tmdbId, entry);
+      useMediaStore.getState().addWatchEntry(media.tmdbId, saved);
       if (progress) useMediaStore.getState().setProgress(media.tmdbId, progress);
       return;
     }
     await write(media.tmdbId, {
-      history: [entry, ...(media.history ?? [])],
-      status: 'completada',
+      history: [saved, ...(media.history ?? [])],
+      ...(isAbandoned ? {} : { status: 'completada' as const }),
       ...(progress ? { progress } : {}),
     });
   };
@@ -265,8 +284,49 @@ export function useMediaActions() {
     const history = (media.history ?? []).filter((entry) => entry.id !== entryId);
     await write(media.tmdbId, {
       history,
-      status: history.length > 0 ? 'completada' : 'viendo',
+      // Uno en pausa o abandonado se queda donde está: borrar una reseña no
+      // lo retoma.
+      ...(isArchivedStatus(media.status)
+        ? {}
+        : { status: history.length > 0 ? ('completada' as const) : ('viendo' as const) }),
     });
+  };
+
+  /**
+   * Pone un título en pausa o lo abandona.
+   *
+   * Al abandonar se puede dejar un motivo corto y un puntaje de lo que se vio.
+   * El puntaje va al historial como cualquier otro —así lo lee el gusto, que
+   * lo toma como señal en contra—, pero marcado como de una vuelta abandonada,
+   * que es lo que lo separa de las veces que sí lo terminaste (ver
+   * `isAbandonedEntry`).
+   */
+  const archiveMedia = async (
+    media: SavedMedia,
+    status: ArchivedStatus,
+    options: { reason?: string; rating?: number } = {},
+  ) => {
+    const at = new Date().toISOString();
+    const entry: WatchEntry | undefined =
+      status === 'abandonada' && options.rating
+        ? { id: newWatchId(), rating: options.rating, completedAt: at, abandoned: true }
+        : undefined;
+
+    await write(media.tmdbId, {
+      status,
+      archive: { at, ...(options.reason ? { reason: options.reason } : {}) },
+      ...(entry ? { history: [entry, ...(media.history ?? [])] } : {}),
+      // Lo abandonado no avisa más de episodios nuevos: si igual te enterás y
+      // la retomás, el progreso sigue ahí.
+      ...(status === 'abandonada' && media.newEpisodesSince
+        ? { newEpisodesSince: undefined }
+        : {}),
+    });
+  };
+
+  /** Saca un título de la pausa o del abandono y lo devuelve a *Viendo*. */
+  const resumeMedia = async (media: SavedMedia) => {
+    await write(media.tmdbId, { status: 'viendo' });
   };
 
   const setProgress = async (
@@ -323,7 +383,7 @@ export function useMediaActions() {
       for (let i = 0; i < items.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
         for (const item of items.slice(i, i + BATCH_LIMIT)) {
-          batch.set(mediaDoc(item.tmdbId), sanitizeData(item));
+          batch.set(mediaDoc(item.tmdbId), sanitizeData(toStoredMedia(item)));
         }
         await batch.commit();
       }
@@ -339,6 +399,8 @@ export function useMediaActions() {
     addWatchEntry,
     updateWatchEntry,
     removeWatchEntry,
+    archiveMedia,
+    resumeMedia,
     setProgress,
     removeMedia,
     saveMany,

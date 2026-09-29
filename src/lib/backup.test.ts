@@ -111,6 +111,27 @@ describe('parseBackup', () => {
     const { media } = parseBackup(JSON.stringify(backup));
     expect(media[0].tmdbId).toBe(1);
   });
+
+  it('exporta lo archivado en el formato de Firestore, y vuelve igual', () => {
+    const abandoned = makeMedia({
+      status: 'abandonada',
+      archive: { at: '2026-05-03T10:00:00.000Z', reason: 'No me enganchó' },
+    });
+    const backup = buildBackup([abandoned]);
+
+    // Una versión vieja que importe este archivo lo deja en Viendo, no en
+    // Por Ver.
+    expect(backup.media[0].status).toBe('viendo');
+    expect(backup.media[0].archive).toEqual({
+      status: 'abandonada',
+      at: '2026-05-03T10:00:00.000Z',
+      reason: 'No me enganchó',
+    });
+
+    const { media } = parseBackup(JSON.stringify(backup));
+    expect(media[0].status).toBe('abandonada');
+    expect(media[0].archive?.reason).toBe('No me enganchó');
+  });
 });
 
 describe('el cuestionario en el backup', () => {

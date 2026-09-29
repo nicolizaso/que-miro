@@ -2,6 +2,18 @@ import { MediaStatus, MediaType, SavedMedia } from '@/types';
 import { latestRating } from '@/lib/schema';
 import { hasNewEpisodes, progressPercent } from '@/lib/progress';
 import { scoreOf } from '@/lib/duel';
+import { isArchivedStatus } from '@/lib/archive';
+
+/**
+ * Qué se está mirando de la biblioteca: una de las tres pestañas, uno de los
+ * dos estados archivados, o `archivadas`, que son los dos juntos.
+ */
+export type LibraryStatus = MediaStatus | 'archivadas';
+
+/** Si un título entra en lo que se está mirando. */
+export function matchesStatus(media: SavedMedia, status: LibraryStatus): boolean {
+  return status === 'archivadas' ? isArchivedStatus(media.status) : media.status === status;
+}
 
 export type SortOption =
   | 'recientes'
@@ -23,7 +35,7 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 export const DEFAULT_SORT: SortOption = 'recientes';
 
 export interface LibraryFilters {
-  status: MediaStatus;
+  status: LibraryStatus;
   /** Búsqueda de texto sobre el título. */
   query: string;
   /** Nombre exacto de un género, o `null` para todos. */
@@ -155,7 +167,7 @@ export function filterLibrary(
 
   return list
     .filter((media) => {
-      if (media.status !== filters.status) return false;
+      if (!matchesStatus(media, filters.status)) return false;
       if (filters.type && media.mediaType !== filters.type) return false;
       if (filters.genre && !media.genres.includes(filters.genre)) return false;
       if (filters.provider && !media.providers?.includes(filters.provider)) {

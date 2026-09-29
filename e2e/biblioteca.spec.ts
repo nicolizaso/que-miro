@@ -376,3 +376,42 @@ test('el calendario muestra lo que sale de lo que seguís', async ({ page }) => 
   // Las que siguen en emisión sin fecha van aparte.
   await expect(page.getByRole('heading', { name: 'Sin fecha confirmada' })).toBeVisible();
 });
+
+test('abandonar una serie la manda a Archivadas, y retomarla la devuelve', async ({ page }) => {
+  await selectTab(page, /Viendo/);
+  const card = page.getByRole('button', { name: /^Ver detalle de Arcane/ });
+  await card.click();
+
+  const detail = page.getByRole('dialog');
+  await detail.getByRole('button', { name: 'Abandonar' }).click();
+
+  const confirm = page.getByRole('dialog', { name: /¿Abandonás Arcane\?/ });
+  await confirm.getByLabel(/¿Por qué la dejás\?/).fill('No me enganchó');
+  await confirm.getByLabel('2 de 5 estrellas').click({ force: true });
+  await confirm.getByRole('button', { name: 'Abandonar' }).click();
+
+  // Se va de Viendo, y el aviso dice adónde.
+  await expect(page.getByText(/Abandonaste "Arcane"/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Ver detalle de Arcane/ })).toHaveCount(0);
+
+  // El demo ya trae una en pausa y una abandonada: con Arcane son tres.
+  await page.getByRole('button', { name: /Archivadas\s*3/ }).click();
+  await expect(page.getByRole('heading', { name: 'Archivadas' })).toBeVisible();
+  await page.getByRole('button', { name: /Abandonadas/ }).click();
+  await expect(page.getByRole('button', { name: /^Ver detalle de/ })).toHaveCount(2);
+
+  // La ficha cuenta dónde quedó y por qué.
+  await page.getByRole('button', { name: /^Ver detalle de Arcane/ }).click();
+  const archived = page.getByRole('dialog');
+  await expect(archived.getByText(/La abandonaste el .*, en T1E5\./)).toBeVisible();
+  await expect(archived.getByText('No me enganchó')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Retomar "Arcane"' }).click();
+  await expect(page.getByText(/"Arcane" volvió a Viendo/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Volver a las listas' }).click();
+  await selectTab(page, /Viendo/);
+  await expect(page.getByRole('button', { name: /^Ver detalle de Arcane/ })).toBeVisible();
+});

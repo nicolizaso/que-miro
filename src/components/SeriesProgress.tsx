@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Star } from 'lucide-react';
-import { SavedMedia, SeasonInfo, TMDbEpisode } from '@/types';
+import { MediaStatus, SavedMedia, SeasonInfo, TMDbEpisode } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useSeasonDetail } from '@/hooks/useSeasonDetail';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
@@ -28,6 +28,7 @@ import {
   withSeasonRuntime,
 } from '@/lib/episodes';
 import { TMDB_STILL_URL } from '@/lib/tmdb';
+import { watchCount } from '@/lib/schema';
 import { formatDay, formatShortDay, toDayKey } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 
@@ -362,14 +363,21 @@ export function SeriesProgress({
   const caughtUp = isCaughtUp(mediaWithSeasons);
   const isComplete =
     hasWatchedAllAired(mediaWithSeasons) && !isStillAiring(mediaWithSeasons);
-  const alreadyRated = (media.history?.length ?? 0) > 0;
+  // Lo puntuado al abandonarla no cuenta: esa vuelta no la terminaste.
+  const alreadyRated = watchCount(media) > 0;
   const upcomingNext = media.nextToAir;
 
   if (total === 0) return null;
 
   /** Estado que le corresponde al título después de un cambio de progreso. */
-  const statusFor = (watchedCount: number) => {
+  const statusFor = (watchedCount: number): MediaStatus | undefined => {
     if (watchedCount === 0) return media.status === 'viendo' ? 'por_ver' : undefined;
+    // Marcar un episodio más de una serie en pausa es retomarla. Una abandonada
+    // no se retoma sola: completar hasta dónde llegaste es corregir el dato,
+    // no volver a mirarla.
+    if (media.status === 'en_pausa' && watchedCount > watchedEpisodes(mediaWithSeasons)) {
+      return 'viendo';
+    }
     // Terminar la serie no la marca como completada por su cuenta: eso lo
     // decide la reseña, igual que en las películas.
     return media.status === 'por_ver' ? 'viendo' : undefined;

@@ -6,6 +6,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { formatWatchDate } from '@/lib/dates';
+import { isAbandonedEntry } from '@/lib/archive';
 
 /**
  * Las veces que viste un título, con su puntaje y su comentario.
@@ -24,6 +25,10 @@ export function WatchHistory({ media }: { media: SavedMedia }) {
 
   const history = media.history ?? [];
   if (history.length === 0) return null;
+  // Las veces que lo terminaste: lo puntuado al abandonarlo es opinión, no
+  // una vuelta más.
+  const finished = history.filter((entry) => !isAbandonedEntry(entry)).length;
+  const isAbandoned = media.status === 'abandonada';
 
   const handleDelete = async () => {
     if (!pendingDelete) return;
@@ -36,18 +41,20 @@ export function WatchHistory({ media }: { media: SavedMedia }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-lg font-bold">
-          {history.length === 1
-            ? 'Tu reseña'
-            : `La viste ${history.length} veces`}
+          {finished > 1 ? `La viste ${finished} veces` : 'Tu reseña'}
         </h3>
-        <button
-          type="button"
-          onClick={() => setIsReviewOpen(true)}
-          className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text-main transition-colors"
-        >
-          <RotateCcw size={14} aria-hidden="true" />
-          La volví a ver
-        </button>
+        {/* "La volví a ver" no tiene sentido en algo que dejaste: para
+            opinar de lo que viste está el lápiz de cada entrada. */}
+        {!isAbandoned && (
+          <button
+            type="button"
+            onClick={() => setIsReviewOpen(true)}
+            className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text-main transition-colors"
+          >
+            <RotateCcw size={14} aria-hidden="true" />
+            La volví a ver
+          </button>
+        )}
       </div>
 
       <ol className="flex flex-col gap-2">
@@ -69,6 +76,7 @@ export function WatchHistory({ media }: { media: SavedMedia }) {
                 </span>
                 <span className="text-xs text-text-subtle">
                   {formatWatchDate(entry.completedAt)}
+                  {isAbandonedEntry(entry) && ' · al abandonarla'}
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">

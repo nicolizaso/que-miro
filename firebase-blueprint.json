@@ -46,6 +46,7 @@
           { "name": "lastAired", "type": "map", "required": false },
           { "name": "nextToAir", "type": "map", "required": false },
           { "name": "newEpisodesSince", "type": "map", "required": false },
+          { "name": "archive", "type": "map", "required": false },
           { "name": "progress", "type": "map", "required": false },
           { "name": "history", "type": "list", "required": false },
           { "name": "collections", "type": "list", "required": false },

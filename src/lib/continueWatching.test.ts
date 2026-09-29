@@ -93,3 +93,26 @@ describe('continueWatching', () => {
     expect(continueWatching(list)).toHaveLength(CONTINUE_LIMIT);
   });
 });
+
+describe('lo archivado', () => {
+  it('no aparece para retomar, ni con episodios nuevos', () => {
+    const list = [
+      series(1, { progress: watchedAt('2026-02-01T00:00:00.000Z', { 1: [1, 2] }) }),
+      series(2, {
+        status: 'en_pausa',
+        progress: watchedAt('2026-02-02T00:00:00.000Z', { 1: [1, 2] }),
+      }),
+      series(3, {
+        status: 'abandonada',
+        progress: watchedAt('2026-02-03T00:00:00.000Z', { 1: [1, 2] }),
+        newEpisodesSince: {
+          seasonNumber: 2,
+          episodeNumber: 1,
+          detectedAt: '2026-02-03T00:00:00.000Z',
+        },
+      }),
+    ];
+
+    expect(continueWatching(list).map((item) => item.media.tmdbId)).toEqual([1]);
+  });
+});

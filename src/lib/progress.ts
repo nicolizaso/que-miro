@@ -226,6 +226,27 @@ export function firstUnwatchedAired(
   return null;
 }
 
+/**
+ * El episodio más avanzado que marcaste: la última temporada con algo visto y,
+ * en ella, el número más alto. Es "hasta dónde llegaste", que no siempre es lo
+ * último que marcaste.
+ */
+export function furthestWatched(
+  media: WithProgress,
+): { seasonNumber: number; episode: number } | null {
+  const watched = media.progress?.watched;
+  if (!watched) return null;
+
+  const seasons = countableSeasons(media)
+    .map((season) => season.seasonNumber)
+    .filter((number) => (watched[number]?.length ?? 0) > 0)
+    .sort((a, b) => b - a);
+  if (seasons.length === 0) return null;
+
+  const [seasonNumber] = seasons;
+  return { seasonNumber, episode: Math.max(...watched[seasonNumber]) };
+}
+
 /** "T2E5", para mostrar al lado del progreso. */
 export function formatEpisode(seasonNumber: number, episode: number): string {
   return `T${seasonNumber}E${episode}`;
@@ -395,6 +416,8 @@ export function detectNewEpisodes(
   // Sin temporadas conocidas no se sabe qué había antes: todo parecería nuevo.
   if (totalEpisodes(before) === 0) return undefined;
 
+  // Lo abandonado no avisa: el aviso es para retomar, y ahí ya decidiste.
+  if (before.status === 'abandonada') return undefined;
   const wasFollowing = before.status === 'completada' || isCaughtUp(before);
   if (!wasFollowing) return undefined;
   if (airedEpisodes(after) <= airedEpisodes(before)) return undefined;

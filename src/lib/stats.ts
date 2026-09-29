@@ -1,6 +1,7 @@
 import { SavedMedia, SeasonInfo, WatchEntry } from '@/types';
 import { countableSeasons, watchedEpisodes } from '@/lib/progress';
 import { toDayKey } from '@/lib/dates';
+import { isAbandonedEntry } from '@/lib/archive';
 
 /** Un visionado junto al título al que pertenece. */
 export interface Watch {
@@ -23,10 +24,18 @@ const DEFAULT_EPISODE_RUNTIME = 45;
  *
  * Es la base de casi todo lo demás: la unidad de las estadísticas es "una vez
  * que viste algo", no "un título". Ver *Matrix* tres veces son tres entradas.
+ *
+ * Lo que puntuaste al abandonar algo no entra: no es una vez que lo viste (ver
+ * `isAbandonedEntry`). Sin esto, abandonar una serie con puntaje la sumaba
+ * entera a las horas y a lo terminado en el año.
  */
 export function allWatches(list: SavedMedia[]): Watch[] {
   return list
-    .flatMap((media) => (media.history ?? []).map((entry) => ({ media, entry })))
+    .flatMap((media) =>
+      (media.history ?? [])
+        .filter((entry) => !isAbandonedEntry(entry))
+        .map((entry) => ({ media, entry })),
+    )
     .sort(
       (a, b) => Date.parse(b.entry.completedAt) - Date.parse(a.entry.completedAt),
     );
@@ -90,7 +99,9 @@ function watchedMinutes(media: SavedMedia): number {
  */
 export function totalMinutes(list: SavedMedia[]): number {
   return list.reduce((total, media) => {
-    const times = media.history?.length ?? 0;
+    const times = (media.history ?? []).filter(
+      (entry) => !isAbandonedEntry(entry),
+    ).length;
     const completed = runtimeMinutes(media) * times;
 
     if (media.mediaType !== 'tv' || times > 0) return total + completed;
@@ -214,6 +225,7 @@ function completionMinutes(
 
   const completedAt = Date.parse(entry.completedAt);
   const previous = (media.history ?? [])
+    .filter((other) => !isAbandonedEntry(other))
     .map((other) => Date.parse(other.completedAt))
     .filter((at) => at < completedAt)
     .sort((a, b) => b - a)[0] ?? -Infinity;
@@ -398,9 +410,68 @@ export function summarize(list: SavedMedia[]): LibrarySummary {
     inProgress: list.filter(
       (media) =>
         media.mediaType === 'tv' &&
+        media.status !== 'abandonada' &&
         watchedEpisodes(media) > 0 &&
         (media.history?.length ?? 0) === 0,
     ).length,
+  };
+}
+
+export interface AbandonmentStats {
+  abandoned: number;
+  /** Títulos que terminaste alguna vez: contra eso se mide lo abandonado. */
+  finished: number;
+  /** Abandonados sobre todo lo que tuvo final —terminado o abandonado—, de 0 a 1. */
+  rate: number;
+  /** Series abandonadas con algún episodio marcado: la base de las dos de abajo. */
+  seriesWithProgress: number;
+  /**
+   * Cuántos episodios solés ver antes de dejar una serie: la mediana, que no
+   * se deja arrastrar por esa que abandonaste en la sexta temporada.
+   */
+  usualEpisode?: number;
+  /** Cuántas de esas quedaron en la primera temporada. */
+  inFirstSeason: number;
+}
+
+/**
+ * Lo que dejaste: cuánto abandonás y en qué episodio se te suele caer.
+ *
+ * `null` si no abandonaste nada, que es la mayoría: un panel en cero sería una
+ * fila vacía con una excusa.
+ */
+export function abandonmentStats(list: SavedMedia[]): AbandonmentStats | null {
+  const abandoned = list.filter((media) => media.status === 'abandonada');
+  if (abandoned.length === 0) return null;
+
+  const finished = new Set(allWatches(list).map(({ media }) => media.tmdbId)).size;
+  const quitting = abandoned
+    .filter((media) => media.mediaType === 'tv')
+    .map((media) => {
+      const watched = media.progress?.watched ?? {};
+      const seasons = countableSeasons(media)
+        .filter((season) => (watched[season.seasonNumber]?.length ?? 0) > 0)
+        .map((season) => season.seasonNumber);
+      return { episodes: watchedEpisodes(media), lastSeason: Math.max(0, ...seasons) };
+    })
+    .filter(({ episodes }) => episodes > 0);
+
+  const counts = quitting.map(({ episodes }) => episodes).sort((a, b) => a - b);
+  const middle = Math.floor(counts.length / 2);
+  const median =
+    counts.length === 0
+      ? undefined
+      : counts.length % 2 === 1
+        ? counts[middle]
+        : Math.round((counts[middle - 1] + counts[middle]) / 2);
+
+  return {
+    abandoned: abandoned.length,
+    finished,
+    rate: abandoned.length / (abandoned.length + finished),
+    seriesWithProgress: quitting.length,
+    usualEpisode: median,
+    inFirstSeason: quitting.filter(({ lastSeason }) => lastSeason === 1).length,
   };
 }
 

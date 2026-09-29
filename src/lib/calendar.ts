@@ -40,10 +40,14 @@ export function endOfWeek(dayKey: string): string {
 function follows(media: SavedMedia): boolean {
   if (media.mediaType === 'tv') {
     // Las que estás viendo o terminaste y siguen saliendo, y las de Por Ver
-    // que anuncian estreno.
+    // que anuncian estreno. Las que pusiste en pausa también: pausar es
+    // "después", no "nunca", y saber que viene temporada es lo que te hace
+    // volver. Las abandonadas no: ahí ya decidiste.
     if (media.status === 'por_ver') return media.nextToAir !== undefined;
     return (
-      (media.status === 'viendo' || media.status === 'completada') &&
+      (media.status === 'viendo' ||
+        media.status === 'completada' ||
+        media.status === 'en_pausa') &&
       isStillAiring(media)
     );
   }

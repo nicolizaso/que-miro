@@ -263,3 +263,25 @@ describe('el filtro de episodios nuevos', () => {
     expect(hasActiveFilters(makeFilters({ onlyNew: true }))).toBe(true);
   });
 });
+
+describe('Archivadas', () => {
+  const list = [
+    makeMedia({ tmdbId: 1, status: 'viendo' }),
+    makeMedia({ tmdbId: 2, status: 'en_pausa' }),
+    makeMedia({ tmdbId: 3, status: 'abandonada' }),
+  ];
+
+  it('junta lo que está en pausa y lo abandonado', () => {
+    const ids = filterLibrary(list, makeFilters({ status: 'archivadas' })).map((m) => m.tmdbId);
+    expect(ids.sort()).toEqual([2, 3]);
+  });
+
+  it('y deja mirar cada uno por separado', () => {
+    expect(filterLibrary(list, makeFilters({ status: 'en_pausa' })).map((m) => m.tmdbId)).toEqual([2]);
+    expect(filterLibrary(list, makeFilters({ status: 'abandonada' })).map((m) => m.tmdbId)).toEqual([3]);
+  });
+
+  it('las pestañas de siempre no muestran nada archivado', () => {
+    expect(filterLibrary(list, makeFilters({ status: 'viendo' })).map((m) => m.tmdbId)).toEqual([1]);
+  });
+});

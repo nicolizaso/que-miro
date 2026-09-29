@@ -1,5 +1,10 @@
 import { Collection, SavedMedia, TastePicks } from '@/types';
-import { SCHEMA_VERSION, parseCollection, parseMediaList } from '@/lib/schema';
+import {
+  SCHEMA_VERSION,
+  parseCollection,
+  parseMediaList,
+  toStoredMedia,
+} from '@/lib/schema';
 import { hasPicks, parsePicks } from '@/lib/picks';
 import { progressPercent, watchedEpisodes } from '@/lib/progress';
 
@@ -10,7 +15,11 @@ export interface LibraryBackup {
   app: 'que-miro';
   version: number;
   exportedAt: string;
-  media: SavedMedia[];
+  /**
+   * Los títulos, en el formato de Firestore (ver `toStoredMedia`) y no en el
+   * del store: es lo que entiende también una versión vieja de la app.
+   */
+  media: Record<string, unknown>[];
   collections?: Collection[];
   /** Las respuestas de "Contanos de vos", si había alguna. */
   picks?: TastePicks;
@@ -33,7 +42,9 @@ export function buildBackup(
     app: 'que-miro',
     version: SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
-    media,
+    // Con el mismo formato que Firestore: un backup de esta versión que se
+    // importa en una vieja deja lo archivado en Viendo, en vez de en Por Ver.
+    media: media.map(toStoredMedia),
     collections,
     // Un cuestionario en blanco no se escribe: el archivo no gana nada con
     // siete campos vacíos adentro, y el importador lo trataría como una

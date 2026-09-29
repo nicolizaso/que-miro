@@ -17,6 +17,12 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 ## Features
 
 - **Tres listas** — *Por Ver*, *Viendo* y *Completadas*, con transiciones animadas.
+- **En pausa y abandonadas** — lo que dejaste para después o no pensás
+  terminar vive aparte, en *Archivadas*, con desde cuándo y, si abandonaste,
+  el motivo y un puntaje de lo que viste. Sale de "Continuar viendo" y del
+  picker; lo abandonado, también del calendario, y el feed te muestra menos
+  de lo parecido. Una serie en *Viendo* que lleva dos meses quieta pregunta
+  si la ponés en pausa; nunca lo hace sola.
 - **Continuar viendo** — arriba de todo, las series para retomar con el
   episodio que toca y un "+1" para marcarlo sin abrir la ficha, con su
   "Deshacer". Si era el último, ofrece la reseña.
@@ -73,7 +79,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Estadísticas** — horas mirando, distribución por género, actividad por mes y
   cómo puntuás, con su tabla accesible al lado de cada gráfico. Cada episodio
   guarda cuándo lo marcaste, así que una serie que miraste todo agosto suma en
-  agosto, y un mapa de actividad muestra los días que miraste algo.
+  agosto, y un mapa de actividad muestra los días que miraste algo. Si
+  abandonaste algo, también cuánto abandonás y después de cuántos episodios
+  solés dejar una serie.
 - **Tu año en Qué Miro?** — resumen anual listo para compartir.
 - **Perfil público** — publicá tus estadísticas y reseñas en `/u/tu-nombre`, con
   su vista previa resuelta del lado del servidor.

@@ -18,7 +18,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { Collection, SavedMedia } from '@/types';
-import { parseCollection, parseMedia } from '@/lib/schema';
+import { parseCollection, parseMedia, toStoredMedia } from '@/lib/schema';
 import { hasPicks, parsePicks } from '@/lib/picks';
 import { picksPath, picksToDocument } from '@/hooks/useTastePicks';
 import { mergeLibraries } from '@/lib/backup';
@@ -244,7 +244,7 @@ export function SyncManager() {
               for (const media of pending) {
                 batch.set(
                   doc(db, `users/${user.uid}/saved_media/${media.tmdbId}`),
-                  media,
+                  toStoredMedia(media),
                 );
               }
               await batch.commit();

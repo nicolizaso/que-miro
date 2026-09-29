@@ -9,6 +9,7 @@ import { TrendChart } from '@/components/charts/TrendChart';
 import { Heatmap } from '@/components/charts/Heatmap';
 import { WrappedCard } from '@/components/WrappedCard';
 import {
+  abandonmentStats,
   activityHeatmap,
   formatDuration,
   genreDistribution,
@@ -46,6 +47,7 @@ export function StatsDashboard() {
   const activity = useMemo(() => monthlyActivity(mediaList), [mediaList]);
   const heatmap = useMemo(() => activityHeatmap(mediaList), [mediaList]);
   const best = useMemo(() => topRated(mediaList), [mediaList]);
+  const quitting = useMemo(() => abandonmentStats(mediaList), [mediaList]);
 
   const hasActivity = activity.some((month) => month.value > 0);
 
@@ -174,6 +176,38 @@ export function StatsDashboard() {
               <ColumnChart data={ratings} unit="reseñas" />
             </ChartFrame>
           </div>
+
+          {quitting && (
+            // Sin marco propio: cada número ya es una tarjeta, y una tarjeta
+            // adentro de otra dibuja dos bordes.
+            <div className="flex flex-col gap-3">
+              <h3 className="text-section">Lo que dejás</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <StatTile
+                  label="Abandonás"
+                  value={`${Math.round(quitting.rate * 100)} %`}
+                  hint={`${quitting.abandoned} de ${
+                    quitting.abandoned + quitting.finished
+                  } títulos que empezaste y tuvieron final`}
+                />
+                {quitting.usualEpisode !== undefined && (
+                  <StatTile
+                    label="Solés dejarlas"
+                    value={
+                      quitting.usualEpisode === 1
+                        ? 'En el primero'
+                        : `Tras ${quitting.usualEpisode} episodios`
+                    }
+                    hint={
+                      quitting.inFirstSeason > 0
+                        ? `${quitting.inFirstSeason} de ${quitting.seriesWithProgress} en la primera temporada`
+                        : undefined
+                    }
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           <WrappedCard />
 

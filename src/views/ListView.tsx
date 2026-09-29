@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import {
+  Archive,
+  ArrowLeft,
   BellDot,
   Clapperboard,
   Compass,
+  Pause,
   Search,
   SlidersHorizontal,
   Sparkles,
@@ -16,22 +19,41 @@ import { useAuth } from '@/contexts/AuthContext';
 import { MediaCard } from '@/components/MediaCard';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { useLibraryFilters } from '@/hooks/useLibraryFilters';
+import { useArchiveActions } from '@/hooks/useArchiveActions';
+import { usePreferences } from '@/preferences';
 import {
   SORT_OPTIONS,
   collectGenres,
   collectProviders,
   collectTags,
+  LibraryStatus,
   filterLibrary,
   hasActiveFilters,
+  matchesStatus,
 } from '@/lib/library';
 import { MediaStatus, MediaType } from '@/types';
 import { hasNewEpisodes } from '@/lib/progress';
+import { idleLabel, isArchivedStatus, pauseSuggestion } from '@/lib/archive';
 import { cn } from '@/lib/utils';
 
 const TABS: { id: MediaStatus; label: string }[] = [
   { id: 'por_ver', label: 'Por Ver' },
   { id: 'viendo', label: 'Viendo' },
   { id: 'completada', label: 'Completadas' },
+];
+
+/**
+ * Los filtros de *Archivadas*: las dos juntas, o una sola.
+ *
+ * *Archivadas* no es una pestaña más a propósito: son títulos que ya no se
+ * recorren todos los días, y dos pestañas nuevas le robaban ancho a las tres
+ * que sí, justo en el teléfono. Se llega desde el botón de abajo de las
+ * pestañas, que solo aparece cuando hay algo archivado.
+ */
+const ARCHIVE_FILTERS: { id: LibraryStatus; label: string }[] = [
+  { id: 'archivadas', label: 'Todas' },
+  { id: 'en_pausa', label: 'En pausa' },
+  { id: 'abandonada', label: 'Abandonadas' },
 ];
 
 const TYPES: { value: MediaType; label: string; Icon: typeof Tv }[] = [
@@ -53,8 +75,25 @@ export function ListView() {
   // "Terror" cuando en Completadas no hay ninguna de terror es ofrecer un
   // filtro que solo puede dar cero resultados.
   const inStatus = useMemo(
-    () => mediaList.filter((media) => media.status === filters.status),
+    () => mediaList.filter((media) => matchesStatus(media, filters.status)),
     [mediaList, filters.status],
+  );
+  const isArchiveView =
+    filters.status === 'archivadas' || isArchivedStatus(filters.status);
+  const archived = useMemo(
+    () => mediaList.filter((media) => isArchivedStatus(media.status)),
+    [mediaList],
+  );
+
+  // "¿La ponés en pausa?" vive en la pestaña Viendo, que es donde está la
+  // serie quieta: en otra pestaña sería hablar de algo que no se ve.
+  const { pause } = useArchiveActions();
+  const dismissedHints = usePreferences((state) => state.pauseHintsDismissed);
+  const dismissPauseHint = usePreferences((state) => state.dismissPauseHint);
+  const suggestion = useMemo(
+    () =>
+      filters.status === 'viendo' ? pauseSuggestion(mediaList, dismissedHints) : null,
+    [filters.status, mediaList, dismissedHints],
   );
   const genres = useMemo(() => collectGenres(inStatus), [inStatus]);
   const providers = useMemo(() => collectProviders(inStatus), [inStatus]);
@@ -82,78 +121,153 @@ export function ListView() {
 
       <h1 className="text-display">Mis listas</h1>
 
-      <div
-        role="tablist"
-        aria-label="Estado de los títulos"
-        className="relative flex bg-bg-card p-1 rounded-control border border-border-card"
-      >
-        {/*
-          La pastilla de la pestaña activa es un solo elemento que se desplaza,
-          y no un `layoutId` que aparece y desaparece dentro de cada botón.
-
-          Con `layoutId`, cada cambio de pestaña desmonta la pastilla de un
-          botón y monta otra en el siguiente, y motion tiene que animar entre
-          las dos midiendo un nodo que ya salió del documento. Un `transform`
-          con transición de CSS hace lo mismo a la vista, sin nada que medir
-          —y `prefers-reduced-motion` ya lo desactiva desde `index.css`.
-        */}
-        <span
-          aria-hidden="true"
-          className="absolute top-1 bottom-1 left-1 bg-border-card rounded-lg transition-transform duration-300 ease-out"
-          style={{
-            // El contenedor tiene `p-1` de cada lado: el ancho útil es el
-            // total menos esos dos cuartos de rem.
-            width: `calc((100% - 0.5rem) / ${TABS.length})`,
-            transform: `translateX(${
-              TABS.findIndex((tab) => tab.id === filters.status) * 100
-            }%)`,
-          }}
-        />
-
-        {TABS.map((tab) => {
-          const isActive = filters.status === tab.id;
-          // El número respeta el botón de Películas / Series: con "Series"
-          // prendido, "Por Ver 7" cuando hay tres series confunde.
-          const count = mediaList.filter(
-            (m) =>
-              m.status === tab.id &&
-              (!filters.type || m.mediaType === filters.type),
-          ).length;
-
-          return (
+      {isArchiveView ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <button
-              key={tab.id}
-              role="tab"
-              aria-selected={isActive}
-              // Sin esto el nombre accesible sale de pegar los dos nodos de
-              // texto y se lee "Por Ver7".
-              aria-label={
-                count > 0
-                  ? `${tab.label}, ${count} ${count === 1 ? 'título' : 'títulos'}`
-                  : tab.label
-              }
-              onClick={() => setFilters({ status: tab.id })}
-              className={cn(
-                'flex-1 py-3 px-1 rounded-lg transition-colors relative',
-                isActive
-                  ? 'text-text-main'
-                  : 'text-text-muted hover:text-text-main',
-              )}
+              type="button"
+              onClick={() => setFilters({ status: 'por_ver' })}
+              className="btn btn-ghost px-2 py-1.5 text-sm -ml-2"
             >
-              {/* `whitespace-nowrap`: "Completadas (6)" partía en dos renglones
-                  en pantallas angostas y descuadraba toda la fila. */}
-              <span className="relative z-10 flex items-center justify-center gap-1.5 whitespace-nowrap text-[13px] sm:text-sm font-medium">
-                {tab.label}
-                {count > 0 && (
-                  <span className="text-text-subtle font-normal tabular-nums">
-                    {count}
-                  </span>
-                )}
-              </span>
+              <ArrowLeft size={16} aria-hidden="true" />
+              Volver a las listas
             </button>
-          );
-        })}
-      </div>
+            <h2 className="text-section">Archivadas</h2>
+          </div>
+          <p className="text-sm text-text-muted">
+            Lo que pusiste en pausa o abandonaste. No aparece en Continuar
+            viendo ni en el picker; lo abandonado, tampoco en el calendario.
+          </p>
+          {/* Filtrar entre dos tiene sentido recién cuando hay de las dos. */}
+          {archived.some((m) => m.status === 'en_pausa') &&
+            archived.some((m) => m.status === 'abandonada') && (
+              <div role="group" aria-label="Qué archivadas mostrar" className="flex flex-wrap gap-2">
+                {ARCHIVE_FILTERS.map(({ id, label }) => {
+                  const isActive = filters.status === id;
+                  const count = archived.filter((media) => matchesStatus(media, id)).length;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => setFilters({ status: id })}
+                      className={cn(
+                        'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
+                        isActive
+                          ? 'bg-accent text-accent-contrast border-accent font-medium'
+                          : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
+                      )}
+                    >
+                      {label}
+                      <span className={cn('tabular-nums', isActive ? 'opacity-80' : 'text-text-subtle')}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+        </div>
+      ) : (
+        <div
+          role="tablist"
+          aria-label="Estado de los títulos"
+          className="relative flex bg-bg-card p-1 rounded-control border border-border-card"
+        >
+          {/*
+            La pastilla de la pestaña activa es un solo elemento que se desplaza,
+            y no un `layoutId` que aparece y desaparece dentro de cada botón.
+
+            Con `layoutId`, cada cambio de pestaña desmonta la pastilla de un
+            botón y monta otra en el siguiente, y motion tiene que animar entre
+            las dos midiendo un nodo que ya salió del documento. Un `transform`
+            con transición de CSS hace lo mismo a la vista, sin nada que medir
+            —y `prefers-reduced-motion` ya lo desactiva desde `index.css`.
+          */}
+          <span
+            aria-hidden="true"
+            className="absolute top-1 bottom-1 left-1 bg-border-card rounded-lg transition-transform duration-300 ease-out"
+            style={{
+              // El contenedor tiene `p-1` de cada lado: el ancho útil es el
+              // total menos esos dos cuartos de rem.
+              width: `calc((100% - 0.5rem) / ${TABS.length})`,
+              transform: `translateX(${
+                TABS.findIndex((tab) => tab.id === filters.status) * 100
+              }%)`,
+            }}
+          />
+
+          {TABS.map((tab) => {
+            const isActive = filters.status === tab.id;
+            // El número respeta el botón de Películas / Series: con "Series"
+            // prendido, "Por Ver 7" cuando hay tres series confunde.
+            const count = mediaList.filter(
+              (m) =>
+                m.status === tab.id &&
+                (!filters.type || m.mediaType === filters.type),
+            ).length;
+
+            return (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={isActive}
+                // Sin esto el nombre accesible sale de pegar los dos nodos de
+                // texto y se lee "Por Ver7".
+                aria-label={
+                  count > 0
+                    ? `${tab.label}, ${count} ${count === 1 ? 'título' : 'títulos'}`
+                    : tab.label
+                }
+                onClick={() => setFilters({ status: tab.id })}
+                className={cn(
+                  'flex-1 py-3 px-1 rounded-lg transition-colors relative',
+                  isActive
+                    ? 'text-text-main'
+                    : 'text-text-muted hover:text-text-main',
+                )}
+              >
+                {/* `whitespace-nowrap`: "Completadas (6)" partía en dos renglones
+                    en pantallas angostas y descuadraba toda la fila. */}
+                <span className="relative z-10 flex items-center justify-center gap-1.5 whitespace-nowrap text-[13px] sm:text-sm font-medium">
+                  {tab.label}
+                  {count > 0 && (
+                    <span className="text-text-subtle font-normal tabular-nums">
+                      {count}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {suggestion && (
+        <div className="surface p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <p className="flex-1 text-sm text-text-main">
+            Hace {idleLabel(suggestion)} que no avanzás con{' '}
+            <strong>{suggestion.title}</strong>. ¿La ponés en pausa?
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => pause(suggestion)}
+              className="btn btn-primary px-3 py-2 text-sm"
+            >
+              <Pause size={16} aria-hidden="true" />
+              Poner en pausa
+            </button>
+            <button
+              type="button"
+              onClick={() => dismissPauseHint(suggestion.tmdbId)}
+              className="btn btn-secondary px-3 py-2 text-sm"
+            >
+              Sigo con esta
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Películas y Series a la vista, fuera del panel de filtros: es el
           corte que más se usa y en el teléfono no tiene que costar dos toques.
@@ -211,6 +325,21 @@ export function ListView() {
                   {withNews}
                 </span>
               )}
+            </button>
+          )}
+
+          {/* La puerta a Archivadas: al final de la fila y sin relleno, para
+              que no compita con los filtros de todos los días. Sin nada
+              archivado no existe. */}
+          {!isArchiveView && archived.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilters({ status: 'archivadas' })}
+              className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-full border border-border-control text-sm text-text-muted hover:text-text-main hover:border-accent transition-colors"
+            >
+              <Archive size={16} aria-hidden="true" />
+              Archivadas
+              <span className="tabular-nums text-text-subtle">{archived.length}</span>
             </button>
           )}
         </div>

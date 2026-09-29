@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMediaActions } from '@/hooks/useMediaActions';
+import { useArchiveActions } from '@/hooks/useArchiveActions';
 import { useToast } from '@/contexts/ToastContext';
 import { SavedMedia, MediaStatus } from '@/types';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
@@ -15,12 +16,7 @@ import { ReviewDrawer } from './ReviewDrawer';
 import { TitleDetailModal } from './TitleDetailModal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { cn } from '@/lib/utils';
-
-const STATUS_LABELS: Record<MediaStatus, string> = {
-  por_ver: 'Por Ver',
-  viendo: 'Viendo',
-  completada: 'Completada',
-};
+import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
 
 export function MediaCard({
   media,
@@ -30,6 +26,7 @@ export function MediaCard({
   onClick?: () => void;
 }) {
   const { updateStatus, removeMedia } = useMediaActions();
+  const { resume } = useArchiveActions();
   const { showToast } = useToast();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -40,6 +37,11 @@ export function MediaCard({
     // el estado lo termina de guardar el drawer junto con la calificación.
     if (newStatus === 'completada' && media.status !== 'completada') {
       setIsReviewOpen(true);
+      return;
+    }
+    // Retomar saca la tarjeta de Archivadas: el aviso dice adónde fue.
+    if (newStatus === 'viendo' && isArchivedStatus(media.status)) {
+      resume(media);
       return;
     }
     updateStatus(media.tmdbId, newStatus);
@@ -56,10 +58,14 @@ export function MediaCard({
   // llena diría "terminada", y no lo está.
   const caughtUp = isSeries && isCaughtUp(media);
   const news = isSeries ? newEpisodesSummary(media) : null;
+  const isArchived = isArchivedStatus(media.status);
   // Con novedades, una serie terminada ofrece volver a *Viendo*: el estado no
-  // se cambia solo, pero tampoco tiene que costar abrir la ficha.
+  // se cambia solo, pero tampoco tiene que costar abrir la ficha. Lo archivado
+  // también, y ahí el mismo botón se llama "Retomar".
   const canMoveToWatching =
-    media.status === 'por_ver' || (news !== null && media.status !== 'viendo');
+    media.status === 'por_ver' ||
+    isArchived ||
+    (news !== null && media.status !== 'viendo');
 
   const handleDelete = async () => {
     await removeMedia(media.tmdbId);
@@ -133,8 +139,15 @@ export function MediaCard({
               </span>
             )}
 
-            {(times > 1 || news) && (
+            {(times > 1 || news || isArchived) && (
               <span className="absolute top-3 left-3 right-14 flex flex-col items-start gap-1.5">
+                {/* En Archivadas se ven juntas las en pausa y las
+                    abandonadas: acá sí hace falta decir cuál es cuál. */}
+                {isArchived && (
+                  <span className="bg-bg-main/85 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-semibold">
+                    {STATUS_LABELS[media.status]}
+                  </span>
+                )}
                 {times > 1 && (
                   <span className="flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-medium">
                     <Repeat size={11} aria-hidden="true" />
@@ -202,8 +215,12 @@ export function MediaCard({
             <button
               onClick={() => handleStatusChange('viendo')}
               className="btn-icon w-full h-10 bg-bg-main border border-border-card text-text-muted hover:bg-border-card hover:text-text-main"
-              aria-label={`Mover "${media.title}" a Viendo`}
-              title="Mover a Viendo"
+              aria-label={
+                isArchived
+                  ? `Retomar "${media.title}"`
+                  : `Mover "${media.title}" a Viendo`
+              }
+              title={isArchived ? 'Retomar' : 'Mover a Viendo'}
             >
               <Tv size={16} aria-hidden="true" />
             </button>

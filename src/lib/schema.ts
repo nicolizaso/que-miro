@@ -1,4 +1,6 @@
 import {
+  ArchiveInfo,
+  ArchivedStatus,
   EpisodeRef,
   Keyword,
   MediaStatus,
@@ -8,9 +10,16 @@ import {
   SavedMedia,
   SeasonInfo,
   SeriesProgress,
+  StoredArchive,
   WatchEntry,
 } from '@/types';
 import { parseLanguage } from '@/lib/language';
+import {
+  REASON_MAX_LENGTH,
+  isAbandonedEntry,
+  isArchivedStatus,
+  isListStatus,
+} from '@/lib/archive';
 import { isDayKey } from '@/lib/dates';
 import { parseSeriesStatus } from '@/lib/enrich';
 
@@ -27,7 +36,6 @@ import { parseSeriesStatus } from '@/lib/enrich';
  */
 export const SCHEMA_VERSION = 2;
 
-const VALID_STATUSES: MediaStatus[] = ['por_ver', 'viendo', 'completada'];
 const VALID_TYPES: MediaType[] = ['movie', 'tv'];
 
 /** Id para una entrada del historial. */
@@ -85,6 +93,7 @@ function parseWatchEntry(value: unknown): WatchEntry | null {
     tags: tags.length > 0 ? tags : undefined,
     seasonRatings: parseSeasonRatings(value.seasonRatings),
     completedAt: isoOrNow(value.completedAt),
+    ...(value.abandoned === true ? { abandoned: true } : {}),
   };
 }
 
@@ -279,6 +288,55 @@ function parseNullableNumber(value: unknown): number | null | undefined {
   return Number.isFinite(num) && num > 0 ? num : undefined;
 }
 
+/** El motivo de abandono, recortado al tope. Vacío cuenta como ausente. */
+function parseReason(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const reason = value.trim().slice(0, REASON_MAX_LENGTH);
+  return reason || undefined;
+}
+
+/**
+ * El estado de un título, leído de cualquiera de sus dos formas.
+ *
+ * - La de Firestore y los backups: `status` en `viendo` y el estado real en
+ *   `archive.status` (ver {@link toStoredMedia}). El archivo vale solo si
+ *   `status` sigue en `viendo`: si una versión vieja de la app lo movió a otra
+ *   lista, eso es lo último que hizo la persona y gana.
+ * - La del dispositivo: `status` ya dice `en_pausa` o `abandonada`. Es lo que
+ *   guarda el store local, y lo que trae una copia de rescate.
+ *
+ * Un estado desconocido cae en *Por Ver*, como siempre. Y algo que ya se vio no
+ * puede estar "por ver": haberlo terminado alguna vez lo saca de ahí. Sí puede
+ * volver a *Viendo*, que es lo que pasa con una serie terminada que estrena
+ * temporada.
+ */
+function parseStatus(
+  value: Record<string, unknown>,
+  hasHistory: boolean,
+  updatedAt: string,
+): { status: MediaStatus; archive?: ArchiveInfo } {
+  const stored = isRecord(value.archive) ? value.archive : undefined;
+
+  let archived: ArchivedStatus | undefined;
+  if (isArchivedStatus(value.status)) archived = value.status;
+  else if (value.status === 'viendo' && isArchivedStatus(stored?.status)) {
+    archived = stored.status;
+  }
+
+  if (archived) {
+    const reason = archived === 'abandonada' ? parseReason(stored?.reason) : undefined;
+    return {
+      status: archived,
+      // Sin fecha legible se toma la del último cambio: perder la fecha es
+      // menos grave que perder el estado.
+      archive: { at: parseIso(stored?.at) ?? updatedAt, ...(reason ? { reason } : {}) },
+    };
+  }
+
+  const declared = isListStatus(value.status) ? value.status : 'por_ver';
+  return { status: hasHistory && declared === 'por_ver' ? 'completada' : declared };
+}
+
 /**
  * Valida y normaliza un título venga de donde venga, migrándolo si es de una
  * versión vieja del schema.
@@ -300,9 +358,12 @@ export function parseMedia(value: unknown): SavedMedia | null {
   if (!title) return null;
 
   const history = parseHistory(value);
-  const declaredStatus = VALID_STATUSES.includes(value.status as MediaStatus)
-    ? (value.status as MediaStatus)
-    : 'por_ver';
+  const updatedAt = isoOrNow(value.updatedAt);
+  const { status, archive } = parseStatus(
+    value,
+    history.some((entry) => !isAbandonedEntry(entry)),
+    updatedAt,
+  );
 
   return {
     tmdbId,
@@ -313,12 +374,8 @@ export function parseMedia(value: unknown): SavedMedia | null {
       typeof value.backdropPath === 'string' ? value.backdropPath : null,
     releaseYear: typeof value.releaseYear === 'string' ? value.releaseYear : '',
     genres: parseStringArray(value.genres),
-    // Algo que ya se vio no puede estar "por ver": haberlo terminado alguna
-    // vez lo saca de ahí. Sí puede volver a *Viendo*, que es lo que pasa con
-    // una serie terminada que estrena temporada.
-    status:
-      history.length > 0 && declaredStatus === 'por_ver' ? 'completada' : declaredStatus,
-    updatedAt: isoOrNow(value.updatedAt),
+    status,
+    updatedAt,
 
     runtime: parseNullableNumber(value.runtime),
     seasons: mediaType === 'tv' ? parseSeasons(value.seasons) : undefined,
@@ -356,6 +413,7 @@ export function parseMedia(value: unknown): SavedMedia | null {
     nextToAir: mediaType === 'tv' ? parseEpisodeRef(value.nextToAir) : undefined,
     newEpisodesSince:
       mediaType === 'tv' ? parseNewEpisodes(value.newEpisodesSince) : undefined,
+    archive,
 
     progress: mediaType === 'tv' ? parseProgress(value.progress) : undefined,
     history: history.length > 0 ? history : undefined,
@@ -383,6 +441,82 @@ export function parseMediaList(values: unknown[]): {
   }
 
   return { media, skipped };
+}
+
+/**
+ * Un cambio de estado, con el archivo que le corresponde.
+ *
+ * Pasar a *En pausa* o *Abandonada* anota desde cuándo; volver a cualquier
+ * lista lo borra. Así ningún camino —la tarjeta, la ficha, el "+1", el deshacer
+ * de un aviso— puede dejar un título en *Viendo* con un archivo colgado.
+ */
+export function withArchive(
+  patch: Partial<SavedMedia>,
+  now = new Date(),
+): Partial<SavedMedia> {
+  if (patch.status === undefined) return patch;
+  if (!isArchivedStatus(patch.status)) return { ...patch, archive: undefined };
+
+  const reason =
+    patch.status === 'abandonada' ? parseReason(patch.archive?.reason) : undefined;
+  return {
+    ...patch,
+    archive: { at: patch.archive?.at ?? now.toISOString(), ...(reason ? { reason } : {}) },
+  };
+}
+
+/** El archivo tal como se guarda afuera: con el estado adentro. */
+function storedArchive(status: ArchivedStatus, archive: ArchiveInfo | undefined, fallback: string): StoredArchive {
+  return {
+    status,
+    at: archive?.at ?? fallback,
+    ...(archive?.reason ? { reason: archive.reason } : {}),
+  };
+}
+
+/**
+ * Un título listo para escribirse en Firestore o en un backup.
+ *
+ * Por qué no se guarda `status: 'abandonada'` tal cual: una versión vieja de la
+ * app —la PWA que quedó sin actualizar en otro dispositivo— valida `status`
+ * contra los tres de siempre y cambia lo que no conoce por *Por Ver*. Con eso
+ * solo mostraría mal el título; lo grave es que en la próxima escritura que
+ * incluya el estado —borrar una reseña, importar un backup— lo guarda así, y
+ * el dato se pierde. Con `status` en `viendo`, esa versión ve el título en
+ * *Viendo*, que es donde estaba antes de archivarse, y no tiene nada que
+ * corregir.
+ */
+export function toStoredMedia(media: SavedMedia): Record<string, unknown> {
+  const { archive, ...rest } = media;
+  if (!isArchivedStatus(media.status)) return rest;
+
+  return {
+    ...rest,
+    status: 'viendo',
+    archive: storedArchive(media.status, archive, media.updatedAt),
+  };
+}
+
+/**
+ * Lo mismo que {@link toStoredMedia}, para un cambio parcial.
+ *
+ * Un cambio sin estado pasa como está. Uno que vuelve a una lista escribe
+ * `archive` vacío, que es lo que lo borra del documento.
+ */
+export function toStoredPatch(patch: Partial<SavedMedia>): Record<string, unknown> {
+  const normalized = withArchive(patch);
+  if (normalized.status === undefined) {
+    const { archive: _ignored, ...rest } = normalized;
+    return rest;
+  }
+  if (!isArchivedStatus(normalized.status)) return normalized;
+
+  const { archive, ...rest } = normalized;
+  return {
+    ...rest,
+    status: 'viendo',
+    archive: storedArchive(normalized.status, archive, new Date().toISOString()),
+  };
 }
 
 /** Valida una colección venida de Firestore o de un backup. */
@@ -413,7 +547,12 @@ export function latestRating(media: SavedMedia): number | undefined {
   return latestWatch(media)?.rating;
 }
 
-/** Cuántas veces lo viste de punta a punta. */
+/**
+ * Cuántas veces lo viste de punta a punta.
+ *
+ * Sin contar lo que puntuaste con el título abandonado: esa vuelta no la
+ * terminaste.
+ */
 export function watchCount(media: SavedMedia): number {
-  return media.history?.length ?? 0;
+  return (media.history ?? []).filter((entry) => !isAbandonedEntry(entry)).length;
 }

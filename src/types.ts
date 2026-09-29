@@ -1,5 +1,37 @@
 export type MediaType = 'movie' | 'tv';
-export type MediaStatus = 'por_ver' | 'viendo' | 'completada';
+/**
+ * En qué lista está un título.
+ *
+ * Las tres primeras son las pestañas de Mis listas. `en_pausa` y `abandonada`
+ * viven aparte, en *Archivadas*: son estados de un título que empezaste, no
+ * listas que se recorren todos los días.
+ *
+ * Ojo con Firestore: ahí `status` guarda solo los tres de siempre, porque una
+ * versión vieja de la app que lee un estado que no conoce lo cambia por
+ * `por_ver` y, con la próxima escritura, lo pisa. Los dos nuevos viajan en
+ * {@link StoredArchive}; `toStoredMedia` y `parseMedia` hacen la traducción.
+ */
+export type MediaStatus = 'por_ver' | 'viendo' | 'completada' | 'en_pausa' | 'abandonada';
+
+/** Los estados que no son pestañas: se ven juntos en *Archivadas*. */
+export type ArchivedStatus = 'en_pausa' | 'abandonada';
+
+/** Cuándo y por qué se archivó un título que está en pausa o abandonado. */
+export interface ArchiveInfo {
+  at: string; // ISO
+  /** Motivo corto, si lo dejaste. Solo en abandonados. */
+  reason?: string;
+}
+
+/**
+ * Cómo se guarda un título archivado en Firestore y en los backups: `status`
+ * queda en `viendo` —lo que entiende una versión vieja— y el estado real va
+ * acá. Si una versión vieja lo mueve a otra lista, `status` deja de ser
+ * `viendo` y esto ya no vale: gana lo último que hizo la persona.
+ */
+export interface StoredArchive extends ArchiveInfo {
+  status: ArchivedStatus;
+}
 
 /**
  * En qué castellano se le piden los textos a TMDB: el de España o el latino.
@@ -25,6 +57,16 @@ export interface WatchEntry {
   /** Puntaje por temporada, para series. Número de temporada -> puntaje. */
   seasonRatings?: Record<number, number>;
   completedAt: string; // ISO
+  /**
+   * Es de una vuelta que abandonaste: el puntaje que dejaste al abandonar, o
+   * una reseña escrita con el título abandonado.
+   *
+   * Cuenta como opinión —el gusto la lee, y en contra— pero no como "lo
+   * viste": no suma horas ni títulos terminados, y no se vuelve una vez que lo
+   * viste aunque después lo retomes. Por eso es una marca en la entrada y no
+   * algo que se deduzca del estado del título.
+   */
+  abandoned?: boolean;
 }
 
 /**
@@ -208,6 +250,12 @@ export interface SavedMedia {
    * apaga solo a medida que los mirás.
    */
   newEpisodesSince?: NewEpisodesMarker;
+
+  /**
+   * Desde cuándo está en pausa o abandonado, y por qué. Solo con esos dos
+   * estados; con cualquier otro, ausente.
+   */
+  archive?: ArchiveInfo;
 
   /** Episodios vistos. Solo en series. */
   progress?: SeriesProgress;

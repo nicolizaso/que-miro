@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  abandonmentStats,
   activityHeatmap,
   allWatches,
   formatDuration,
@@ -467,5 +468,90 @@ describe('activityHeatmap', () => {
     expect(tuesday.count).toBe(3);
     expect(heatmap.max).toBe(3);
     expect(heatmap.total).toBe(3);
+  });
+});
+
+describe('lo abandonado', () => {
+  const abandonedEntry = {
+    ...watch(2, '2026-03-01T00:00:00.000Z', 'abandono'),
+    abandoned: true,
+  };
+
+  function droppedSeries(tmdbId: number, watched: Record<number, number[]>): SavedMedia {
+    return makeMedia({
+      tmdbId,
+      mediaType: 'tv',
+      status: 'abandonada',
+      runtime: 50,
+      totalEpisodes: 20,
+      seasons: [
+        { seasonNumber: 1, name: 'T1', episodeCount: 10 },
+        { seasonNumber: 2, name: 'T2', episodeCount: 10 },
+      ],
+      progress: { watched },
+      archive: { at: '2026-03-01T00:00:00.000Z' },
+    });
+  }
+
+  it('el puntaje de abandono no es una vez que lo viste', () => {
+    const media = { ...droppedSeries(1, { 1: [1, 2] }), history: [abandonedEntry] };
+
+    expect(allWatches([media])).toHaveLength(0);
+    expect(summarize([media]).totalWatches).toBe(0);
+  });
+
+  it('suma solo los episodios que llegaste a ver, no la serie entera', () => {
+    const media = { ...droppedSeries(1, { 1: [1, 2] }), history: [abandonedEntry] };
+    expect(totalMinutes([media])).toBe(100);
+  });
+
+  it('no cuenta como serie empezada', () => {
+    expect(summarize([droppedSeries(1, { 1: [1, 2] })]).inProgress).toBe(0);
+  });
+
+  describe('abandonmentStats', () => {
+    it('sin nada abandonado no hay panel', () => {
+      expect(abandonmentStats([makeMedia({ history: [watch(4, '2025-01-01T00:00:00.000Z')] })])).toBeNull();
+    });
+
+    it('mide lo abandonado contra todo lo que tuvo final', () => {
+      const finished = [1, 2, 3].map((id) =>
+        makeMedia({ tmdbId: 10 + id, history: [watch(4, '2025-01-01T00:00:00.000Z')] }),
+      );
+      const stats = abandonmentStats([...finished, droppedSeries(1, { 1: [1, 2, 3] })])!;
+
+      expect(stats.abandoned).toBe(1);
+      expect(stats.finished).toBe(3);
+      expect(stats.rate).toBe(0.25);
+    });
+
+    it('en qué episodio se suele dejar: la mediana, y cuántas en la primera temporada', () => {
+      const stats = abandonmentStats([
+        droppedSeries(1, { 1: [1, 2] }),
+        droppedSeries(2, { 1: [1, 2, 3] }),
+        droppedSeries(3, { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2: [1, 2] }),
+        // Sin progreso no dice en qué episodio: no entra en la cuenta.
+        droppedSeries(4, {}),
+      ])!;
+
+      expect(stats.seriesWithProgress).toBe(3);
+      expect(stats.usualEpisode).toBe(3);
+      expect(stats.inFirstSeason).toBe(2);
+    });
+
+    it('con una cantidad par, redondea el promedio de las dos del medio', () => {
+      const stats = abandonmentStats([
+        droppedSeries(1, { 1: [1, 2] }),
+        droppedSeries(2, { 1: [1, 2, 3, 4, 5] }),
+      ])!;
+      expect(stats.usualEpisode).toBe(4);
+    });
+
+    it('una película abandonada cuenta para la tasa pero no para el episodio', () => {
+      const stats = abandonmentStats([makeMedia({ status: 'abandonada' })])!;
+
+      expect(stats.rate).toBe(1);
+      expect(stats.usualEpisode).toBeUndefined();
+    });
   });
 });

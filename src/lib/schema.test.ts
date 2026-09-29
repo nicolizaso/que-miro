@@ -5,7 +5,10 @@ import {
   parseCollection,
   parseMedia,
   parseMediaList,
+  toStoredMedia,
+  toStoredPatch,
   watchCount,
+  withArchive,
 } from './schema';
 
 /** Un título tal como lo guardaba la v1 del schema: con un `review` suelto. */
@@ -429,5 +432,155 @@ describe('las fechas de los episodios', () => {
     });
 
     expect(media.progress?.watchedAt).toBeUndefined();
+  });
+});
+
+describe('en pausa y abandonada', () => {
+  const series = (overrides: Record<string, unknown> = {}) =>
+    v1Media({
+      tmdbId: 1396,
+      mediaType: 'tv',
+      title: 'Breaking Bad',
+      review: undefined,
+      status: 'viendo',
+      ...overrides,
+    });
+
+  it('lee el formato de Firestore: `viendo` y el estado real en el archivo', () => {
+    const media = parseMedia(
+      series({
+        archive: {
+          status: 'abandonada',
+          at: '2026-05-03T10:00:00.000Z',
+          reason: 'Se puso lenta',
+        },
+      }),
+    )!;
+
+    expect(media.status).toBe('abandonada');
+    expect(media.archive).toEqual({ at: '2026-05-03T10:00:00.000Z', reason: 'Se puso lenta' });
+  });
+
+  it('lee el formato del dispositivo, con el estado ya en `status`', () => {
+    const media = parseMedia(
+      series({ status: 'en_pausa', archive: { at: '2026-05-03T10:00:00.000Z' } }),
+    )!;
+
+    expect(media.status).toBe('en_pausa');
+    expect(media.archive).toEqual({ at: '2026-05-03T10:00:00.000Z' });
+  });
+
+  it('si una versión vieja lo movió de lista, gana lo que hizo', () => {
+    // Una PWA sin actualizar solo escribe `status`: el archivo queda viejo.
+    const media = parseMedia(
+      series({
+        status: 'completada',
+        archive: { status: 'en_pausa', at: '2026-05-03T10:00:00.000Z' },
+      }),
+    )!;
+
+    expect(media.status).toBe('completada');
+    expect(media.archive).toBeUndefined();
+  });
+
+  it('un archivo roto no voltea el título ni inventa un estado', () => {
+    expect(parseMedia(series({ archive: { status: 'olvidada' } }))!.status).toBe('viendo');
+    expect(parseMedia(series({ archive: null }))!.archive).toBeUndefined();
+  });
+
+  it('sin fecha legible toma la del último cambio, y recorta el motivo', () => {
+    const media = parseMedia(
+      series({
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        archive: { status: 'abandonada', at: 'ayer', reason: `  ${'x'.repeat(200)}  ` },
+      }),
+    )!;
+
+    expect(media.archive?.at).toBe('2026-06-01T00:00:00.000Z');
+    expect(media.archive?.reason).toHaveLength(80);
+  });
+
+  it('el motivo es solo de lo abandonado', () => {
+    const media = parseMedia(
+      series({ archive: { status: 'en_pausa', at: '2026-05-03T10:00:00.000Z', reason: 'x' } }),
+    )!;
+    expect(media.archive).toEqual({ at: '2026-05-03T10:00:00.000Z' });
+  });
+
+  it('un estado desconocido sigue cayendo en Por Ver', () => {
+    expect(parseMedia(series({ status: 'archivada' }))!.status).toBe('por_ver');
+  });
+
+  it('el puntaje de algo abandonado no lo pasa a Completadas ni cuenta como vez vista', () => {
+    const media = parseMedia(
+      series({
+        status: 'por_ver',
+        history: [
+          { id: 'a', rating: 2, completedAt: '2026-05-03T10:00:00.000Z', abandoned: true },
+        ],
+      }),
+    )!;
+
+    expect(media.status).toBe('por_ver');
+    expect(media.history?.[0].abandoned).toBe(true);
+    expect(watchCount(media)).toBe(0);
+  });
+});
+
+describe('toStoredMedia y toStoredPatch', () => {
+  const paused = {
+    ...parseMedia(v1Media({ status: 'viendo', review: undefined }))!,
+    status: 'en_pausa' as const,
+    archive: { at: '2026-05-03T10:00:00.000Z' },
+  };
+
+  it('guardan `viendo`, que es lo que entiende una versión vieja', () => {
+    const stored = toStoredMedia(paused);
+
+    expect(stored.status).toBe('viendo');
+    expect(stored.archive).toEqual({ status: 'en_pausa', at: '2026-05-03T10:00:00.000Z' });
+  });
+
+  it('ida y vuelta por parseMedia da lo mismo', () => {
+    expect(parseMedia(toStoredMedia(paused))).toEqual(paused);
+  });
+
+  it('uno de las listas de siempre se guarda como siempre', () => {
+    const media = parseMedia(v1Media())!;
+    expect(toStoredMedia(media)).toEqual(media);
+  });
+
+  it('volver a una lista borra el archivo del documento', () => {
+    const patch = toStoredPatch({ status: 'viendo' });
+
+    expect(patch).toHaveProperty('status', 'viendo');
+    expect(patch).toHaveProperty('archive', undefined);
+  });
+
+  it('abandonar anota la fecha aunque no venga', () => {
+    const patch = toStoredPatch({ status: 'abandonada' });
+    const archive = patch.archive as { status: string; at: string };
+
+    expect(patch.status).toBe('viendo');
+    expect(archive.status).toBe('abandonada');
+    expect(Number.isNaN(Date.parse(archive.at))).toBe(false);
+  });
+
+  it('un cambio sin estado pasa tal cual', () => {
+    expect(toStoredPatch({ genres: ['Drama'] })).toEqual({ genres: ['Drama'] });
+  });
+});
+
+describe('withArchive', () => {
+  it('limpia el archivo al volver a una lista y lo completa al archivar', () => {
+    expect(withArchive({ status: 'completada' })).toEqual({
+      status: 'completada',
+      archive: undefined,
+    });
+    const now = new Date('2026-07-01T12:00:00.000Z');
+    expect(withArchive({ status: 'en_pausa' }, now)).toEqual({
+      status: 'en_pausa',
+      archive: { at: '2026-07-01T12:00:00.000Z' },
+    });
   });
 });

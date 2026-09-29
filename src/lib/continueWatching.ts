@@ -1,5 +1,6 @@
 import { SavedMedia } from '@/types';
 import { firstUnwatchedAired, hasNewEpisodes } from '@/lib/progress';
+import { isArchivedStatus } from '@/lib/archive';
 
 /** Cuántas series entran en la fila. Más que esto ya es una lista, no un atajo. */
 export const CONTINUE_LIMIT = 12;
@@ -33,6 +34,9 @@ export function continueWatching(
     .filter(
       (media) =>
         media.mediaType === 'tv' &&
+        // Lo que pusiste en pausa o abandonaste no es para "esta noche",
+        // aunque haya salido algo nuevo.
+        !isArchivedStatus(media.status) &&
         (media.status === 'viendo' || hasNewEpisodes(media)),
     )
     .map((media) => ({ media, next: firstUnwatchedAired(media) }))
