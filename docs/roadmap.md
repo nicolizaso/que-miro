@@ -323,6 +323,55 @@ biblioteca nunca iba a poder deducir ahora se puede decir en dos minutos.
 
 ---
 
+## Previa — Atribución y castellano latino
+
+*Dos arreglos chicos que tocan todas las respuestas de TMDB.*
+
+**Qué estaba mal**
+
+Todas las plataformas de la app —la ficha, el filtro, el picker, la fila de
+Explorar— salen de `watch/providers` de TMDB, que se alimenta de JustWatch, y
+"JustWatch" no aparecía en ningún lado. TMDB avisa que revoca el acceso a la
+API si esos datos se usan sin atribuirlos, y pide que su propio aviso y su logo
+estén visibles en la aplicación: estaban solo en el README.
+
+El otro arreglo es de idioma. `TMDB_LANGUAGE` estaba fijo en `es-ES`, así que
+desde Argentina se veía *La jungla de cristal* en vez de *Duro de matar*: el
+título correcto, en el castellano equivocado.
+
+**Cómo quedó implementado**
+
+- **La atribución va donde está el dato.** La ficha dice "Datos de plataformas:
+  JustWatch" al lado de las plataformas y suma "Ver dónde verlo", que lleva a la
+  página de TMDB con los enlaces directos a cada servicio —la API da nombres y
+  logos, pero no esos enlaces—. Los filtros por plataforma y la fila de Explorar
+  nombran la fuente. Ajustes termina con *Acerca de*: el logo de TMDB, chico y
+  al fondo para que no compita con la marca propia, su aviso y el crédito a
+  JustWatch. El perfil público, que ve gente sin cuenta, lleva el aviso en el pie.
+- **El idioma sale de la región.** La app ya sabía de dónde es cada persona —el
+  país de las plataformas—, así que no hizo falta una preferencia más: España
+  lee en `es-ES` y el resto en `es-MX`. Todos los endpoints aceptan `lang` con
+  lista blanca, y el idioma entra en cada clave de caché; si no, la respuesta en
+  un idioma se serviría a quien pidió el otro.
+- **La sinopsis que falta se completa, el título no.** Las traducciones las
+  carga la comunidad de TMDB y a veces solo existe la de España: en ese caso el
+  servidor pide la sinopsis en `es-ES`, en una segunda llamada liviana y solo
+  cuando hace falta. El título, en cambio, se deja: si la ficha latina no lo
+  traduce es porque en Latinoamérica suele estrenarse con el original.
+- **Lo guardado se corrige solo.** Cada título anota en qué idioma se enriqueció
+  (`enrichedLanguage`), el enriquecimiento ahora trae el título y `isStale`
+  compara el idioma con el de la región. Lo que se guardó en castellano de
+  España pasa al latino la próxima vez que se refresca, sin migrar nada de golpe.
+- **Un solo nombre por género.** TMDB nombra distinto los géneros en cada
+  castellano —"Suspense" y "Suspenso"— y la biblioteca los compara como texto:
+  el filtro, las filas de Explorar, el cuestionario. Ahora se guardan traducidos
+  por id, con el nombre de la app, sin importar en qué idioma llegó la ficha.
+
+**Resultado:** la app cumple con lo que TMDB exige para seguir usando su API, y
+cada persona lee los títulos como se conocen en su país.
+
+---
+
 ## Resumen
 
 ```
@@ -333,4 +382,5 @@ T4  Producción     wrapped, perfil público, compartir, offline, E2E
 UI  Rediseño       navegación, tipografía, formas, contraste AA
 QM2 Explorar       señales de gusto, 25 recetas, feed barajado e infinito
 QM3 Contanos       cuestionario de favoritos, 9 recetas declaradas
+Pre Previa         atribución a JustWatch y TMDB, castellano latino
 ```
