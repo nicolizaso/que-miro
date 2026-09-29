@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { SavedMedia } from '@/types';
+import { SavedMedia, WatchEntry } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { Loader2, Star, X } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -7,6 +7,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { Dialog } from '@/components/ui/Dialog';
 import { newWatchId, watchCount } from '@/lib/schema';
 import { cn } from '@/lib/utils';
+import { formatWatchDate } from '@/lib/dates';
 
 /** Las cinco estrellas; cada una se parte en dos mitades clicables. */
 const STARS = [1, 2, 3, 4, 5];
@@ -33,32 +34,52 @@ function ratingLabel(value: number): string {
   return `${value.toString().replace('.', ',')} de 5 estrellas`;
 }
 
+/**
+ * El formulario de reseña.
+ *
+ * Sin `entry` suma una vez más al historial; con `entry` corrige esa reseña en
+ * su lugar, conservando la fecha en que la viste.
+ */
 export function ReviewDrawer({
   media,
+  entry,
   isOpen,
   onClose,
 }: {
   media: SavedMedia;
+  entry?: WatchEntry;
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState(entry?.rating ?? 0);
   const [hoverRating, setHoverRating] = useState(0);
-  const [reviewText, setReviewText] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [reviewText, setReviewText] = useState(entry?.text ?? '');
+  const [tags, setTags] = useState<string[]>(entry?.tags ?? []);
   const [isSaving, setIsSaving] = useState(false);
-  const { addWatchEntry } = useMediaActions();
+  const { addWatchEntry, updateWatchEntry } = useMediaActions();
   const { showToast } = useToast();
   const titleId = useId();
   const groupId = useId();
 
+  const isEditing = entry !== undefined;
   const previousWatches = watchCount(media);
-  const isRewatch = previousWatches > 0;
+  const isRewatch = !isEditing && previousWatches > 0;
 
   const handleSave = async () => {
     if (rating === 0 || isSaving) return;
     setIsSaving(true);
     try {
+      if (entry) {
+        await updateWatchEntry(media, {
+          ...entry,
+          rating,
+          text: reviewText.trim() || undefined,
+          tags: tags.length > 0 ? tags : undefined,
+        });
+        showToast(`Actualizamos tu reseña de "${media.title}".`);
+        onClose();
+        return;
+      }
       await addWatchEntry(media, {
         id: newWatchId(),
         rating,
@@ -167,9 +188,18 @@ export function ReviewDrawer({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id={titleId} className="font-serif italic font-bold text-2xl mb-1">
-              {isRewatch ? 'La volviste a ver' : 'Completaste'}
+              {isEditing
+                ? 'Editar reseña'
+                : isRewatch
+                  ? 'La volviste a ver'
+                  : 'Completaste'}
             </h2>
             <p className="text-text-muted">{media.title}</p>
+            {entry && (
+              <p className="text-xs text-text-subtle mt-1">
+                La que viste el {formatWatchDate(entry.completedAt)}.
+              </p>
+            )}
             {isRewatch && (
               <p className="text-xs text-text-subtle mt-1">
                 Va a quedar como la vez número {previousWatches + 1}. Lo que
@@ -254,7 +284,7 @@ export function ReviewDrawer({
             className="btn btn-primary flex-1 py-4"
           >
             {isSaving && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
-            Guardar Reseña
+            {isEditing ? 'Guardar cambios' : 'Guardar Reseña'}
           </button>
         </div>
       </motion.div>

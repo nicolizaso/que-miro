@@ -47,6 +47,8 @@ interface MediaState {
   /** Cambios sueltos sobre un título: progreso, plataformas, colecciones. */
   patchMedia: (tmdbId: number, patch: Partial<SavedMedia>) => void;
   addWatchEntry: (tmdbId: number, entry: WatchEntry) => void;
+  /** Corrige una reseña ya guardada: puntaje, comentario o etiquetas. */
+  updateWatchEntry: (tmdbId: number, entry: WatchEntry) => void;
   removeWatchEntry: (tmdbId: number, entryId: string) => void;
   setProgress: (tmdbId: number, progress: SeriesProgress) => void;
   removeMedia: (tmdbId: number) => void;
@@ -136,6 +138,17 @@ export const useMediaStore = create<MediaState>()(
             // Al frente: el historial va de lo más reciente a lo más viejo.
             history: [entry, ...(media.history ?? [])],
             status: 'completada',
+          })),
+        })),
+
+      updateWatchEntry: (tmdbId, entry) =>
+        set((state) => ({
+          mediaList: mapMedia(state.mediaList, tmdbId, (media) => ({
+            ...media,
+            // En su lugar: editar no la convierte en la vez más reciente.
+            history: (media.history ?? []).map((e) =>
+              e.id === entry.id ? entry : e,
+            ),
           })),
         })),
 

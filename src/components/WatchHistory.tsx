@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { RotateCcw, Star, Trash2 } from 'lucide-react';
-import { SavedMedia } from '@/types';
+import { Pencil, RotateCcw, Star, Trash2 } from 'lucide-react';
+import { SavedMedia, WatchEntry } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
@@ -19,6 +19,7 @@ export function WatchHistory({ media }: { media: SavedMedia }) {
   const { removeWatchEntry } = useMediaActions();
   const { showToast } = useToast();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [editing, setEditing] = useState<WatchEntry | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const history = media.history ?? [];
@@ -70,14 +71,24 @@ export function WatchHistory({ media }: { media: SavedMedia }) {
                   {formatWatchDate(entry.completedAt)}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setPendingDelete(entry.id)}
-                aria-label={`Borrar la reseña del ${formatWatchDate(entry.completedAt)}`}
-                className="p-1.5 rounded-lg text-text-subtle hover:text-accent hover:bg-border-card transition-colors shrink-0"
-              >
-                <Trash2 size={14} aria-hidden="true" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditing(entry)}
+                  aria-label={`Editar la reseña del ${formatWatchDate(entry.completedAt)}`}
+                  className="p-1.5 rounded-lg text-text-subtle hover:text-text-main hover:bg-border-card transition-colors"
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingDelete(entry.id)}
+                  aria-label={`Borrar la reseña del ${formatWatchDate(entry.completedAt)}`}
+                  className="p-1.5 rounded-lg text-text-subtle hover:text-accent hover:bg-border-card transition-colors"
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
             {entry.tags && entry.tags.length > 0 && (
@@ -107,6 +118,16 @@ export function WatchHistory({ media }: { media: SavedMedia }) {
           media={media}
           isOpen={isReviewOpen}
           onClose={() => setIsReviewOpen(false)}
+        />
+      )}
+
+      {editing && (
+        <ReviewDrawer
+          key={editing.id}
+          media={media}
+          entry={editing}
+          isOpen
+          onClose={() => setEditing(null)}
         />
       )}
 

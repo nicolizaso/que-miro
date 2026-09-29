@@ -151,6 +151,24 @@ export function useMediaActions() {
     });
   };
 
+  /**
+   * Reemplaza una entrada del historial por su versión corregida.
+   *
+   * Mantiene su lugar en la lista y su fecha: corregir una reseña no es volver
+   * a ver el título.
+   */
+  const updateWatchEntry = async (media: SavedMedia, entry: WatchEntry) => {
+    if (!isAuth) {
+      useMediaStore.getState().updateWatchEntry(media.tmdbId, entry);
+      return;
+    }
+    await write(media.tmdbId, {
+      history: (media.history ?? []).map((current) =>
+        current.id === entry.id ? entry : current,
+      ),
+    });
+  };
+
   const removeWatchEntry = async (media: SavedMedia, entryId: string) => {
     if (!isAuth) {
       useMediaStore.getState().removeWatchEntry(media.tmdbId, entryId);
@@ -220,6 +238,7 @@ export function useMediaActions() {
     updateStatus,
     patchMedia,
     addWatchEntry,
+    updateWatchEntry,
     removeWatchEntry,
     setProgress,
     removeMedia,
