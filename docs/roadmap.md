@@ -430,6 +430,68 @@ salió desde la última vez y por dónde retomar, sin abrir una sola ficha.
 
 ---
 
+## QM-5 — Historial fino
+
+*Qué viste, cuándo, qué tal y qué dejaste por el camino.*
+
+**Qué estaba mal**
+
+La biblioteca sabía si viste algo, pero no cuándo ni qué tal cada parte. Un
+episodio marcado no tenía fecha, así que una serie que miraste todo agosto
+aparecía en las estadísticas el día que la terminaste. Solo había tres
+estados: lo que dejaste a la mitad quedaba para siempre en *Viendo*, contando
+como pendiente en todos lados. No había forma de puntuar un episodio, ni de
+proponerse algo para el año.
+
+**Cómo quedó implementado**
+
+- **Cada episodio sabe cuándo lo viste.** `progress.watchedAt` va aparte de
+  `watched`, para que una PWA vieja siga leyendo la lista de números sin
+  enterarse. Lo marcado antes no tiene fecha y no se inventa. Las horas por
+  mes cuentan episodios en el día que se vieron y no suman dos veces lo que
+  después se terminó, y un mapa de calor muestra los días que miraste algo.
+- **En pausa y abandonada, sin perder datos con versiones viejas.** Una PWA
+  sin actualizar valida `status` contra los tres de siempre y cambia lo que no
+  conoce por *Por Ver*; con la próxima escritura que incluya el estado lo
+  guardaba así. Por eso en Firestore y en los backups `status` queda en
+  `viendo` —lo que esa versión muestra bien— y el estado real va en el campo
+  aditivo `archive`. Si una versión vieja mueve el título de lista, gana lo
+  que hizo. En la app viven en *Archivadas*, una puerta dentro de Mis listas y
+  no dos pestañas más.
+- **Abandonar dice algo.** Pide confirmación, admite un motivo y un puntaje
+  —marcado como de una vuelta abandonada, que no suma horas ni vistas aunque
+  la retomes—, y sale de Continuar viendo, del calendario, del picker y de los
+  avisos. En el gusto es señal en contra: no siembra "porque viste" y le baja
+  el peso a lo muy parecido (misma saga, misma dirección, varios temas en
+  común). Las estadísticas cuentan la tasa de abandono y después de cuántos
+  episodios se suele dejar una serie. Una serie quieta hace dos meses pregunta
+  si la ponés en pausa; nunca lo hace sola.
+- **Puntaje por episodio.** Vive en `progress.episodeRatings` porque se
+  puntúa mientras se mira, antes de que exista una reseña. En la fila de cada
+  episodio visto es un botón chico que despliega las estrellas: cien estrellas
+  de ocho píxeles por temporada no se pueden acertar con el dedo. La ficha
+  muestra tu mejor episodio, tu peor y el promedio por temporada; el wrapped,
+  el episodio del año.
+- **Metas y rachas.** `profile/goals`, cubierto por la regla existente de
+  `profile/{docId}`, con metas por año para que la de 2025 siga valiendo en el
+  resumen de 2025. Se miden contra el ritmo —"vas 2 películas abajo del
+  ritmo"—, y la racha cuenta semanas ISO en la zona del dispositivo, sin
+  cortarse porque sea lunes.
+- **De paso, un bug de sincronización.** `setDoc` con `merge: true` mezclaba
+  los mapas de adentro: desmarcar una temporada entera no se borraba en
+  Firestore y volvía con el próximo snapshot. Las escrituras de títulos pasaron
+  a `mergeFields`, que reemplaza cada campo entero.
+- **Un E2E intermitente que era un bug.** La grilla de Mis listas, con
+  `AnimatePresence` en modo `wait`, quedaba mostrando las tarjetas de la
+  pestaña anterior si la lista cambiaba durante la salida. Se sacó la
+  animación de salida: 0 fallos en 30 corridas, contra 6 en 30.
+
+**Resultado:** el historial deja de ser una lista de tildes. Dice cuándo, qué
+tal y qué quedó en el camino, y todo sigue siendo aditivo: un documento viejo
+se lee igual, y una versión vieja de la app no rompe nada nuevo.
+
+---
+
 ## Resumen
 
 ```
@@ -442,4 +504,5 @@ QM2 Explorar       señales de gusto, 25 recetas, feed barajado e infinito
 QM3 Contanos       cuestionario de favoritos, 9 recetas declaradas
 Pre Previa         atribución a JustWatch y TMDB, castellano latino
 QM4 Series vivas   refresco, fichas de episodio, al día, continuar, calendario
+QM5 Historial fino fecha por episodio, en pausa y abandonada, puntajes, metas
 ```
