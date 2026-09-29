@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { useApplyTheme } from '@/lib/theme';
 import { ExploreView } from '@/views/ExploreView';
+import { CalendarView } from '@/views/CalendarView';
 import { ListView } from '@/views/ListView';
 import { LoginView } from '@/views/LoginView';
 import { NotFoundView } from '@/views/NotFoundView';
@@ -60,6 +61,7 @@ function AppRoutes() {
         <Route index element={<ListView />} />
         <Route path="explorar" element={<ExploreView />} />
         <Route path="picker" element={<SmartPickerView />} />
+        <Route path="calendario" element={<CalendarView />} />
         <Route path="perfil" element={<ProfileView />}>
           <Route index element={<ProfileSummary />} />
           <Route path="gustos" element={<TasteProfileView />} />

@@ -41,6 +41,7 @@ export type MediaEnrichment = Pick<
   | 'sagaId'
   | 'sagaName'
   | 'originalLanguage'
+  | 'releaseDate'
   | 'enrichedLanguage'
   | 'enrichedRegion'
   | 'enrichedAt'
@@ -228,7 +229,7 @@ export function enrichFromDetail(
           lastAired: episodeFromTmdb(detail.last_episode_to_air),
           nextToAir: episodeFromTmdb(detail.next_episode_to_air),
         }
-      : {}),
+      : { releaseDate: isDayKey(detail.release_date) ? detail.release_date : undefined }),
   };
 }
 

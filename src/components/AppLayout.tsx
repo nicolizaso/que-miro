@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Compass, Film, LayoutGrid, Search, Shuffle, User } from 'lucide-react';
+import {
+  CalendarDays,
+  Compass,
+  Film,
+  LayoutGrid,
+  Search,
+  Shuffle,
+  User,
+} from 'lucide-react';
 import { SearchModal } from '@/components/SearchModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DemoBanner } from '@/components/DemoBanner';
@@ -18,6 +26,19 @@ const NAV_ITEMS = [
   { to: '/explorar', label: 'Explorar', Icon: Compass, end: false },
   { to: '/picker', label: 'Picker', Icon: Shuffle, end: false },
   { to: '/', label: 'Mis Listas', Icon: LayoutGrid, end: true },
+] as const;
+
+/**
+ * Lo que solo entra en la barra de arriba.
+ *
+ * El calendario no va en la barra inferior: con cuatro, el Picker deja de
+ * estar al medio y la barra queda despareja, y con cinco los blancos se
+ * achican por debajo de lo que un pulgar acierta. En el teléfono se llega
+ * desde el ícono del header, al lado del buscador: siempre a mano, sin
+ * robarle lugar a las pestañas que se usan todos los días.
+ */
+const DESKTOP_ONLY_ITEMS = [
+  { to: '/calendario', label: 'Calendario', Icon: CalendarDays, end: false },
 ] as const;
 
 /**
@@ -76,7 +97,7 @@ export function AppLayout() {
 
           <nav aria-label="Navegación principal" className="hidden md:block">
             <ul className="flex items-center">
-              {NAV_ITEMS.map(({ to, label, end }) => (
+              {[...NAV_ITEMS, ...DESKTOP_ONLY_ITEMS].map(({ to, label, end }) => (
                 <li key={to}>
                   <NavLink
                     to={to}
@@ -120,6 +141,23 @@ export function AppLayout() {
             >
               <Search size={22} aria-hidden="true" />
             </button>
+
+            {/* La entrada al calendario en el teléfono (ver DESKTOP_ONLY_ITEMS).
+                Desde `md` está en la barra de arriba, así que acá se esconde:
+                dos enlaces al mismo lugar confunden al lector de pantalla. */}
+            <NavLink
+              to="/calendario"
+              aria-label="Calendario"
+              title="Calendario"
+              className={({ isActive }) =>
+                cn(
+                  'btn-icon w-10 h-10 md:hidden rounded-full hover:bg-border-card',
+                  isActive ? 'text-accent' : 'text-text-main',
+                )
+              }
+            >
+              <CalendarDays size={21} aria-hidden="true" />
+            </NavLink>
 
             <ThemeToggle />
 

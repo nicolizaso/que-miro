@@ -151,6 +151,11 @@ export interface SavedMedia {
   /** Idioma original, en ISO 639-1. Distingue lo que ves doblado de lo que no. */
   originalLanguage?: string;
   /**
+   * El día de estreno de una película, `YYYY-MM-DD`. Es lo que pone en el
+   * calendario a lo que tenés en *Por Ver* y todavía no salió.
+   */
+  releaseDate?: string;
+  /**
    * En qué castellano se pidió la ficha que completó el título: de ahí salen
    * el título y el nombre de la saga.
    *

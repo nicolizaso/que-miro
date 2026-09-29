@@ -62,6 +62,10 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   tus géneros, tus actores, tus directores, tus productoras, tu década— que
   Explorar convierte en filas nuevas. Es lo que hace que la pestaña sea tuya
   desde el primer día, antes de tener una sola estrella puesta.
+- **Calendario** — lo que sale de las series que seguís y lo que tenés en *Por
+  Ver* con fecha de estreno, agrupado en hoy, esta semana, las próximas y más
+  adelante. Una temporada que se estrena entera se ve como tal, y las que
+  siguen en emisión sin fecha van aparte.
 - **Smart Picker** — elige al azar de tu lista *Por Ver*, filtrando por duración,
   tipo, género, plataforma, lista o ánimo.
 - **Modo duelo** — comparaciones de a dos que arman un ranking de tu lista, con
@@ -207,7 +211,7 @@ src/
   lib/recipes.ts      Las 34 formas de armar una fila de Explorar
   lib/feed.ts         Barajado con semilla y reparto de títulos entre filas
   components/charts/  Piezas del panel de estadísticas
-  views/              ListView, ExploreView, SmartPickerView, ProfileView,
+  views/              ListView, ExploreView, SmartPickerView, CalendarView, ProfileView,
                       TasteProfileView, LoginView, NotFoundView
   store.ts            Biblioteca (Zustand + localStorage)
   preferences.ts      Tema y región, solo de este dispositivo

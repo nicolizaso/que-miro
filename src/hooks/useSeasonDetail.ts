@@ -14,7 +14,8 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 const cache = new Map<string, Promise<TMDbSeason>>();
 const MAX_CACHED = 40;
 
-function requestSeason(tvId: number, seasonNumber: number): Promise<TMDbSeason> {
+/** Pide una temporada, o devuelve el pedido que ya estaba en curso o resuelto. */
+export function requestSeason(tvId: number, seasonNumber: number): Promise<TMDbSeason> {
   const key = `${tvId}:${seasonNumber}:${currentLanguage()}`;
   const hit = cache.get(key);
   if (hit) return hit;

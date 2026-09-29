@@ -325,6 +325,8 @@ export function parseMedia(value: unknown): SavedMedia | null {
       typeof value.originalLanguage === 'string' && value.originalLanguage
         ? value.originalLanguage
         : undefined,
+    releaseDate:
+      mediaType === 'movie' && isDayKey(value.releaseDate) ? value.releaseDate : undefined,
     // Uno desconocido cuenta como ausente: el título se refresca con el
     // idioma que corresponda, que es lo mismo que pasa con uno viejo.
     enrichedLanguage: parseLanguage(value.enrichedLanguage),

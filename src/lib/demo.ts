@@ -200,6 +200,8 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     status: 'viendo',
     daysAgo: 1,
     watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9], 2: [1, 2, 3] },
+    seriesStatus: 'Returning Series',
+    nextToAir: { season: 3, episode: 1, inDays: 45 },
   },
   {
     // Al día: vio todo lo que salió de una serie que sigue saliendo.
@@ -218,6 +220,8 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     },
     seriesStatus: 'Returning Series',
     lastAired: { season: 3, episode: 10, daysAgo: 20 },
+    // Con fecha para la temporada que viene: es lo que llena el calendario.
+    nextToAir: { season: 4, episode: 1, inDays: 12 },
   },
   {
     tmdbId: 94605,

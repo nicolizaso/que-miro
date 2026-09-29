@@ -38,6 +38,7 @@
           { "name": "sagaId", "type": "number", "required": false },
           { "name": "sagaName", "type": "string", "required": false },
           { "name": "originalLanguage", "type": "string", "required": false },
+          { "name": "releaseDate", "type": "string", "required": false },
           { "name": "enrichedLanguage", "type": "string", "required": false },
           { "name": "enrichedRegion", "type": "string", "required": false },
           { "name": "enrichedAt", "type": "timestamp", "required": false },

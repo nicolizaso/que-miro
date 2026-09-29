@@ -363,3 +363,16 @@ test('marcar el siguiente episodio desde el inicio', async ({ page }) => {
     page.getByRole('button', { name: 'Marcar T2E5 de Severance como visto' }),
   ).toBeVisible();
 });
+
+test('el calendario muestra lo que sale de lo que seguís', async ({ page }) => {
+  await page.getByRole('link', { name: 'Calendario' }).click();
+  await expect(page).toHaveURL(/\/calendario/);
+
+  // En el demo, The Bear está al día y ya anunció la temporada que viene.
+  await expect(page.getByRole('heading', { name: 'Calendario', level: 1 })).toBeVisible();
+  await expect(page.getByText('The Bear')).toBeVisible();
+  await expect(page.getByText('Estreno de la temporada 4')).toBeVisible();
+
+  // Las que siguen en emisión sin fecha van aparte.
+  await expect(page.getByRole('heading', { name: 'Sin fecha confirmada' })).toBeVisible();
+});

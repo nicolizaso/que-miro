@@ -46,6 +46,16 @@ export function formatDay(dayKey: string): string {
   });
 }
 
+/** "jueves 3 de octubre", para un día de TMDB cercano, sin el año. */
+export function formatWeekday(dayKey: string): string {
+  if (!isDayKey(dayKey)) return '';
+  return fromDayKey(dayKey).toLocaleDateString(LOCALE, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
 /** "3 oct", para listas donde el año se sobreentiende. */
 export function formatShortDay(dayKey: string): string {
   if (!isDayKey(dayKey)) return '';
