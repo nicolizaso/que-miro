@@ -372,6 +372,64 @@ cada persona lee los títulos como se conocen en su país.
 
 ---
 
+## QM-4 — Series vivas
+
+*Las series se guardaban como una foto. Ahora se enteran de lo que pasa.*
+
+**Qué estaba mal**
+
+Una serie se guardaba con sus temporadas del día en que se agregó, y
+`isStale` solo vencía si cambiaba el país: nunca se volvía a pedir. No se
+enteraba de una temporada nueva ni de que había terminado, y como TMDB carga
+los episodios antes de que salgan, una serie en emisión vista al día nunca
+llegaba al 100%. Para anotar el episodio de anoche había que buscar la serie,
+abrir la ficha y encontrar el número en una grilla que no decía qué era cada
+uno.
+
+**Cómo quedó implementado**
+
+- **Cada título vence según lo que es.** Una serie en emisión en tres días, una
+  en producción en una semana, una terminada en tres meses, una película en un
+  mes —por las plataformas—. Y una serie vence al día siguiente de que sale el
+  episodio que su ficha anunciaba: así una semanal se entera de cada episodio
+  sin preguntar todos los días. Un refresco en segundo plano los va poniendo al
+  día de a ocho por visita, lo que estás viendo primero.
+- **`/tv/changes` se evaluó y quedó afuera.** Son miles de ids por día, casi
+  todos por cambios que no importan —un póster, una traducción—, y el próximo
+  episodio guardado ya da la señal que sí importa, gratis.
+- **Un refresco no es algo que hizo la persona.** Escribe sin tocar
+  `updatedAt`, que es lo que ordena "Agregados hace poco": si no, la lista se
+  reacomodaba sola en cada visita. Tampoco toca el progreso, que se guarda por
+  número de temporada y sobrevive a que la serie sume una.
+- **La región pedida se separó de la de las plataformas.** Comparar contra
+  `providerRegion` dejaba vencido para siempre a todo título sin catálogo en tu
+  país, y el refresco lo habría vuelto a pedir en cada visita.
+- **Los episodios tienen ficha.** Una temporada se pide recién al desplegarla y
+  muestra cada episodio con nombre, fecha, duración e imagen; la sinopsis de lo
+  que no viste queda escondida, y lo que no salió aparece con su fecha. Sin
+  conexión queda la grilla de números. De paso se guarda la duración real de la
+  temporada, que las estadísticas prefieren a "primer episodio por cantidad".
+- **"Al día" se calcula, no se guarda.** El porcentaje se cuenta contra lo
+  emitido, "marcar toda" marca lo que salió, y una serie en emisión vista hasta
+  el final dice "Estás al día" y cuándo sale el próximo, en vez de "La
+  terminaste".
+- **Las novedades son una marca, no un contador.** Cuando el refresco trae
+  episodios en una serie terminada o al día, se anota desde cuál hay novedades;
+  lo que falta ver se calcula contra el progreso, así que el aviso —"T3 nueva",
+  "2 episodios nuevos"— se apaga solo a medida que se mira. El estado no cambia
+  por su cuenta: la tarjeta ofrece volver a *Viendo*.
+- **Continuar viendo y el calendario leen lo mismo.** La fila del inicio marca
+  el siguiente episodio de un toque, con "Deshacer"; el calendario junta lo que
+  sale en los próximos días y pide la temporada entera de lo que sale este mes,
+  para que una que se estrena de una vez se vea como tal. En la barra inferior
+  no entra otra pestaña sin descentrar el Picker, así que en el teléfono el
+  calendario está en el header.
+
+**Resultado:** la biblioteca se mueve con las series. Se sabe qué sale, qué
+salió desde la última vez y por dónde retomar, sin abrir una sola ficha.
+
+---
+
 ## Resumen
 
 ```
@@ -383,4 +441,5 @@ UI  Rediseño       navegación, tipografía, formas, contraste AA
 QM2 Explorar       señales de gusto, 25 recetas, feed barajado e infinito
 QM3 Contanos       cuestionario de favoritos, 9 recetas declaradas
 Pre Previa         atribución a JustWatch y TMDB, castellano latino
+QM4 Series vivas   refresco, fichas de episodio, al día, continuar, calendario
 ```
