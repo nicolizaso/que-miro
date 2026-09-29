@@ -4,6 +4,8 @@ import {
   airedInSeason,
   completeProgress,
   detectNewEpisodes,
+  episodeHighlights,
+  episodeRating,
   formatEpisode,
   hasNewEpisodes,
   hasWatchedAllAired,
@@ -14,6 +16,8 @@ import {
   newEpisodesSummary,
   nextEpisode,
   progressPercent,
+  rateEpisode,
+  ratedEpisodes,
   toggleEpisode,
   toggleSeason,
   totalEpisodes,
@@ -514,5 +518,94 @@ describe('la fecha de cada episodio', () => {
     expect(progress.watchedAt?.['1x1']).toBe(NOW.toISOString());
     expect(progress.watchedAt?.['1x2']).toBe(LATER.toISOString());
     expect(progress.watchedAt?.['2x2']).toBe(LATER.toISOString());
+  });
+});
+
+describe('puntajes por episodio', () => {
+  const NOW = new Date('2026-09-20T20:00:00.000Z');
+  const watched = { watched: { 1: [1, 2, 3], 2: [1] }, lastWatchedAt: '2026-09-01T00:00:00.000Z' };
+
+  it('se puntúa lo visto, y con 0 se saca', () => {
+    const rated = rateEpisode(watched, 1, 2, 4.5)!;
+    expect(episodeRating(rated, 1, 2)).toBe(4.5);
+
+    const cleared = rateEpisode(rated, 1, 2, 0)!;
+    expect(episodeRating(cleared, 1, 2)).toBeUndefined();
+    // Sin puntajes no queda un mapa vacío colgando.
+    expect(cleared).not.toHaveProperty('episodeRatings');
+  });
+
+  it('lo que no viste no se puede puntuar', () => {
+    expect(rateEpisode(watched, 2, 5, 5)).toBe(watched);
+    expect(rateEpisode(undefined, 1, 1, 5)).toBeUndefined();
+  });
+
+  it('puntuar no es ver: no mueve la última vez que miraste', () => {
+    expect(rateEpisode(watched, 1, 1, 3)!.lastWatchedAt).toBe(watched.lastWatchedAt);
+  });
+
+  it('desmarcar un episodio se lleva su puntaje, y el resto se queda', () => {
+    const rated = { ...watched, episodeRatings: { '1x2': 4, '1x3': 5 } };
+    const after = toggleEpisode(rated, 1, 2, NOW);
+
+    expect(after.episodeRatings).toEqual({ '1x3': 5 });
+  });
+
+  it('marcar una temporada entera no borra lo puntuado', () => {
+    const rated = { ...watched, episodeRatings: { '1x2': 4 } };
+    const after = toggleSeason(rated, SEASONS[1], 2, NOW);
+
+    expect(after.episodeRatings).toEqual({ '1x2': 4 });
+  });
+
+  it('ordena del mejor al peor y, a igual puntaje, como viene la serie', () => {
+    const media = makeSeries({ 1: [1, 2, 3], 2: [1, 2] });
+    media.progress!.episodeRatings = { '2x1': 5, '1x3': 5, '1x1': 2, '2x2': 3 };
+
+    expect(ratedEpisodes(media).map((e) => `${e.seasonNumber}x${e.episode}`)).toEqual([
+      '1x3',
+      '2x1',
+      '2x2',
+      '1x1',
+    ]);
+  });
+
+  describe('episodeHighlights', () => {
+    it('el mejor, el peor y el promedio de cada temporada con dos o más', () => {
+      const media = makeSeries({ 1: [1, 2, 3], 2: [1, 2] });
+      media.progress!.episodeRatings = { '1x1': 3, '1x2': 4, '1x3': 5, '2x1': 2 };
+
+      const { best, worst, seasons } = episodeHighlights(media);
+      expect(best).toEqual({ seasonNumber: 1, episode: 3, rating: 5 });
+      expect(worst).toEqual({ seasonNumber: 2, episode: 1, rating: 2 });
+      // La T2 tiene uno solo: no es un promedio.
+      expect(seasons).toEqual([{ seasonNumber: 1, average: 4, count: 3 }]);
+    });
+
+    it('si todos valen lo mismo, no hay "peor"', () => {
+      const media = makeSeries({ 1: [1, 2] });
+      media.progress!.episodeRatings = { '1x1': 4, '1x2': 4 };
+
+      const { best, worst } = episodeHighlights(media);
+      expect(best?.episode).toBe(1);
+      expect(worst).toBeUndefined();
+    });
+
+    it('sin puntajes no hay nada', () => {
+      expect(episodeHighlights(makeSeries({ 1: [1] }))).toEqual({
+        best: undefined,
+        worst: undefined,
+        seasons: [],
+      });
+    });
+
+    it('redondea el promedio a un decimal', () => {
+      const media = makeSeries({ 1: [1, 2, 3] });
+      media.progress!.episodeRatings = { '1x1': 4, '1x2': 4.5, '1x3': 3.5 };
+      expect(episodeHighlights(media).seasons[0].average).toBe(4);
+
+      media.progress!.episodeRatings = { '1x1': 5, '1x2': 4.5, '1x3': 4.5 };
+      expect(episodeHighlights(media).seasons[0].average).toBe(4.7);
+    });
   });
 });

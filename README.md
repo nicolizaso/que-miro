@@ -44,6 +44,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   temporada muestra sus episodios con nombre, fecha, duración e imagen; lo que
   todavía no salió aparece con su fecha, y la sinopsis de lo que no viste queda
   escondida hasta que la pedís.
+- **Puntaje por episodio** — cada episodio visto se puede puntuar mientras
+  mirás la serie; la ficha muestra tu mejor episodio, tu peor y el promedio de
+  cada temporada.
 - **Al día y novedades** — una serie que sigue saliendo no se "termina": si
   viste todo lo emitido, estás al día, y el porcentaje se cuenta contra lo que
   ya salió. Cuando una serie que terminaste estrena temporada, la tarjeta avisa
@@ -82,7 +85,8 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   agosto, y un mapa de actividad muestra los días que miraste algo. Si
   abandonaste algo, también cuánto abandonás y después de cuántos episodios
   solés dejar una serie.
-- **Tu año en Qué Miro?** — resumen anual listo para compartir.
+- **Tu año en Qué Miro?** — resumen anual listo para compartir, con tu
+  episodio del año.
 - **Perfil público** — publicá tus estadísticas y reseñas en `/u/tu-nombre`, con
   su vista previa resuelta del lado del servidor.
 - **Offline de verdad** — sin conexión seguís usando la app, y los cambios se

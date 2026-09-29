@@ -265,19 +265,22 @@ export function episodeKey(seasonNumber: number, episode: number): string {
 }
 
 /**
- * El progreso con las fechas de los episodios recién marcados.
+ * El progreso nuevo, con lo que cada episodio marcado traía consigo.
  *
- * Solo los recién marcados: lo que ya tenía fecha la conserva —marcar la
- * temporada entera no reescribe cuándo viste los primeros episodios—, y lo que
- * estaba marcado sin fecha sigue sin ella.
+ * Las fechas: los recién marcados llevan la de ahora, lo que ya tenía fecha la
+ * conserva —marcar la temporada entera no reescribe cuándo viste los primeros
+ * episodios—, y lo que estaba marcado sin fecha sigue sin ella. Los puntajes
+ * de lo que sigue marcado se conservan. Desmarcar un episodio se lleva su
+ * fecha y su puntaje: no se vio, así que tampoco cuándo ni qué tal.
  */
-function withDates(
+function withEpisodeData(
   watched: Record<number, number[]>,
   previous: SeriesProgress | undefined,
   now: Date,
 ): SeriesProgress {
   const at = now.toISOString();
   const watchedAt: Record<string, string> = {};
+  const episodeRatings: Record<string, number> = {};
 
   for (const [season, episodes] of Object.entries(watched)) {
     const before = previous?.watched[Number(season)] ?? [];
@@ -286,12 +289,16 @@ function withDates(
       const known = previous?.watchedAt?.[key];
       if (known) watchedAt[key] = known;
       else if (!before.includes(episode)) watchedAt[key] = at;
+
+      const rating = previous?.episodeRatings?.[key];
+      if (rating) episodeRatings[key] = rating;
     }
   }
 
   return {
     watched,
     ...(Object.keys(watchedAt).length > 0 ? { watchedAt } : {}),
+    ...(Object.keys(episodeRatings).length > 0 ? { episodeRatings } : {}),
     lastWatchedAt: at,
   };
 }
@@ -319,8 +326,8 @@ export function toggleEpisode(
   if (next.length > 0) watched[seasonNumber] = next;
   else delete watched[seasonNumber];
 
-  // Desmarcar borra la fecha: no se vio, así que tampoco cuándo.
-  return withDates(watched, progress, now);
+  // Desmarcar borra la fecha y el puntaje: no se vio, así que tampoco cuándo.
+  return withEpisodeData(watched, progress, now);
 }
 
 /**
@@ -356,7 +363,7 @@ export function toggleSeason(
   // casi siempre está anotando algo que vio antes, así que en las
   // estadísticas va a aparecer como un día de mucha actividad, y es honesto:
   // es el día en que la registró.
-  return withDates(watched, progress, now);
+  return withEpisodeData(watched, progress, now);
 }
 
 /**
@@ -386,7 +393,7 @@ export function completeProgress(
 
   // Igual que marcar una temporada entera: lo que faltaba queda con la fecha
   // de ahora, y lo que ya tenía la suya la conserva.
-  return withDates(watched, media.progress, now);
+  return withEpisodeData(watched, media.progress, now);
 }
 
 // --- Episodios nuevos -------------------------------------------------------
@@ -484,4 +491,115 @@ export function newEpisodesSummary(
 /** Si hay novedades sin ver. Es lo que mira el filtro de la biblioteca. */
 export function hasNewEpisodes(media: WithNews): boolean {
   return newEpisodesSummary(media) !== null;
+}
+
+// --- Puntajes por episodio --------------------------------------------------
+
+/** Tu puntaje de un episodio, si le pusiste. */
+export function episodeRating(
+  progress: SeriesProgress | undefined,
+  seasonNumber: number,
+  episode: number,
+): number | undefined {
+  return progress?.episodeRatings?.[episodeKey(seasonNumber, episode)];
+}
+
+/**
+ * Puntúa un episodio visto, o le saca el puntaje con 0.
+ *
+ * Solo lo visto: puntuar algo que no viste no tiene sentido, y un puntaje sin
+ * su episodio marcado quedaría huérfano. No toca `lastWatchedAt`, porque
+ * puntuar no es ver: si no, "Continuar viendo" reordenaría la fila cada vez
+ * que alguien pone estrellas a un episodio de hace meses.
+ */
+export function rateEpisode(
+  progress: SeriesProgress | undefined,
+  seasonNumber: number,
+  episode: number,
+  rating: number,
+): SeriesProgress | undefined {
+  if (!progress || !isEpisodeWatched(progress, seasonNumber, episode)) return progress;
+
+  const key = episodeKey(seasonNumber, episode);
+  const { episodeRatings, ...rest } = progress;
+  const next = { ...(episodeRatings ?? {}) };
+  if (rating > 0) next[key] = rating;
+  else delete next[key];
+
+  return Object.keys(next).length > 0 ? { ...rest, episodeRatings: next } : rest;
+}
+
+export interface RatedEpisode {
+  seasonNumber: number;
+  episode: number;
+  rating: number;
+}
+
+/**
+ * Los episodios que puntuaste, del mejor al peor. A igual puntaje, en el orden
+ * de la serie: entre dos cincos, el primero que te voló la cabeza.
+ */
+export function ratedEpisodes(media: WithProgress): RatedEpisode[] {
+  return Object.entries(media.progress?.episodeRatings ?? {})
+    .map(([key, rating]) => {
+      const [seasonNumber, episode] = key.split('x').map(Number);
+      return { seasonNumber, episode, rating };
+    })
+    .filter(({ seasonNumber, episode }) =>
+      isEpisodeWatched(media.progress, seasonNumber, episode),
+    )
+    .sort(
+      (a, b) =>
+        b.rating - a.rating || a.seasonNumber - b.seasonNumber || a.episode - b.episode,
+    );
+}
+
+export interface SeasonAverage {
+  seasonNumber: number;
+  /** Con un decimal. */
+  average: number;
+  /** Cuántos episodios puntuados hay detrás del promedio. */
+  count: number;
+}
+
+export interface EpisodeHighlights {
+  best?: RatedEpisode;
+  /** Solo si hay otro puntaje más bajo que el mejor: si no, "tu peor" sería el mismo. */
+  worst?: RatedEpisode;
+  /** Las temporadas con al menos dos episodios puntuados, en orden. */
+  seasons: SeasonAverage[];
+}
+
+/**
+ * Tu mejor episodio, tu peor y el promedio de cada temporada.
+ *
+ * El promedio pide dos episodios como mínimo: con uno solo no es un promedio,
+ * es ese episodio, y ya se ve en su fila.
+ */
+export function episodeHighlights(media: WithProgress): EpisodeHighlights {
+  const rated = ratedEpisodes(media);
+  const [best] = rated;
+  const lowest = rated[rated.length - 1];
+  // El peor es el primero de la serie entre los de puntaje más bajo, igual
+  // que el mejor.
+  const worst =
+    best && lowest && lowest.rating < best.rating
+      ? rated.find((episode) => episode.rating === lowest.rating)
+      : undefined;
+
+  const bySeason = new Map<number, number[]>();
+  for (const { seasonNumber, rating } of rated) {
+    bySeason.set(seasonNumber, [...(bySeason.get(seasonNumber) ?? []), rating]);
+  }
+
+  const seasons = Array.from(bySeason)
+    .filter(([, ratings]) => ratings.length >= 2)
+    .map(([seasonNumber, ratings]) => ({
+      seasonNumber,
+      average: Math.round((ratings.reduce((sum, r) => sum + r, 0) / ratings.length) * 10) / 10,
+      count: ratings.length,
+    }))
+    .sort((a, b) => a.seasonNumber - b.seasonNumber);
+
+  return { best, worst, seasons };
 }

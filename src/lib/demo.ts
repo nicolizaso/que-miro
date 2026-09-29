@@ -86,6 +86,8 @@ interface DemoSeedEntry {
   seasons?: Record<number, number>;
   /** Episodios vistos por temporada, para las series empezadas. */
   watched?: Record<number, number[]>;
+  /** Puntajes de algunos episodios vistos (`"2x5"`), para "tu mejor episodio". */
+  episodeRatings?: Record<string, number>;
   /**
    * En qué anda la serie y qué salió, para que el demo muestre "al día" y
    * las novedades aunque TMDB no conteste. Si contesta, gana lo de TMDB.
@@ -206,6 +208,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     status: 'viendo',
     daysAgo: 1,
     watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9], 2: [1, 2, 3] },
+    episodeRatings: { '1x1': 4, '1x7': 4.5, '1x9': 5, '2x1': 3.5, '2x3': 4 },
     seriesStatus: 'Returning Series',
     nextToAir: { season: 3, episode: 1, inDays: 45 },
   },
@@ -224,6 +227,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
       2: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
       3: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     },
+    episodeRatings: { '1x7': 5, '2x6': 5, '2x7': 4.5, '3x1': 2.5, '3x2': 3.5 },
     seriesStatus: 'Returning Series',
     lastAired: { season: 3, episode: 10, daysAgo: 20 },
     // Con fecha para la temporada que viene: es lo que llena el calendario.
@@ -394,6 +398,7 @@ export function buildDemoLibrary(): SavedMedia[] {
       ? {
           watched: entry.watched,
           watchedAt: seedWatchedAt(entry.watched, entry.daysAgo),
+          episodeRatings: entry.episodeRatings,
           lastWatchedAt: daysAgoToIso(entry.daysAgo),
         }
       : undefined;

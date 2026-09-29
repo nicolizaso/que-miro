@@ -190,3 +190,35 @@ describe('SeriesProgress, con los episodios de la temporada', () => {
     );
   });
 });
+
+describe('los puntajes por episodio', () => {
+  it('se puntúa un episodio visto desde su fila, y solo los vistos', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance());
+
+    const rate = await screen.findByRole('button', { name: 'Puntuar Bienvenidos a Lumon' });
+    expect(screen.queryByRole('button', { name: 'Puntuar Media Loop' })).not.toBeInTheDocument();
+
+    await user.click(rate);
+    await user.click(screen.getByLabelText('4,5 de 5 estrellas'));
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0].progress?.episodeRatings).toEqual({
+        '1x1': 4.5,
+      }),
+    );
+  });
+
+  it('muestra tu mejor episodio y tu peor, con sus nombres', async () => {
+    renderProgress(
+      severance({
+        progress: { watched: { 1: [1, 2] }, episodeRatings: { '1x1': 5, '1x2': 2 } },
+      }),
+    );
+
+    const best = (await screen.findByText('Tu mejor episodio')).parentElement!;
+    const worst = screen.getByText('Tu peor').parentElement!;
+    expect(await within(best).findByText(/Bienvenidos a Lumon/)).toBeInTheDocument();
+    expect(within(worst).getByText(/Media Loop/)).toBeInTheDocument();
+  });
+});

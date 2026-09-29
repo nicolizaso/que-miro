@@ -3,6 +3,8 @@ import { Sparkles } from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { ShareButton } from '@/components/ShareButton';
 import { availableYears, buildWrapped } from '@/lib/wrapped';
+import { formatEpisode } from '@/lib/progress';
+import { formatRating } from '@/components/ui/StarRating';
 
 /**
  * "Tu año en Qué Miro?": el resumen anual, listo para compartir.
@@ -96,6 +98,21 @@ export function WrappedCard() {
               {wrapped.best.media.title}
             </span>{' '}
             ({wrapped.best.entry.rating}★)
+          </p>
+        )}
+
+        {/* Sin fecha no se sabe en qué año lo viste: ahí se dice de dónde
+            salió, en vez de presentarlo como "el del año". */}
+        {wrapped.bestEpisode && (
+          <p className="text-sm text-text-muted -mt-4">
+            {wrapped.bestEpisode.dated
+              ? 'El episodio del año: '
+              : 'El mejor episodio de tu serie del año: '}
+            <span className="text-text-main font-medium">
+              {wrapped.bestEpisode.media.title},{' '}
+              {formatEpisode(wrapped.bestEpisode.seasonNumber, wrapped.bestEpisode.episode)}
+            </span>{' '}
+            ({formatRating(wrapped.bestEpisode.rating)}★)
           </p>
         )}
       </div>

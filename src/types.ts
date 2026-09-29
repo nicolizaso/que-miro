@@ -142,6 +142,15 @@ export interface SeriesProgress {
    * estadísticas que dependen de cuándo se vio algo lo dejan afuera.
    */
   watchedAt?: Record<string, string>;
+  /**
+   * Tu puntaje de cada episodio visto: clave `"2x5"` → de 0,5 a 5.
+   *
+   * Vive en el progreso y no en el historial porque los episodios se puntúan
+   * mientras se mira, antes de que exista una reseña de la serie. Y va aparte
+   * de `watched` por lo mismo que `watchedAt`: una versión vieja lo ignora sin
+   * romperse.
+   */
+  episodeRatings?: Record<string, number>;
   lastWatchedAt?: string; // ISO
 }
 

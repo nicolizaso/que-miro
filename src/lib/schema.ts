@@ -184,9 +184,23 @@ function parseProgress(value: unknown): SeriesProgress | undefined {
     }
   }
 
+  // Los puntajes por episodio, con la misma regla: solo de lo marcado. Se
+  // redondean a la media estrella, que es lo único que se puede elegir.
+  const episodeRatings: Record<string, number> = {};
+  if (isRecord(value.episodeRatings)) {
+    for (const [key, raw] of Object.entries(value.episodeRatings)) {
+      const match = /^(\d+)x(\d+)$/.exec(key);
+      const rating = Math.round(Number(raw) * 2) / 2;
+      if (!match || !Number.isFinite(rating) || rating < 0.5 || rating > 5) continue;
+      if (!watched[Number(match[1])]?.includes(Number(match[2]))) continue;
+      episodeRatings[key] = rating;
+    }
+  }
+
   return {
     watched,
     ...(Object.keys(watchedAt).length > 0 ? { watchedAt } : {}),
+    ...(Object.keys(episodeRatings).length > 0 ? { episodeRatings } : {}),
     lastWatchedAt:
       typeof value.lastWatchedAt === 'string' ? value.lastWatchedAt : undefined,
   };

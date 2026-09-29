@@ -584,3 +584,36 @@ describe('withArchive', () => {
     });
   });
 });
+
+describe('los puntajes por episodio', () => {
+  const series = (progress: unknown) =>
+    parseMedia(
+      v1Media({
+        mediaType: 'tv',
+        status: 'viendo',
+        review: undefined,
+        seasons: [{ seasonNumber: 1, name: 'T1', episodeCount: 8 }],
+        progress,
+      }),
+    )!;
+
+  it('un documento sin puntajes sigue igual', () => {
+    expect(series({ watched: { 1: [1, 2] } }).progress).not.toHaveProperty('episodeRatings');
+  });
+
+  it('conserva los de episodios marcados, redondeados a la media estrella', () => {
+    const media = series({
+      watched: { 1: [1, 2] },
+      episodeRatings: { '1x1': 4.5, '1x2': 3.7 },
+    });
+    expect(media.progress?.episodeRatings).toEqual({ '1x1': 4.5, '1x2': 3.5 });
+  });
+
+  it('descarta lo que no se puede leer, lo fuera de rango y lo que no está marcado', () => {
+    const media = series({
+      watched: { 1: [1, 2] },
+      episodeRatings: { '1x1': 'mucho', '1x2': 9, '1x5': 4, rara: 3 },
+    });
+    expect(media.progress).not.toHaveProperty('episodeRatings');
+  });
+});

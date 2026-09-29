@@ -4,10 +4,14 @@ import { MediaStatus, SavedMedia, SeasonInfo, TMDbEpisode } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useSeasonDetail } from '@/hooks/useSeasonDetail';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
+import { StarRatingInput, formatRating, ratingLabel } from '@/components/ui/StarRating';
 import {
+  RatedEpisode,
   airedBoundary,
   airedEpisodes,
   airedInSeason,
+  episodeHighlights,
+  episodeRating,
   formatEpisode,
   hasWatchedAllAired,
   isCaughtUp,
@@ -15,6 +19,7 @@ import {
   isStillAiring,
   nextEpisode,
   progressPercent,
+  rateEpisode,
   toggleEpisode,
   toggleSeason,
   totalEpisodes,
@@ -70,6 +75,87 @@ function EpisodeToggle({
 }
 
 /**
+ * El puntaje de un episodio visto: cerrado, un botón chico con las
+ * estrellas que le pusiste; abierto, las cinco para elegir.
+ *
+ * Plegado a propósito. Cinco estrellas con medias estrellas en cada fila de
+ * una temporada de diez son cien blancos de ocho píxeles: imposibles de
+ * acertar con el dedo, y una pared de estrellas que tapa la lista. Así cada
+ * fila suma un renglón chico y las estrellas aparecen del tamaño que hace
+ * falta, de a una fila por vez.
+ */
+function EpisodeRatingControl({
+  label,
+  rating,
+  onRate,
+}: {
+  label: string;
+  rating: number | undefined;
+  onRate: (rating: number) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+
+  // El foco acompaña: al abrir va a las estrellas, al cerrar vuelve al botón.
+  // Sin esto, quien usa teclado queda parado en un elemento que ya no existe.
+  useEffect(() => {
+    if (isOpen) {
+      panelRef.current
+        ?.querySelector<HTMLInputElement>('input:checked, input')
+        ?.focus();
+    } else if (wasOpen.current) {
+      triggerRef.current?.focus();
+    }
+    wasOpen.current = isOpen;
+  }, [isOpen]);
+
+  if (isOpen) {
+    return (
+      <div ref={panelRef} className="mt-2 flex flex-wrap items-start gap-x-4 gap-y-2">
+        <StarRatingInput
+          value={rating ?? 0}
+          onChange={onRate}
+          legend={`Tu puntaje para ${label}`}
+          size={28}
+          clearable
+          className="items-start gap-1"
+        />
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="btn btn-secondary px-3 py-1.5 text-xs"
+        >
+          Listo
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      ref={triggerRef}
+      type="button"
+      onClick={() => setIsOpen(true)}
+      aria-label={
+        rating
+          ? `Tu puntaje para ${label}: ${ratingLabel(rating)}. Cambiarlo`
+          : `Puntuar ${label}`
+      }
+      className="mt-1.5 inline-flex items-center gap-1 min-h-6 text-xs text-text-muted hover:text-text-main transition-colors"
+    >
+      <Star
+        size={12}
+        aria-hidden="true"
+        className={rating ? 'fill-accent text-accent' : undefined}
+      />
+      {rating ? formatRating(rating) : 'Puntuar'}
+    </button>
+  );
+}
+
+/**
  * Un episodio con su ficha: nombre, fecha, duración e imagen.
  *
  * La sinopsis de lo que no viste queda escondida detrás de un botón. Es la
@@ -80,14 +166,18 @@ function EpisodeRow({
   episode,
   seasonName,
   watched,
+  rating,
   today,
   onToggle,
+  onRate,
 }: {
   episode: TMDbEpisode;
   seasonName: string;
   watched: boolean;
+  rating: number | undefined;
   today: string;
   onToggle: () => void;
+  onRate: (rating: number) => void;
 }) {
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const aired = isEpisodeAired(episode, today);
@@ -159,6 +249,17 @@ function EpisodeRow({
               </span>
             </button>
           ))}
+
+        {/* Se puntúa lo que viste: lo demás no tiene con qué. */}
+        {watched && (
+          <div>
+            <EpisodeRatingControl
+              label={episode.name || `el episodio ${episode.episode_number}`}
+              rating={rating}
+              onRate={onRate}
+            />
+          </div>
+        )}
       </div>
     </li>
   );
@@ -194,6 +295,7 @@ function Season({
   aired,
   defaultOpen,
   onToggleEpisode,
+  onRateEpisode,
   onToggleSeason,
   onRuntimeKnown,
 }: {
@@ -203,6 +305,7 @@ function Season({
   aired: number;
   defaultOpen: boolean;
   onToggleEpisode: (seasonNumber: number, episode: number) => void;
+  onRateEpisode: (seasonNumber: number, episode: number, rating: number) => void;
   onToggleSeason: (season: SeasonInfo) => void;
   /** Avisa cuánto dura la temporada entera, cuando se supo. */
   onRuntimeKnown: (seasonNumber: number, totalRuntime: number) => void;
@@ -292,8 +395,16 @@ function Season({
                   season.seasonNumber,
                   episode.episode_number,
                 )}
+                rating={episodeRating(
+                  media.progress,
+                  season.seasonNumber,
+                  episode.episode_number,
+                )}
                 onToggle={() =>
                   onToggleEpisode(season.seasonNumber, episode.episode_number)
+                }
+                onRate={(rating) =>
+                  onRateEpisode(season.seasonNumber, episode.episode_number, rating)
                 }
               />
             ))}
@@ -319,6 +430,93 @@ function Season({
             })}
           </ul>
         ))}
+    </div>
+  );
+}
+
+/** Una de las dos puntas: tu mejor episodio o tu peor, con su nombre si llegó. */
+function HighlightTile({
+  label,
+  episode,
+  name,
+}: {
+  label: string;
+  episode: RatedEpisode;
+  name: string | undefined;
+}) {
+  return (
+    <div className="bg-bg-main border border-border-card rounded-control p-3 flex flex-col gap-1 min-w-0">
+      <span className="text-eyebrow text-text-subtle">{label}</span>
+      <span className="text-sm font-medium truncate">
+        {formatEpisode(episode.seasonNumber, episode.episode)}
+        {name && <span className="text-text-muted font-normal"> · {name}</span>}
+      </span>
+      <span className="flex items-center gap-1 text-sm tabular-nums">
+        {formatRating(episode.rating)}
+        <Star size={12} className="fill-accent text-accent" aria-hidden="true" />
+        <span className="sr-only">de 5 estrellas</span>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Lo que dicen tus puntajes por episodio: el mejor, el peor y el promedio de
+ * cada temporada.
+ *
+ * El promedio aparece solo si la reseña de la serie no trae puntajes por
+ * temporada: si los pusiste a mano, esos mandan, y dos números distintos para
+ * la misma temporada se contradirían. Los nombres salen de la temporada que
+ * TMDB ya haya mandado; sin conexión queda el "T2E5", que alcanza.
+ */
+function EpisodeHighlightsPanel({ media }: { media: SavedMedia }) {
+  const { best, worst, seasons } = episodeHighlights(media);
+  const bestSeason = useSeasonDetail(media.tmdbId, best?.seasonNumber ?? 0, best !== undefined);
+  const worstSeason = useSeasonDetail(
+    media.tmdbId,
+    worst?.seasonNumber ?? 0,
+    worst !== undefined,
+  );
+
+  const hasSeasonRatings = (media.history ?? []).some(
+    (entry) => entry.seasonRatings && Object.keys(entry.seasonRatings).length > 0,
+  );
+  const averages = hasSeasonRatings ? [] : seasons;
+  if (!best && averages.length === 0) return null;
+
+  const nameOf = (episode: RatedEpisode, detail: typeof bestSeason) =>
+    detail.season?.episodes.find((e) => e.episode_number === episode.episode)?.name;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {best && (
+        <div className="grid sm:grid-cols-2 gap-2">
+          <HighlightTile label="Tu mejor episodio" episode={best} name={nameOf(best, bestSeason)} />
+          {worst && <HighlightTile label="Tu peor" episode={worst} name={nameOf(worst, worstSeason)} />}
+        </div>
+      )}
+      {averages.length > 0 && (
+        <p className="text-sm text-text-muted">
+          Tu promedio por temporada:{' '}
+          {averages.map((season, index) => (
+            <span key={season.seasonNumber}>
+              {index > 0 && ' · '}
+              <span className="text-text-main">
+                T{season.seasonNumber} {formatRating(season.average)}
+              </span>
+              <Star
+                size={11}
+                className="inline fill-accent text-accent align-baseline ml-0.5"
+                aria-hidden="true"
+              />
+              <span className="sr-only">
+                {' '}
+                de 5 estrellas, con {season.count} episodios puntuados
+              </span>
+            </span>
+          ))}
+        </p>
+      )}
     </div>
   );
 }
@@ -494,6 +692,8 @@ export function SeriesProgress({
         </p>
       )}
 
+      <EpisodeHighlightsPanel media={media} />
+
       <div className="flex flex-col gap-2">
         {countableSeasons.map((season) => (
           <Season
@@ -507,6 +707,10 @@ export function SeriesProgress({
                 toggleEpisode(media.progress, seasonNumber, episode),
               )
             }
+            onRateEpisode={(seasonNumber, episode, rating) => {
+              const progress = rateEpisode(media.progress, seasonNumber, episode, rating);
+              if (progress) void setProgress(media.tmdbId, progress);
+            }}
             onToggleSeason={(target) =>
               applyProgress(
                 toggleSeason(

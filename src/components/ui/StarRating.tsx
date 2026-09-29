@@ -5,9 +5,14 @@ import { cn } from '@/lib/utils';
 /** Las cinco estrellas; cada una se parte en dos mitades clicables. */
 const STARS = [1, 2, 3, 4, 5];
 
-/** "3,5 de 5 estrellas": como se lee en castellano. */
+/** "3,5": los puntajes se escriben como se leen en castellano. */
+export function formatRating(value: number): string {
+  return value.toString().replace('.', ',');
+}
+
+/** "3,5 de 5 estrellas", para el lector de pantalla. */
 export function ratingLabel(value: number): string {
-  return `${value.toString().replace('.', ',')} de 5 estrellas`;
+  return `${formatRating(value)} de 5 estrellas`;
 }
 
 interface StarRatingInputProps {
