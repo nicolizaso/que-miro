@@ -76,6 +76,21 @@
           { "name": "updatedAt", "type": "timestamp", "required": true }
         ]
       }
+    },
+    {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/goals",
+      "description": "Annual goals (movies, series, hours) per year, synced newest-wins like the taste document",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "byYear", "type": "map", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
     }
   ]
 }

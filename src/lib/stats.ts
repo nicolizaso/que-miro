@@ -242,6 +242,24 @@ function completionMinutes(
   return Math.max(total - covered, 0);
 }
 
+/**
+ * Minutos que miraste en un año, con la misma regla que la actividad por mes:
+ * los episodios con fecha suman el día que se vieron, y cada vez que
+ * terminaste algo suma lo que no estaba ya contado episodio por episodio.
+ */
+export function minutesInYear(list: SavedMedia[], year: number): number {
+  const dated = datedEpisodes(list);
+  const fromEpisodes = dated
+    .filter((episode) => episode.watchedAt.getFullYear() === year)
+    .reduce((sum, episode) => sum + episode.minutes, 0);
+
+  const fromCompletions = allWatches(list)
+    .filter(({ entry }) => new Date(entry.completedAt).getFullYear() === year)
+    .reduce((sum, { media, entry }) => sum + completionMinutes(media, entry, dated), 0);
+
+  return fromEpisodes + fromCompletions;
+}
+
 export interface MonthlyActivity {
   /** `2026-03`, para ordenar sin ambigüedades. */
   key: string;

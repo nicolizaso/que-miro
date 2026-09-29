@@ -1,4 +1,5 @@
-import { SavedMedia } from '@/types';
+import { Goals, SavedMedia } from '@/types';
+import { GoalProgress, bestStreakInYear, emptyGoals, goalProgress } from '@/lib/goals';
 import { episodeKey, ratedEpisodes } from '@/lib/progress';
 import {
   Watch,
@@ -23,6 +24,10 @@ export interface WrappedYear {
   bestEpisode: YearEpisode | null;
   /** Lo más largo que te bancaste. */
   longest: Watch | null;
+  /** Las metas de ese año que se cumplieron. */
+  goalsMet: GoalProgress[];
+  /** La racha más larga de semanas seguidas mirando algo, dentro del año. */
+  bestStreak: number;
   movies: number;
   series: number;
 }
@@ -108,6 +113,8 @@ export function availableYears(list: SavedMedia[]): number[] {
 export function buildWrapped(
   list: SavedMedia[],
   year: number,
+  goals: Goals = emptyGoals(),
+  now = new Date(),
 ): WrappedYear | null {
   const watches = allWatches(list).filter(
     ({ entry }) => new Date(entry.completedAt).getFullYear() === year,
@@ -158,6 +165,8 @@ export function buildWrapped(
     best: sortedByRating[0] ?? null,
     bestEpisode: bestEpisodeOfYear(list, year, watches),
     longest: sortedByLength[0] ?? null,
+    goalsMet: goalProgress(list, goals, year, now).filter((goal) => goal.met),
+    bestStreak: bestStreakInYear(list, year),
     movies: watches.filter(({ media }) => media.mediaType === 'movie').length,
     series: watches.filter(({ media }) => media.mediaType === 'tv').length,
   };

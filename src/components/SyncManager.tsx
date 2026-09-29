@@ -21,6 +21,8 @@ import { Collection, SavedMedia } from '@/types';
 import { parseCollection, parseMedia, toStoredMedia } from '@/lib/schema';
 import { hasPicks, parsePicks } from '@/lib/picks';
 import { picksPath, picksToDocument } from '@/hooks/useTastePicks';
+import { goalsPath } from '@/hooks/useGoals';
+import { goalsToDocument, hasGoals, parseGoals } from '@/lib/goals';
 import { mergeLibraries } from '@/lib/backup';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -76,6 +78,7 @@ export function SyncManager() {
       mediaList,
       collections: localCollections,
       picks: localPicks,
+      goals: localGoals,
       syncedUid,
       setSyncedUid,
     } = useMediaStore.getState();
@@ -92,12 +95,14 @@ export function SyncManager() {
     const localMediaToUpload = isFirstSync ? mediaList : [];
     const localCollectionsToUpload = isFirstSync ? localCollections : [];
     const localPicksToUpload = isFirstSync ? localPicks : null;
+    const localGoalsToUpload = isFirstSync ? localGoals : null;
 
     setOwnerUid(user.uid);
 
     const savedMediaRef = collection(db, `users/${user.uid}/saved_media`);
     const collectionsRef = collection(db, `users/${user.uid}/collections`);
     const picksRef = doc(db, picksPath(user.uid));
+    const goalsRef = doc(db, goalsPath(user.uid));
     let migrated = false;
 
     const { setIssue } = useSyncStatus.getState();
@@ -376,12 +381,43 @@ export function SyncManager() {
       onListenError,
     ));
 
+    /**
+     * Las metas: la misma regla que el cuestionario. Son un documento chico que
+     * se toca una vez por año; si se editó en dos dispositivos, lo último que
+     * se guardó es lo que la persona quiso.
+     */
+    const unsubscribeGoals = listen((onListenError) => onSnapshot(
+      goalsRef,
+      (snapshot) => {
+        const remote = snapshot.exists() ? parseGoals(snapshot.data()) : null;
+        const { goals: local, setGoals } = useMediaStore.getState();
+
+        if (
+          localGoalsToUpload &&
+          hasGoals(localGoalsToUpload) &&
+          (!remote ||
+            Date.parse(remote.updatedAt) < Date.parse(localGoalsToUpload.updatedAt))
+        ) {
+          setDoc(goalsRef, goalsToDocument(localGoalsToUpload)).catch((error: unknown) => {
+            console.error('[sync] No se pudieron subir las metas:', error);
+          });
+          return;
+        }
+
+        if (!remote) return;
+        if (Date.parse(remote.updatedAt) < Date.parse(local.updatedAt)) return;
+        setGoals(remote);
+      },
+      onListenError,
+    ));
+
     return () => {
       disposed = true;
       retryTimers.forEach(clearTimeout);
       unsubscribeMedia();
       unsubscribeCollections();
       unsubscribePicks();
+      unsubscribeGoals();
       // Sin listeners no hay nada que sincronizar: el cartel dejaría de
       // describir el estado de la app.
       setIssue(null);

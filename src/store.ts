@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import {
   Collection,
   MediaStatus,
+  Goals,
   SavedMedia,
   SeriesProgress,
   TastePicks,
@@ -16,6 +17,7 @@ import {
 } from './lib/schema';
 import { isArchivedStatus } from './lib/archive';
 import { emptyPicks, parsePicks } from './lib/picks';
+import { emptyGoals, parseGoals } from './lib/goals';
 
 interface MediaState {
   mediaList: SavedMedia[];
@@ -30,6 +32,11 @@ interface MediaState {
    * aparecería al siguiente que inicie sesión.
    */
   picks: TastePicks;
+  /**
+   * Las metas del año. Como el cuestionario, son de la cuenta: se sincronizan,
+   * van al backup y tienen el mismo dueño que la biblioteca.
+   */
+  goals: Goals;
   /**
    * UID del usuario dueño de los datos que hay en memoria/localStorage.
    * `null` significa "datos de invitado", todavía no asociados a ninguna cuenta.
@@ -69,6 +76,7 @@ interface MediaState {
   setMediaList: (list: SavedMedia[]) => void;
 
   setPicks: (picks: TastePicks) => void;
+  setGoals: (goals: Goals) => void;
 
   setCollections: (collections: Collection[]) => void;
   addCollection: (collection: Collection) => void;
@@ -101,10 +109,12 @@ export const useMediaStore = create<MediaState>()(
       mediaList: [],
       collections: [],
       picks: emptyPicks(),
+      goals: emptyGoals(),
       ownerUid: null,
       syncedUid: null,
       setMediaList: (list) => set({ mediaList: list }),
       setPicks: (picks) => set({ picks }),
+      setGoals: (goals) => set({ goals }),
       setOwnerUid: (uid) => set({ ownerUid: uid }),
       setSyncedUid: (uid) => set({ syncedUid: uid }),
       reset: () =>
@@ -112,6 +122,7 @@ export const useMediaStore = create<MediaState>()(
           mediaList: [],
           collections: [],
           picks: emptyPicks(),
+          goals: emptyGoals(),
           ownerUid: null,
           syncedUid: null,
         }),
@@ -252,7 +263,7 @@ export const useMediaStore = create<MediaState>()(
        */
       merge: (persisted, current) => {
         const state = { ...current, ...(persisted as Partial<MediaState>) };
-        return { ...state, picks: parsePicks(state.picks) };
+        return { ...state, picks: parsePicks(state.picks), goals: parseGoals(state.goals) };
       },
       /**
        * Migra lo que ya estaba guardado en el dispositivo.
@@ -277,6 +288,7 @@ export const useMediaStore = create<MediaState>()(
             .map(parseCollection)
             .filter((collection): collection is Collection => collection !== null),
           picks: parsePicks(state?.picks),
+          goals: parseGoals(state?.goals),
         } as MediaState;
       },
     },

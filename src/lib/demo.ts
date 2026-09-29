@@ -3,8 +3,10 @@ import { getMediaDetail } from '@/lib/tmdb';
 import { enrichFromDetail } from '@/lib/enrich';
 import { newWatchId } from '@/lib/schema';
 import { emptyPicks, parsePicks } from '@/lib/picks';
+import { emptyGoals, parseGoals } from '@/lib/goals';
 import {
   EpisodeRef,
+  Goals,
   MediaStatus,
   MediaType,
   SavedMedia,
@@ -60,6 +62,17 @@ export function buildDemoPicks(): TastePicks {
     studios: [{ id: 10342, name: 'Studio Ghibli', logoPath: null }],
     decade: 2010,
     updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Las metas del demo, para el año en curso: una ya cumplida —así se ve la
+ * tarjeta para compartir— y otra en camino, con su ritmo.
+ */
+export function buildDemoGoals(now = new Date()): Goals {
+  return {
+    byYear: { [String(now.getFullYear())]: { movies: 6, series: 3 } },
+    updatedAt: now.toISOString(),
   };
 }
 
@@ -530,12 +543,15 @@ export async function hydrateDemoLibrary(region: string): Promise<void> {
  * para poder devolvérselo al salir.
  */
 export function enterDemoMode(): void {
-  const { mediaList, picks, ownerUid, setMediaList, setPicks, setOwnerUid } =
+  const { mediaList, picks, goals, ownerUid, setMediaList, setPicks, setGoals, setOwnerUid } =
     useMediaStore.getState();
 
   if (ownerUid !== DEMO_OWNER_UID) {
     try {
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ media: mediaList, picks }));
+      localStorage.setItem(
+        SNAPSHOT_KEY,
+        JSON.stringify({ media: mediaList, picks, goals }),
+      );
     } catch {
       // Sin storage disponible se pierde el respaldo, pero el demo funciona.
     }
@@ -543,15 +559,17 @@ export function enterDemoMode(): void {
 
   setMediaList(buildDemoLibrary());
   setPicks(buildDemoPicks());
+  setGoals(buildDemoGoals());
   setOwnerUid(DEMO_OWNER_UID);
 }
 
 /** Sale del demo y restituye lo que había antes: biblioteca y respuestas. */
 export function exitDemoMode(): void {
-  const { setMediaList, setPicks, setOwnerUid } = useMediaStore.getState();
+  const { setMediaList, setPicks, setGoals, setOwnerUid } = useMediaStore.getState();
 
   let media: SavedMedia[] = [];
   let picks: TastePicks = emptyPicks();
+  let goals: Goals = emptyGoals();
 
   try {
     const snapshot = localStorage.getItem(SNAPSHOT_KEY);
@@ -563,11 +581,12 @@ export function exitDemoMode(): void {
       if (Array.isArray(parsed)) {
         media = parsed as SavedMedia[];
       } else if (parsed && typeof parsed === 'object') {
-        const snapshotObject = parsed as { media?: unknown; picks?: unknown };
+        const snapshotObject = parsed as { media?: unknown; picks?: unknown; goals?: unknown };
         media = Array.isArray(snapshotObject.media)
           ? (snapshotObject.media as SavedMedia[])
           : [];
         picks = parsePicks(snapshotObject.picks);
+        goals = parseGoals(snapshotObject.goals);
       }
     }
     localStorage.removeItem(SNAPSHOT_KEY);
@@ -577,5 +596,6 @@ export function exitDemoMode(): void {
 
   setMediaList(media);
   setPicks(picks);
+  setGoals(goals);
   setOwnerUid(null);
 }

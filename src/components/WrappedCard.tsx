@@ -4,6 +4,7 @@ import { useMediaStore } from '@/store';
 import { ShareButton } from '@/components/ShareButton';
 import { availableYears, buildWrapped } from '@/lib/wrapped';
 import { formatEpisode } from '@/lib/progress';
+import { goalUnit } from '@/lib/goals';
 import { formatRating } from '@/components/ui/StarRating';
 
 /**
@@ -16,13 +17,14 @@ const MIN_WATCHES = 3;
 
 export function WrappedCard() {
   const mediaList = useMediaStore((state) => state.mediaList);
+  const goals = useMediaStore((state) => state.goals);
   const years = useMemo(() => availableYears(mediaList), [mediaList]);
   const [year, setYear] = useState<number | null>(null);
 
   const selectedYear = year ?? years[0] ?? null;
   const wrapped = useMemo(
-    () => (selectedYear ? buildWrapped(mediaList, selectedYear) : null),
-    [mediaList, selectedYear],
+    () => (selectedYear ? buildWrapped(mediaList, selectedYear, goals) : null),
+    [mediaList, selectedYear, goals],
   );
 
   if (!wrapped || wrapped.watches < MIN_WATCHES) return null;
@@ -114,6 +116,31 @@ export function WrappedCard() {
             </span>{' '}
             ({formatRating(wrapped.bestEpisode.rating)}★)
           </p>
+        )}
+
+        {(wrapped.goalsMet.length > 0 || wrapped.bestStreak > 1) && (
+          <ul className="flex flex-col gap-1 text-sm text-text-muted -mt-4">
+            {wrapped.goalsMet.length > 0 && (
+              <li>
+                Cumpliste tu meta:{' '}
+                <span className="text-text-main font-medium">
+                  {wrapped.goalsMet
+                    .map((goal) => goalUnit(goal.kind, goal.target))
+                    .join(' y ')}
+                </span>
+                .
+              </li>
+            )}
+            {wrapped.bestStreak > 1 && (
+              <li>
+                Tu mejor racha:{' '}
+                <span className="text-text-main font-medium">
+                  {wrapped.bestStreak} semanas seguidas
+                </span>{' '}
+                mirando algo.
+              </li>
+            )}
+          </ul>
         )}
       </div>
 

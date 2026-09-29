@@ -18,6 +18,7 @@ import {
 } from '@/lib/backup';
 import { clearRescue, readRescue } from '@/lib/rescue';
 import { useTastePicks } from '@/hooks/useTastePicks';
+import { useGoals } from '@/hooks/useGoals';
 import { formatWatchDate } from '@/lib/dates';
 
 type PendingDialog = 'import' | 'clear' | 'delete' | null;
@@ -31,6 +32,7 @@ type PendingDialog = 'import' | 'clear' | 'delete' | null;
 export function DataSettings() {
   const { mediaList, collections } = useMediaStore();
   const { picks, savePicks } = useTastePicks();
+  const { goals, replaceGoals } = useGoals();
   const { authState } = useAuth();
   const { showToast } = useToast();
   const { saveMany } = useMediaActions();
@@ -51,7 +53,7 @@ export function DataSettings() {
   const handleExportJson = () => {
     downloadFile(
       backupFilename('json'),
-      JSON.stringify(buildBackup(mediaList, collections, picks), null, 2),
+      JSON.stringify(buildBackup(mediaList, collections, picks, goals), null, 2),
       'application/json',
     );
     showToast('Descargamos tu biblioteca en JSON.');
@@ -69,6 +71,7 @@ export function DataSettings() {
       media: rescue.media,
       collections: rescue.collections,
       picks: null,
+      goals: null,
       skipped: 0,
     });
     setDialog('import');
@@ -129,6 +132,14 @@ export function DataSettings() {
         Date.parse(incomingPicks.updatedAt) > Date.parse(picks.updatedAt)
       ) {
         savePicks(incomingPicks);
+      }
+      // Y las metas, igual.
+      const incomingGoals = pendingImport.goals;
+      if (
+        incomingGoals &&
+        Date.parse(incomingGoals.updatedAt) > Date.parse(goals.updatedAt)
+      ) {
+        replaceGoals(incomingGoals);
       }
 
       showToast(

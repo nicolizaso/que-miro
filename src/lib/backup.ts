@@ -1,4 +1,4 @@
-import { Collection, SavedMedia, TastePicks } from '@/types';
+import { Collection, Goals, SavedMedia, TastePicks } from '@/types';
 import {
   SCHEMA_VERSION,
   parseCollection,
@@ -6,6 +6,7 @@ import {
   toStoredMedia,
 } from '@/lib/schema';
 import { hasPicks, parsePicks } from '@/lib/picks';
+import { hasGoals, parseGoals } from '@/lib/goals';
 import { progressPercent, watchedEpisodes } from '@/lib/progress';
 
 export { SCHEMA_VERSION };
@@ -23,6 +24,8 @@ export interface LibraryBackup {
   collections?: Collection[];
   /** Las respuestas de "Contanos de vos", si había alguna. */
   picks?: TastePicks;
+  /** Las metas por año, si había alguna. */
+  goals?: Goals;
 }
 
 /** Error de importación con un mensaje pensado para mostrarle a la persona. */
@@ -37,6 +40,7 @@ export function buildBackup(
   media: SavedMedia[],
   collections: Collection[] = [],
   picks?: TastePicks,
+  goals?: Goals,
 ): LibraryBackup {
   return {
     app: 'que-miro',
@@ -50,6 +54,8 @@ export function buildBackup(
     // siete campos vacíos adentro, y el importador lo trataría como una
     // respuesta más.
     ...(picks && hasPicks(picks) ? { picks } : {}),
+    // Lo mismo con las metas: sin ninguna, no van.
+    ...(goals && hasGoals(goals) ? { goals } : {}),
   };
 }
 
@@ -58,6 +64,8 @@ export interface ParsedBackup {
   collections: Collection[];
   /** `null` si el archivo no traía cuestionario: un backup de antes de QM-3. */
   picks: TastePicks | null;
+  /** `null` si no traía metas. */
+  goals: Goals | null;
   /** Títulos descartados por estar incompletos o corruptos. */
   skipped: number;
 }
@@ -104,8 +112,15 @@ export function parseBackup(contents: string): ParsedBackup {
     : [];
 
   const picks = raw.picks === undefined ? null : parsePicks(raw.picks);
+  const goals = raw.goals === undefined ? null : parseGoals(raw.goals);
 
-  return { media, collections, picks: picks && hasPicks(picks) ? picks : null, skipped };
+  return {
+    media,
+    collections,
+    picks: picks && hasPicks(picks) ? picks : null,
+    goals: goals && hasGoals(goals) ? goals : null,
+    skipped,
+  };
 }
 
 export interface MergeResult {

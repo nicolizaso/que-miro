@@ -470,6 +470,25 @@ export interface PickedStudio {
  * Todos los campos son opcionales a propósito: el cuestionario se puede
  * contestar de a una pregunta por vez, y con una sola ya hay filas nuevas.
  */
+/** La meta de un año. Cualquiera de las tres puede faltar. */
+export interface YearGoal {
+  movies?: number;
+  series?: number;
+  hours?: number;
+}
+
+/**
+ * Las metas de la cuenta, en `users/{uid}/profile/goals`.
+ *
+ * Año por año y no una sola: la meta de 2025 tiene que seguir diciendo si se
+ * cumplió en el resumen de 2025 aunque para 2026 te pongas otra.
+ */
+export interface Goals {
+  /** Año (`"2026"`) → su meta. */
+  byYear: Record<string, YearGoal>;
+  updatedAt: string; // ISO
+}
+
 export interface TastePicks {
   movie?: PickedTitle;
   series?: PickedTitle;

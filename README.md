@@ -85,8 +85,12 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   agosto, y un mapa de actividad muestra los días que miraste algo. Si
   abandonaste algo, también cuánto abandonás y después de cuántos episodios
   solés dejar una serie.
+- **Metas y rachas** — una meta para el año (películas, series u horas) que
+  se mide contra el ritmo —"vas 2 películas abajo del ritmo"—, y la racha de
+  semanas seguidas mirando algo. Se sincronizan con la cuenta y, cuando
+  cumplís una, hay tarjeta para compartir.
 - **Tu año en Qué Miro?** — resumen anual listo para compartir, con tu
-  episodio del año.
+  episodio del año, las metas que cumpliste y tu mejor racha.
 - **Perfil público** — publicá tus estadísticas y reseñas en `/u/tu-nombre`, con
   su vista previa resuelta del lado del servidor.
 - **Offline de verdad** — sin conexión seguís usando la app, y los cambios se

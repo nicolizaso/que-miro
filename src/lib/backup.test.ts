@@ -248,3 +248,27 @@ describe('toCsv', () => {
     expect(csv).toContain('"50%"');
   });
 });
+
+describe('las metas en el backup', () => {
+  it('viajan con la biblioteca y vuelven enteras', () => {
+    const goals = {
+      byYear: { '2026': { movies: 30, hours: 200 } },
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+
+    const backup = buildBackup([makeMedia()], [], undefined, goals);
+    const { goals: restored } = parseBackup(JSON.stringify(backup));
+
+    expect(restored).toEqual(goals);
+  });
+
+  it('sin metas no se escriben, y un backup viejo vuelve sin ellas', () => {
+    const backup = buildBackup([makeMedia()], [], undefined, {
+      byYear: {},
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    });
+
+    expect(backup).not.toHaveProperty('goals');
+    expect(parseBackup(JSON.stringify(backup)).goals).toBeNull();
+  });
+});

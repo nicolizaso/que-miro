@@ -206,3 +206,29 @@ describe('el episodio del año', () => {
     expect(buildWrapped(list, 2026)?.bestEpisode?.episode).toBe(6);
   });
 });
+
+describe('las metas y la racha en el resumen del año', () => {
+  const movies = [1, 2, 3].map((id) =>
+    makeMedia({
+      tmdbId: id,
+      title: `Película ${id}`,
+      // Tres semanas seguidas de enero.
+      history: [watch(4, new Date(2026, 0, 5 + (id - 1) * 7, 12).toISOString())],
+    }),
+  );
+
+  it('dice qué metas del año se cumplieron', () => {
+    const goals = { byYear: { '2026': { movies: 3, series: 5 } }, updatedAt: '2026-01-01T00:00:00.000Z' };
+    const wrapped = buildWrapped(movies, 2026, goals, new Date(2026, 11, 31, 12))!;
+
+    expect(wrapped.goalsMet.map((goal) => goal.kind)).toEqual(['movies']);
+  });
+
+  it('sin metas, no hay nada cumplido', () => {
+    expect(buildWrapped(movies, 2026)!.goalsMet).toEqual([]);
+  });
+
+  it('trae la mejor racha del año', () => {
+    expect(buildWrapped(movies, 2026)!.bestStreak).toBe(3);
+  });
+});
