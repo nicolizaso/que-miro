@@ -127,6 +127,30 @@
       }
     },
     {
+      "collection": "public_profiles",
+      "path": "/public_profiles/{slug}",
+      "description": "Curated public snapshot of a library (never a window into saved_media). Public read; writes only by the uid the document declares, which cannot change. Republished automatically while autoUpdate is on",
+      "access": {
+        "read": "true",
+        "create": "request.auth != null && request.auth.uid == request.resource.data.uid",
+        "update": "request.auth != null && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid",
+        "delete": "request.auth != null && request.auth.uid == resource.data.uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "slug", "type": "string", "required": true },
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "displayName", "type": "string", "required": true },
+          { "name": "publishedAt", "type": "timestamp", "required": true },
+          { "name": "autoUpdate", "type": "boolean", "required": false },
+          { "name": "summary", "type": "map", "required": true },
+          { "name": "topGenres", "type": "list", "required": true },
+          { "name": "favorites", "type": "list", "required": true },
+          { "name": "reviews", "type": "list", "required": true }
+        ]
+      }
+    },
+    {
       "collection": "calendar_feeds",
       "path": "/calendar_feeds/{token}",
       "description": "Snapshot behind /cal/{token}.ics: only upcoming episodes (series, season, episode, name, date). Public get by long random token, list forbidden, owner-only writes with immutable uid",

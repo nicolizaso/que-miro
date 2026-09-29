@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ShareButton } from '@/components/ShareButton';
 import { SLUG_MAX, toSlug } from '@/lib/publicProfile';
 import { formatDuration, summarize } from '@/lib/stats';
+import { formatRelative, formatWatchDate } from '@/lib/dates';
 
 /**
  * Publicar la biblioteca propia en una dirección compartible.
@@ -21,7 +22,9 @@ export function PublicProfileSettings() {
   const { user, authState } = useAuth();
   const mediaList = useMediaStore((state) => state.mediaList);
   const { showToast } = useToast();
-  const { slug, isLoading, canPublish, publish, unpublish } = usePublishProfile();
+  const { slug, published, isLoading, canPublish, publish, unpublish, setAutoUpdate } =
+    usePublishProfile();
+  const autoUpdate = published?.autoUpdate ?? true;
 
   const [draft, setDraft] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -185,9 +188,36 @@ export function PublicProfileSettings() {
                   </button>
                 </div>
 
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoUpdate}
+                    onChange={(event) => setAutoUpdate(event.target.checked)}
+                    className="mt-1 w-4 h-4 accent-accent shrink-0"
+                  />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium">Mantener actualizado</span>
+                    <span className="text-xs text-text-subtle">
+                      Cuando cambian tus reseñas, tus favoritas o tus números,
+                      el perfil se vuelve a publicar solo, como mucho cada
+                      unos minutos.
+                    </span>
+                  </span>
+                </label>
+
                 <p className="text-xs text-text-subtle">
-                  Es una copia de tus datos, no una ventana en vivo: cuando
-                  agregues reseñas, tocá "Actualizar" para reflejarlas.
+                  {published && (
+                    <>
+                      Actualizado{' '}
+                      <time dateTime={published.publishedAt} title={formatWatchDate(published.publishedAt)}>
+                        {formatRelative(published.publishedAt)}
+                      </time>
+                      .{' '}
+                    </>
+                  )}
+                  {autoUpdate
+                    ? 'Es una copia de tus datos, no una ventana en vivo: se pone al día sola unos minutos después de cada cambio.'
+                    : 'Es una copia de tus datos, no una ventana en vivo: cuando agregues reseñas, tocá "Actualizar" para reflejarlas.'}
                 </p>
               </>
             ) : (

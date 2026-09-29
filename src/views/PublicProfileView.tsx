@@ -4,7 +4,7 @@ import { usePublicProfileBySlug } from '@/hooks/usePublicProfile';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ScrollRail } from '@/components/ui/ScrollRail';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
-import { formatWatchDate } from '@/lib/dates';
+import { formatRelative, formatWatchDate } from '@/lib/dates';
 
 /**
  * Perfil público de otra persona, en modo lectura.
@@ -73,7 +73,10 @@ export function PublicProfileView() {
                 {profile.displayName}
               </h1>
               <p className="text-sm text-text-subtle mt-2">
-                Actualizada el {formatWatchDate(profile.publishedAt)}
+                Actualizada{' '}
+                <time dateTime={profile.publishedAt} title={formatWatchDate(profile.publishedAt)}>
+                  {formatRelative(profile.publishedAt)}
+                </time>
               </p>
             </section>
 

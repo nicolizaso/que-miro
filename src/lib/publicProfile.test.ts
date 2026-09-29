@@ -3,6 +3,7 @@ import {
   buildPublicProfile,
   isValidSlug,
   parsePublicProfile,
+  sameProfileContent,
   toSlug,
 } from './publicProfile';
 import { SavedMedia } from '@/types';
@@ -150,5 +151,58 @@ describe('parsePublicProfile', () => {
     expect(parsed.summary.watches).toBe(0);
     expect(parsed.favorites).toEqual([]);
     expect(parsed.reviews[0].rating).toBe(0);
+  });
+});
+
+describe('la comparación de instantáneas', () => {
+  const mediaList = [makeMedia({ history: [watch(5, 'Un clásico.')] })];
+  const build = (list = mediaList) =>
+    buildPublicProfile({ slug: 'nico', uid: 'user-1', displayName: 'Nico', mediaList: list });
+
+  it('la misma biblioteca publicada en otro momento es la misma instantánea', () => {
+    const before = { ...build(), publishedAt: '2026-01-01T00:00:00.000Z' };
+    const after = { ...build(), publishedAt: '2026-09-29T00:00:00.000Z', autoUpdate: false };
+    expect(sameProfileContent(before, after)).toBe(true);
+  });
+
+  it('una reseña nueva, un puntaje o un nombre la cambian', () => {
+    const base = build();
+    expect(sameProfileContent(base, build([makeMedia({ history: [watch(5, 'Otra cosa.')] })]))).toBe(false);
+    expect(sameProfileContent(base, build([makeMedia({ history: [watch(4, 'Un clásico.')] })]))).toBe(false);
+    expect(sameProfileContent(base, { ...base, displayName: 'Nicolás' })).toBe(false);
+  });
+
+  it('lo que se lee de Firestore compara igual que lo que se armó', () => {
+    const original = build();
+    const parsed = parsePublicProfile(JSON.parse(JSON.stringify(original)))!;
+    expect(sameProfileContent(original, parsed)).toBe(true);
+  });
+});
+
+describe('lo nuevo del perfil', () => {
+  it('cada reseña dice de qué título es, para poder guardarlo', () => {
+    const [review] = buildPublicProfile({
+      slug: 'nico',
+      uid: 'user-1',
+      displayName: 'Nico',
+      mediaList: [makeMedia({ tmdbId: 603, history: [watch(5, 'Un clásico.')] })],
+    }).reviews;
+    expect(review).toMatchObject({ tmdbId: 603, mediaType: 'movie', posterPath: '/poster.jpg', releaseYear: '1999' });
+  });
+
+  it('un perfil de antes se lee igual: sin tipo, y con la actualización prendida', () => {
+    const parsed = parsePublicProfile({
+      slug: 'nico',
+      uid: 'user-1',
+      favorites: [{ tmdbId: 1, title: 'Matrix' }],
+      reviews: [{ id: 'r', title: 'Matrix', rating: 5 }],
+    })!;
+    expect(parsed.autoUpdate).toBe(true);
+    expect(parsed.favorites[0]).not.toHaveProperty('mediaType');
+    expect(parsed.reviews[0].tmdbId).toBe(0);
+  });
+
+  it('la opción apagada se respeta', () => {
+    expect(parsePublicProfile({ slug: 'nico', uid: 'user-1', autoUpdate: false })!.autoUpdate).toBe(false);
   });
 });

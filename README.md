@@ -109,7 +109,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Tu año en Qué Miro?** — resumen anual listo para compartir, con tu
   episodio del año, las metas que cumpliste y tu mejor racha.
 - **Perfil público** — publicá tus estadísticas y reseñas en `/u/tu-nombre`, con
-  su vista previa resuelta del lado del servidor.
+  su vista previa resuelta del lado del servidor. Se mantiene al día solo:
+  unos minutos después de que cambia una reseña o un puntaje, se republica, y
+  dice hace cuánto se actualizó.
 - **Offline de verdad** — sin conexión seguís usando la app, y los cambios se
   sincronizan solos cuando vuelve la red.
 - **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.

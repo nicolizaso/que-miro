@@ -15,6 +15,7 @@ import { subscriptionsPath } from '@/hooks/useSubscriptions';
 import { pushPath } from '@/lib/push';
 import { releasePushDevice } from '@/lib/pushDevice';
 import { deleteCalendarFeed } from '@/hooks/useCalendarFeed';
+import { deletePublicProfile } from '@/hooks/usePublicProfile';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -79,6 +80,9 @@ export function useAccountActions() {
     }
 
     try {
+      // Primero el perfil público: el slug está en `users/{uid}`, que se borra
+      // con la biblioteca.
+      await deletePublicProfile(user.uid);
       await deleteRemoteLibrary(user.uid);
       // Las respuestas de "Contanos de vos" están fuera de `saved_media`, y
       // borrar el documento de un usuario no borra sus subcolecciones: sin

@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBackgroundRefresh } from '@/hooks/useBackgroundRefresh';
 import { usePushSnapshot } from '@/hooks/usePushSnapshot';
 import { useCalendarFeedSync } from '@/hooks/useCalendarFeed';
+import { useAutoPublishProfile } from '@/hooks/usePublicProfile';
 import { cn } from '@/lib/utils';
 
 // El Picker va al medio a propósito: es el botón destacado de la barra
@@ -61,6 +62,7 @@ export function AppLayout() {
   useBackgroundRefresh();
   usePushSnapshot();
   useCalendarFeedSync();
+  useAutoPublishProfile();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

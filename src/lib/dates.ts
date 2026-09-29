@@ -77,3 +77,31 @@ export function formatMonth(iso: string): string {
 
   return date.toLocaleDateString(LOCALE, { month: 'short', year: 'numeric' });
 }
+
+/**
+ * "hace 5 minutos", "ayer", "el 12 de marzo de 2026": cuánto hace de algo,
+ * para leer de un vistazo. Pasada una semana, la fecha: "hace 23 días" obliga
+ * a hacer la cuenta.
+ *
+ * Una fecha en el futuro —un reloj adelantado— cuenta como recién.
+ */
+export function formatRelative(iso: string, now: Date = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);
+  if (minutes < 1) return 'hace un momento';
+  if (minutes < 60) return minutes === 1 ? 'hace 1 minuto' : `hace ${minutes} minutos`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours === 1 ? 'hace 1 hora' : `hace ${hours} horas`;
+
+  // En días de calendario y no de 24 horas: lo de anoche a las once es
+  // "ayer" aunque hayan pasado menos de un día entero.
+  const days = Math.round(
+    (fromDayKey(toDayKey(now)).getTime() - fromDayKey(toDayKey(date)).getTime()) / 86_400_000,
+  );
+  if (days <= 1) return 'ayer';
+  if (days < 7) return `hace ${days} días`;
+  return `el ${formatWatchDate(iso)}`;
+}
