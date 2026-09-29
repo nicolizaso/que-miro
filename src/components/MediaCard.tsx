@@ -17,6 +17,7 @@ import { TitleDetailModal } from './TitleDetailModal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { cn } from '@/lib/utils';
 import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
+import { newsLabel, unseenNews } from '@/lib/availability';
 
 export function MediaCard({
   media,
@@ -59,6 +60,11 @@ export function MediaCard({
   const caughtUp = isSeries && isCaughtUp(media);
   const news = isSeries ? newEpisodesSummary(media) : null;
   const isArchived = isArchivedStatus(media.status);
+  // "Ya está en Max": la misma novedad del inicio, en la tarjeta, para quien
+  // entra directo a Por Ver.
+  const availability = unseenNews(media);
+  const availabilityLabel =
+    availability.length > 0 ? newsLabel(availability).replace(/^ya/, 'Ya') : null;
   // Con novedades, una serie terminada ofrece volver a *Viendo*: el estado no
   // se cambia solo, pero tampoco tiene que costar abrir la ficha. Lo archivado
   // también, y ahí el mismo botón se llama "Retomar".
@@ -105,6 +111,7 @@ export function MediaCard({
             showProgress && `${percent}% visto`,
             caughtUp && 'Al día',
             news?.label,
+            availabilityLabel,
           ]
             .filter(Boolean)
             .join('. ')}
@@ -139,7 +146,7 @@ export function MediaCard({
               </span>
             )}
 
-            {(times > 1 || news || isArchived) && (
+            {(times > 1 || news || isArchived || availabilityLabel) && (
               <span className="absolute top-3 left-3 right-14 flex flex-col items-start gap-1.5">
                 {/* En Archivadas se ven juntas las en pausa y las
                     abandonadas: acá sí hace falta decir cuál es cuál. */}
@@ -157,6 +164,11 @@ export function MediaCard({
                 {news && (
                   <span className="bg-accent text-accent-contrast px-2 py-1 rounded-lg text-[11px] font-semibold shadow-card">
                     {news.label}
+                  </span>
+                )}
+                {availabilityLabel && (
+                  <span className="bg-accent text-accent-contrast px-2 py-1 rounded-lg text-[11px] font-semibold shadow-card">
+                    {availabilityLabel}
                   </span>
                 )}
               </span>

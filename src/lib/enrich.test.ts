@@ -589,3 +589,11 @@ describe('lo incluido en una suscripción', () => {
     expect(enrichFromDetail(detail({}), 'AR').streaming).toEqual([]);
   });
 });
+
+describe('el estreno digital', () => {
+  it('se guarda el de tu región', () => {
+    const detail = makeDetail({ digital_releases: { AR: '2024-05-21', US: '2024-04-16' } });
+    expect(enrichFromDetail(detail, 'AR').digitalRelease).toBe('2024-05-21');
+    expect(enrichFromDetail(detail, 'ES').digitalRelease).toBeUndefined();
+  });
+});

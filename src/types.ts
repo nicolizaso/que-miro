@@ -276,6 +276,20 @@ export interface SavedMedia {
    */
   archive?: ArchiveInfo;
 
+  /**
+   * El día en que llega a digital en tu región, `YYYY-MM-DD`. Solo en
+   * películas: es lo que dice que una que anotaste antes de que saliera ya
+   * se puede ver.
+   */
+  digitalRelease?: string;
+  /**
+   * Lo que cambió desde que lo anotaste: llegó a una plataforma, o salió en
+   * digital. Lo anota el refresco —el cliente cruzando lo que refrescó; el
+   * servidor no se entera— y se descarta con un toque. Lo descartado se
+   * queda, con su `seenAt`, para que la misma novedad no vuelva.
+   */
+  availabilityNews?: AvailabilityNews[];
+
   /** Episodios vistos. Solo en series. */
   progress?: SeriesProgress;
 
@@ -426,6 +440,11 @@ export interface TMDbDetail extends Omit<TMDbResult, 'genre_ids'> {
   status?: string;
   last_episode_to_air?: TMDbEpisodeToAir | null;
   next_episode_to_air?: TMDbEpisodeToAir | null;
+  /**
+   * Cuándo llega a digital, país por país (`{ AR: '2024-05-21' }`). Lo arma
+   * el servidor a partir de las fechas de estreno de TMDB. Solo en películas.
+   */
+  digital_releases?: Record<string, string>;
   'watch/providers'?: {
     results: Record<string, {
       /**
@@ -484,6 +503,17 @@ export interface PickedStudio {
  * Todos los campos son opcionales a propósito: el cuestionario se puede
  * contestar de a una pregunta por vez, y con una sola ya hay filas nuevas.
  */
+/** Una novedad de un título de *Por Ver*. */
+export interface AvailabilityNews {
+  /** `provider`: llegó a una plataforma. `release`: salió en digital. */
+  kind: 'provider' | 'release';
+  /** La plataforma, en las de `provider`. Vacío en un estreno digital. */
+  provider: string;
+  since: string; // ISO
+  /** Cuándo se descartó. Mientras falte, se muestra. */
+  seenAt?: string;
+}
+
 /** Una plataforma elegida como suscripción, con lo que hace falta para mostrarla. */
 export interface SubscribedProvider {
   id: number;

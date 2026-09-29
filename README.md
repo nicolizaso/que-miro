@@ -36,6 +36,10 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo,
   plataforma, lista o ánimo. Los filtros viven en la URL, así que la vista se
   puede compartir.
+- **Llegó a tu plataforma** — cuando algo de *Por Ver* llega a una de tus
+  plataformas, o una película que anotaste antes de que saliera se estrena
+  en digital, aparece en "Novedades" al abrir la app. Se descarta con un
+  toque y no vuelve.
 - **Tus plataformas** — marcá en Ajustes, con sus logos, las plataformas que
   pagás. "Lo que puedo ver ya" filtra la biblioteca y el picker por lo que
   está incluido en ellas (no en alquiler), la ficha separa "Incluido en" de

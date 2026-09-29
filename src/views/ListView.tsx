@@ -19,6 +19,7 @@ import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { MediaCard } from '@/components/MediaCard';
 import { ContinueWatching } from '@/components/ContinueWatching';
+import { AvailabilityNewsRow } from '@/components/AvailabilityNewsRow';
 import { useLibraryFilters } from '@/hooks/useLibraryFilters';
 import { useArchiveActions } from '@/hooks/useArchiveActions';
 import { usePreferences } from '@/preferences';
@@ -129,6 +130,8 @@ export function ListView() {
       {/* Arriba de todo: es lo que se viene a hacer la mayoría de las veces,
           anotar el episodio de anoche. Sin nada para retomar, no existe. */}
       <ContinueWatching />
+
+      <AvailabilityNewsRow />
 
       <h1 className="text-display">Mis listas</h1>
 

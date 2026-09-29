@@ -119,6 +119,8 @@ interface DemoSeedEntry {
    * mostrar aunque TMDB no conteste. Si contesta, gana lo de TMDB.
    */
   streaming?: string[];
+  /** Una novedad sin ver: llegó a esa plataforma hace `daysAgo` días. */
+  arrivedAt?: { provider: string; daysAgo: number };
   /**
    * En qué anda la serie y qué salió, para que el demo muestre "al día" y
    * las novedades aunque TMDB no conteste. Si contesta, gana lo de TMDB.
@@ -317,6 +319,8 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     genres: ['Ciencia Ficción', 'Aventura'],
     status: 'por_ver',
     streaming: ['Max'],
+    // La novedad del inicio: "Duna ya está en Max".
+    arrivedAt: { provider: 'Max', daysAgo: 1 },
     daysAgo: 2,
   },
   {
@@ -457,6 +461,15 @@ export function buildDemoLibrary(): SavedMedia[] {
       status: entry.status,
       providers: entry.streaming,
       streaming: entry.streaming,
+      availabilityNews: entry.arrivedAt
+        ? [
+            {
+              kind: 'provider' as const,
+              provider: entry.arrivedAt.provider,
+              since: daysAgoToIso(entry.arrivedAt.daysAgo),
+            },
+          ]
+        : undefined,
       updatedAt: daysAgoToIso(entry.daysAgo),
       seasons,
       progress,

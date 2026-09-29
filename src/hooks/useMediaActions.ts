@@ -20,6 +20,8 @@ import {
 } from '@/types';
 import { newWatchId, toStoredMedia, toStoredPatch, withArchive } from '@/lib/schema';
 import { isArchivedStatus } from '@/lib/archive';
+import { detectAvailabilityNews, markNewsSeen } from '@/lib/availability';
+import { hasSubscriptions, subscribedNames } from '@/lib/subscriptions';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -225,7 +227,31 @@ export function useMediaActions() {
       ? undefined
       : detectNewEpisodes(media, { ...media, ...patch });
 
-    writeSilently(media.tmdbId, marker ? { ...patch, newEpisodesSince: marker } : patch);
+    // Lo mismo con lo que llegó a una plataforma o salió en digital, en lo
+    // que está en Por Ver: se anota, y se muestra hasta que se descarte.
+    const { subscriptions } = useMediaStore.getState();
+    const availabilityNews = detectAvailabilityNews(
+      media,
+      { ...media, ...patch },
+      hasSubscriptions(subscriptions) ? subscribedNames(subscriptions) : null,
+    );
+
+    writeSilently(media.tmdbId, {
+      ...patch,
+      ...(marker ? { newEpisodesSince: marker } : {}),
+      ...(availabilityNews ? { availabilityNews } : {}),
+    });
+  };
+
+  /**
+   * Descarta las novedades de un título.
+   *
+   * Sin tocar `updatedAt`, como el refresco que las trajo: descartar un aviso
+   * no es algo que se haya hecho con el título, y lo subiría al principio de
+   * "Agregados hace poco".
+   */
+  const dismissAvailabilityNews = (media: SavedMedia) => {
+    writeSilently(media.tmdbId, { availabilityNews: markNewsSeen(media) });
   };
 
   const updateStatus = async (tmdbId: number, status: MediaStatus) => {
@@ -402,6 +428,7 @@ export function useMediaActions() {
     addMedia,
     refreshDetails,
     applyEnrichment,
+    dismissAvailabilityNews,
     updateStatus,
     patchMedia,
     addWatchEntry,

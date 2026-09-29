@@ -415,3 +415,16 @@ test('abandonar una serie la manda a Archivadas, y retomarla la devuelve', async
   await selectTab(page, /Viendo/);
   await expect(page.getByRole('button', { name: /^Ver detalle de Arcane/ })).toBeVisible();
 });
+
+test('una novedad de plataforma se descarta y no vuelve', async ({ page }) => {
+  // En el demo, Duna llegó a Max.
+  await expect(page.getByRole('heading', { name: 'Novedades' })).toBeVisible();
+  await expect(page.getByText('ya está en Max.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Descartar la novedad de Duna' }).click();
+  await expect(page.getByRole('heading', { name: 'Novedades' })).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByText(/Estás viendo el demo/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Novedades' })).toHaveCount(0);
+});

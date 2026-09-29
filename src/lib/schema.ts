@@ -1,6 +1,7 @@
 import {
   ArchiveInfo,
   ArchivedStatus,
+  AvailabilityNews,
   EpisodeRef,
   Keyword,
   MediaStatus,
@@ -302,6 +303,21 @@ function parseNullableNumber(value: unknown): number | null | undefined {
   return Number.isFinite(num) && num > 0 ? num : undefined;
 }
 
+/** Las novedades de un título: las rotas se descartan sin voltear el resto. */
+function parseAvailabilityNews(value: unknown): AvailabilityNews[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const news = value.flatMap((item): AvailabilityNews[] => {
+    if (!isRecord(item)) return [];
+    const kind = item.kind === 'provider' || item.kind === 'release' ? item.kind : null;
+    const since = parseIso(item.since);
+    const provider = typeof item.provider === 'string' ? item.provider.trim() : '';
+    if (!kind || !since || (kind === 'provider' && !provider)) return [];
+    const seenAt = parseIso(item.seenAt);
+    return [{ kind, provider, since, ...(seenAt ? { seenAt } : {}) }];
+  });
+  return news.length > 0 ? news : undefined;
+}
+
 /** El motivo de abandono, recortado al tope. Vacío cuenta como ausente. */
 function parseReason(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -415,6 +431,9 @@ export function parseMedia(value: unknown): SavedMedia | null {
         : undefined,
     releaseDate:
       mediaType === 'movie' && isDayKey(value.releaseDate) ? value.releaseDate : undefined,
+    digitalRelease:
+      mediaType === 'movie' && isDayKey(value.digitalRelease) ? value.digitalRelease : undefined,
+    availabilityNews: parseAvailabilityNews(value.availabilityNews),
     // Uno desconocido cuenta como ausente: el título se refresca con el
     // idioma que corresponda, que es lo mismo que pasa con uno viejo.
     enrichedLanguage: parseLanguage(value.enrichedLanguage),

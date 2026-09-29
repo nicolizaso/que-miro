@@ -43,6 +43,7 @@ export type MediaEnrichment = Pick<
   | 'sagaName'
   | 'originalLanguage'
   | 'releaseDate'
+  | 'digitalRelease'
   | 'enrichedLanguage'
   | 'enrichedRegion'
   | 'enrichedAt'
@@ -237,7 +238,14 @@ export function enrichFromDetail(
           lastAired: episodeFromTmdb(detail.last_episode_to_air),
           nextToAir: episodeFromTmdb(detail.next_episode_to_air),
         }
-      : { releaseDate: isDayKey(detail.release_date) ? detail.release_date : undefined }),
+      : {
+          releaseDate: isDayKey(detail.release_date) ? detail.release_date : undefined,
+          // El de tu región: la fecha de estreno digital de otro país no dice
+          // cuándo se puede ver acá.
+          digitalRelease: isDayKey(detail.digital_releases?.[preferredRegion])
+            ? detail.digital_releases?.[preferredRegion]
+            : undefined,
+        }),
   };
 }
 

@@ -617,3 +617,39 @@ describe('los puntajes por episodio', () => {
     expect(media.progress).not.toHaveProperty('episodeRatings');
   });
 });
+
+describe('las novedades de disponibilidad', () => {
+  it('conserva las válidas y descarta las rotas', () => {
+    const media = parseMedia(
+      v1Media({
+        status: 'por_ver',
+        review: undefined,
+        digitalRelease: '2026-09-25',
+        availabilityNews: [
+          { kind: 'provider', provider: 'Max', since: '2026-09-26T00:00:00.000Z' },
+          { kind: 'release', provider: '', since: '2026-09-26T00:00:00.000Z', seenAt: '2026-09-27T00:00:00.000Z' },
+          { kind: 'provider', provider: '', since: '2026-09-26T00:00:00.000Z' },
+          { kind: 'rumor', provider: 'X', since: '2026-09-26T00:00:00.000Z' },
+        ],
+      }),
+    )!;
+
+    expect(media.digitalRelease).toBe('2026-09-25');
+    expect(media.availabilityNews).toEqual([
+      { kind: 'provider', provider: 'Max', since: '2026-09-26T00:00:00.000Z' },
+      {
+        kind: 'release',
+        provider: '',
+        since: '2026-09-26T00:00:00.000Z',
+        seenAt: '2026-09-27T00:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('el estreno digital es solo de películas', () => {
+    const series = parseMedia(
+      v1Media({ mediaType: 'tv', review: undefined, digitalRelease: '2026-09-25' }),
+    )!;
+    expect(series.digitalRelease).toBeUndefined();
+  });
+});

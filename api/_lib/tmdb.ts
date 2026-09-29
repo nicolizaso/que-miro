@@ -325,11 +325,23 @@ export async function getMediaDetail(
     {
       // `keywords` entra en la misma llamada: es lo que después habilita las
       // filas por tema de Explorar, y pedirlo aparte sería una request más por
-      // cada título que alguien agrega.
-      append_to_response: 'videos,credits,keywords,watch/providers',
+      // cada título que alguien agrega. En películas, también las fechas de
+      // estreno: de ahí sale cuándo llega a digital.
+      append_to_response:
+        mediaType === 'movie'
+          ? 'videos,credits,keywords,watch/providers,release_dates'
+          : 'videos,credits,keywords,watch/providers',
     },
     language,
   );
+
+  if (mediaType === 'movie') {
+    detail.digital_releases = digitalReleases(detail.release_dates);
+    // Lo que viene de TMDB son todas las fechas —cine, festival, físico,
+    // televisión— de todos los países, con su calificación. La app usa una sola
+    // por país: no viaja el resto.
+    delete detail.release_dates;
+  }
 
   if (language !== DEFAULT_LANGUAGE && !detail.overview) {
     try {
@@ -346,6 +358,33 @@ export async function getMediaDetail(
   }
 
   return detail;
+}
+
+/** El tipo de estreno de TMDB que es "digital": plataformas y alquiler. */
+const DIGITAL_RELEASE = 4;
+
+/**
+ * Cuándo llega cada película a digital, país por país: `{ AR: '2024-05-21' }`.
+ *
+ * El más temprano de tipo 4 de cada país. Lo que no se puede leer se ignora:
+ * una fecha que falta es una novedad que no se avisa, no una ficha rota.
+ */
+export function digitalReleases(value: unknown): Record<string, string> {
+  const results = (value as { results?: unknown } | undefined)?.results;
+  if (!Array.isArray(results)) return {};
+
+  const byCountry: Record<string, string> = {};
+  for (const entry of results as { iso_3166_1?: unknown; release_dates?: unknown }[]) {
+    const country = typeof entry?.iso_3166_1 === 'string' ? entry.iso_3166_1 : '';
+    if (!/^[A-Z]{2}$/.test(country) || !Array.isArray(entry.release_dates)) continue;
+    for (const release of entry.release_dates as { type?: unknown; release_date?: unknown }[]) {
+      if (release?.type !== DIGITAL_RELEASE || typeof release.release_date !== 'string') continue;
+      const day = release.release_date.slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      if (!byCountry[country] || day < byCountry[country]) byCountry[country] = day;
+    }
+  }
+  return byCountry;
 }
 
 /**

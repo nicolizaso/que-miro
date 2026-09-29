@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   TmdbError,
+  digitalReleases,
   getDiscover,
   getList,
   getMediaDetail,
@@ -958,5 +959,58 @@ describe('las plataformas de una región', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0][0])).toContain('watch_region=AR');
+  });
+});
+
+describe('los estrenos digitales', () => {
+  it('se queda con la primera fecha de tipo 4 de cada país', () => {
+    expect(
+      digitalReleases({
+        results: [
+          {
+            iso_3166_1: 'AR',
+            release_dates: [
+              { type: 3, release_date: '2024-02-29T00:00:00.000Z' },
+              { type: 4, release_date: '2024-05-21T00:00:00.000Z' },
+              { type: 4, release_date: '2024-05-10T00:00:00.000Z' },
+            ],
+          },
+          { iso_3166_1: 'US', release_dates: [{ type: 4, release_date: '2024-04-16T00:00:00.000Z' }] },
+          { iso_3166_1: 'ES', release_dates: [{ type: 3, release_date: '2024-03-01T00:00:00.000Z' }] },
+        ],
+      }),
+    ).toEqual({ AR: '2024-05-10', US: '2024-04-16' });
+  });
+
+  it('lo que no se puede leer se ignora', () => {
+    expect(digitalReleases(undefined)).toEqual({});
+    expect(digitalReleases({ results: [{ iso_3166_1: 'xx', release_dates: [] }, null] })).toEqual({});
+  });
+
+  it('la ficha de una película manda las fechas digitales y no las crudas', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 693134,
+        title: 'Duna: Parte Dos',
+        overview: 'Paul Atreides se une a los Fremen.',
+        release_dates: {
+          results: [{ iso_3166_1: 'AR', release_dates: [{ type: 4, release_date: '2024-05-21T00:00:00.000Z' }] }],
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+
+    const detail = await getMediaDetail('movie', 693134);
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('release_dates');
+    expect(detail.digital_releases).toEqual({ AR: '2024-05-21' });
+    expect(detail).not.toHaveProperty('release_dates');
+
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 });
