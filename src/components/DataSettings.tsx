@@ -22,6 +22,7 @@ import { useGoals } from '@/hooks/useGoals';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useFollowing } from '@/hooks/useFollowing';
 import { formatWatchDate } from '@/lib/dates';
+import { ImportDialog } from '@/components/ImportDialog';
 
 type PendingDialog = 'import' | 'clear' | 'delete' | null;
 
@@ -43,6 +44,7 @@ export function DataSettings() {
   const { clearLibrary, deleteAccount } = useAccountActions();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportingOther, setIsImportingOther] = useState(false);
   const [dialog, setDialog] = useState<PendingDialog>(null);
   const [isPending, setIsPending] = useState(false);
   // Se guarda el archivo elegido para confirmarlo antes de tocar la biblioteca.
@@ -301,7 +303,22 @@ export function DataSettings() {
           El JSON se puede volver a importar; el CSV es para abrir en una
           planilla.
         </p>
+
+        <button
+          type="button"
+          onClick={() => setIsImportingOther(true)}
+          disabled={isDemo}
+          title={isDemo ? 'No disponible mientras estás en el demo' : undefined}
+          className="flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <FileUp size={16} aria-hidden="true" />
+          Importar de Letterboxd, IMDb o Trakt
+        </button>
       </div>
+
+      {isImportingOther && (
+        <ImportDialog isOpen onClose={() => setIsImportingOther(false)} />
+      )}
 
       <div className="surface p-4 flex flex-col gap-3">
         <button

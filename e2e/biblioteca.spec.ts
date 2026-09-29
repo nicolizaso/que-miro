@@ -439,3 +439,52 @@ test('una novedad de plataforma se descarta y no vuelve', async ({ page }) => {
   await expect(page.getByText(/Estás viendo el demo/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Novedades' })).toHaveCount(0);
 });
+
+test('importar el export de Letterboxd, revisando lo dudoso', async ({ page }) => {
+  // Sin demo: importar es para una biblioteca propia.
+  await page.getByRole('button', { name: /Salir del demo/ }).click();
+  await page.getByRole('button', { name: /Continuar como Invitado/ }).click();
+
+  // TMDB contesta lo que diría para cada título del export.
+  await page.route('**/api/tmdb/find**', (route) => {
+    const query = new URL(route.request().url()).searchParams.get('query');
+    const movie = (id: number, title: string, year: number) => ({
+      id,
+      media_type: 'movie',
+      title,
+      original_title: title,
+      year,
+      poster_path: null,
+      backdrop_path: null,
+      genre_ids: [18],
+    });
+    const results =
+      query === 'Past Lives'
+        ? [movie(666277, 'Vidas pasadas', 2023)]
+        : query === 'Oppenheimer'
+          ? [movie(872585, 'Oppenheimer', 2023), movie(1, 'Oppenheimer', 2023)]
+          : [];
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results }) });
+  });
+
+  await page.goto('/perfil/ajustes');
+  await page.getByRole('button', { name: 'Importar de Letterboxd, IMDb o Trakt' }).click();
+  await page.getByLabel('Elegir los archivos del export').setInputFiles([
+    'src/lib/importers/__fixtures__/letterboxd/diary.csv',
+    'src/lib/importers/__fixtures__/letterboxd/ratings.csv',
+  ]);
+  await expect(page.getByText(/Letterboxd:/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Buscar en TMDB' }).click();
+  await expect(page.getByRole('heading', { name: 'Dudosos' })).toBeVisible();
+  // El dudoso arranca en la primera opción, que es la buena.
+  await expect(page.getByRole('radio', { name: /Oppenheimer · 2023$/ }).first()).toBeChecked();
+
+  await page.getByRole('button', { name: /^Importar 2 títulos$/ }).click();
+  await expect(page.getByText(/Importamos 2 títulos nuevos/)).toBeVisible();
+
+  await page.goto('/');
+  await selectTab(page, /Completadas/);
+  await expect(page.getByRole('button', { name: /Ver detalle de Vidas pasadas/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ver detalle de Oppenheimer/ })).toBeVisible();
+});

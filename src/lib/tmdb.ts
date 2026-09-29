@@ -172,7 +172,61 @@ export async function getMediaDetail(
   );
 }
 
+/** Un candidato de `/api/tmdb/find`, como lo manda el servidor. */
+interface FindResult {
+  id: number;
+  media_type: MediaType;
+  title: string;
+  original_title: string;
+  year: number | null;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  genre_ids: number[];
+}
+
+/** Un título posible para lo que llega de otra app (ver `lib/importers/match.ts`). */
+export interface TitleCandidate {
+  id: number;
+  mediaType: MediaType;
+  title: string;
+  originalTitle?: string;
+  year?: number;
+  posterPath: string | null;
+  backdropPath?: string | null;
+  genreIds?: number[];
+}
+
+function fromFindResult(result: FindResult): TitleCandidate {
+  return {
+    id: result.id,
+    mediaType: result.media_type,
+    title: result.title,
+    originalTitle: result.original_title,
+    ...(result.year ? { year: result.year } : {}),
+    posterPath: result.poster_path,
+    backdropPath: result.backdrop_path,
+    genreIds: result.genre_ids,
+  };
+}
+
 /**
+ * Encontrar en TMDB lo que llega de otra app: por id de IMDb, o por título y
+ * año de película o serie.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function findTitles(
+  query: { imdb: string } | { type: MediaType; query: string; year?: number },
+): Promise<TitleCandidate[]> {
+  const params =
+    'imdb' in query
+      ? `imdb=${encodeURIComponent(query.imdb)}`
+      : `type=${query.type}&query=${encodeURIComponent(query.query)}${query.year ? `&year=${query.year}` : ''}`;
+  const { results } = await fetchApi<{ results: FindResult[] }>(withLanguage(`/api/tmdb/find?${params}`));
+  return results.map(fromFindResult);
+}
+
+/**
+ * Los episodios de una temporada: nombre, sinopsis, fecha, duración e imagen./**
  * Los episodios de una temporada: nombre, sinopsis, fecha, duración e imagen.
  * @throws {TMDbRequestError} si la consulta falla.
  */

@@ -131,6 +131,11 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Modo invitado** — usala sin cuenta; si después iniciás sesión, tu biblioteca se migra sola.
 - **Tus datos son tuyos** — exportá a JSON o CSV, reimportá el JSON y eliminá tu
   cuenta con todos sus datos cuando quieras.
+- **Importar de Letterboxd, IMDb y Trakt** — subí el export de cada app (el
+  ZIP de Letterboxd, el CSV de IMDb, los JSON de Trakt): cada título se busca
+  en TMDB con barra de avance y se puede cancelar, y antes de guardar se
+  revisan los dudosos y se buscan a mano los que no aparecieron. Suma a lo
+  que ya tenías, sin pisar tus reseñas.
 - **Tema claro y oscuro** — sigue al sistema o se fija a mano.
 - **Accesible** — navegable por teclado, con foco atrapado en los modales y
   respeto por `prefers-reduced-motion`.
@@ -282,6 +287,7 @@ api/                  Funciones serverless (Vercel)
   tmdb/saga.ts        GET /api/tmdb/saga?id=
   tmdb/season.ts      GET /api/tmdb/season?id=&season= (episodios, recortados)
   tmdb/providers.ts   GET /api/tmdb/providers?type=&region= (plataformas del país)
+  tmdb/find.ts        GET /api/tmdb/find?imdb=tt… | ?type=&query=&year= (importar)
                       (todos aceptan &lang=es-ES|es-MX; sin él, es-ES)
   u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
   l/[id].ts           Lo mismo para una lista compartida (`/l/{id}`)
@@ -303,6 +309,8 @@ src/
   lib/picks.ts        Qué contaste de vos, y sus topes por pregunta
   lib/recipes.ts      Las 34 formas de armar una fila de Explorar
   lib/feed.ts         Barajado con semilla y reparto de títulos entre filas
+  lib/importers/      Un parser por app (IMDb, Letterboxd, Trakt), el match con
+                      TMDB y la mezcla con la biblioteca
   components/charts/  Piezas del panel de estadísticas
   views/              ListView, ExploreView, SmartPickerView, CalendarView, ProfileView,
                       TasteProfileView, LoginView, NotFoundView

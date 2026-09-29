@@ -544,6 +544,107 @@ export async function getAiring(id: number, language: Language = DEFAULT_LANGUAG
   });
 }
 
+/**
+ * Un día: lo que se busca para importar no cambia de un día para el otro, y
+ * una importación grande repite pedidos si se corta y se vuelve a empezar.
+ */
+export const FIND_TTL = 60 * 60 * 24;
+
+/** Un título candidato para lo que llega de otra app: lo justo para elegirlo. */
+export interface FindCandidate {
+  id: number;
+  media_type: MediaType;
+  title: string;
+  original_title: string;
+  year: number | null;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  genre_ids: number[];
+}
+
+function toCandidate(raw: Record<string, unknown>, mediaType: MediaType): FindCandidate | null {
+  const id = Number(raw.id);
+  const title = String((mediaType === 'movie' ? raw.title : raw.name) ?? '').trim();
+  if (!Number.isInteger(id) || id <= 0 || !title) return null;
+  const date = String((mediaType === 'movie' ? raw.release_date : raw.first_air_date) ?? '');
+  const year = Number(date.slice(0, 4));
+  return {
+    id,
+    media_type: mediaType,
+    title,
+    original_title: String((mediaType === 'movie' ? raw.original_title : raw.original_name) ?? title),
+    year: Number.isInteger(year) && year > 0 ? year : null,
+    poster_path: typeof raw.poster_path === 'string' ? raw.poster_path : null,
+    backdrop_path: typeof raw.backdrop_path === 'string' ? raw.backdrop_path : null,
+    genre_ids: Array.isArray(raw.genre_ids) ? raw.genre_ids.filter((genre): genre is number => typeof genre === 'number') : [],
+  };
+}
+
+/** El id de IMDb: `tt` y los números. Es lo único externo que se acepta por ahora. */
+export function parseImdbId(value: unknown): string {
+  const id = String(value ?? '').trim();
+  if (!/^tt\d{5,10}$/.test(id)) {
+    throw new TmdbError("El parámetro 'imdb' debe ser un id de IMDb (tt…).", 400);
+  }
+  return id;
+}
+
+/** El año de estreno, si viene: sin él la búsqueda es por título solo. */
+export function parseReleaseYear(value: unknown): number | undefined {
+  return parseYear(value, 'year');
+}
+
+/** Cuántos candidatos devuelve una búsqueda: con más no se elige mejor. */
+const MAX_FIND_RESULTS = 10;
+
+/**
+ * El título de TMDB para un id de IMDb (`/find`, con `external_source`
+ * fijo): el match exacto de un export de IMDb. Películas y series, no
+ * personas ni episodios sueltos.
+ */
+export async function findByImdbId(imdbId: string, language: Language = DEFAULT_LANGUAGE) {
+  return withCache(`find:imdb:${imdbId}:${language}`, FIND_TTL, async () => {
+    const data = await fetchTMDB<{ movie_results?: Record<string, unknown>[]; tv_results?: Record<string, unknown>[] }>(
+      `/find/${imdbId}`,
+      { external_source: 'imdb_id' },
+      language,
+    );
+    return [
+      ...(data.movie_results ?? []).map((raw) => toCandidate(raw, 'movie')),
+      ...(data.tv_results ?? []).map((raw) => toCandidate(raw, 'tv')),
+    ].filter((candidate): candidate is FindCandidate => candidate !== null);
+  });
+}
+
+/**
+ * Una película o una serie por título y año: el match de un export que no
+ * trae ids (Letterboxd). El año va en el filtro que corresponde a cada tipo.
+ */
+export async function searchByTitle(
+  mediaType: MediaType,
+  query: string,
+  year: number | undefined,
+  language: Language = DEFAULT_LANGUAGE,
+) {
+  const key = `find:${mediaType}:${query.toLowerCase()}:${year ?? ''}:${language}`;
+  return withCache(key, FIND_TTL, async () => {
+    const data = await fetchTMDB<{ results?: Record<string, unknown>[] }>(
+      `/search/${mediaType}`,
+      {
+        query,
+        ...(year !== undefined
+          ? { [mediaType === 'movie' ? 'primary_release_year' : 'first_air_date_year']: String(year) }
+          : {}),
+      },
+      language,
+    );
+    return (data.results ?? [])
+      .slice(0, MAX_FIND_RESULTS)
+      .map((raw) => toCandidate(raw, mediaType))
+      .filter((candidate): candidate is FindCandidate => candidate !== null);
+  });
+}
+
 /** Valida el `mediaType` que llega por la request antes de pegarle a TMDB. */
 export function parseMediaType(value: unknown): MediaType {
   if (value === 'movie' || value === 'tv') return value;

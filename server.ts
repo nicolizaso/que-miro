@@ -12,11 +12,13 @@ import { createServer as createViteServer } from 'vite';
 import { cacheHeaders } from './api/_lib/cache.js';
 import {
   DISCOVER_TTL,
+  FIND_TTL,
   PERSON_TTL,
   PROVIDERS_TTL,
   RECOMMENDATIONS_TTL,
   SEASON_TTL,
   TRENDING_TTL,
+  findByImdbId,
   getDiscover,
   getList,
   getMediaDetail,
@@ -29,6 +31,7 @@ import {
   getTrending,
   parseDiscoverQuery,
   parseId,
+  parseImdbId,
   parseLanguage,
   parseListKind,
   parseMediaType,
@@ -37,6 +40,8 @@ import {
   parseSearchKind,
   parseSeasonNumber,
   parseTrendingWindow,
+  parseReleaseYear,
+  searchByTitle,
   searchCompanies,
   searchMulti,
   searchPeople,
@@ -174,6 +179,27 @@ async function startServer() {
         parseRegion(req.query.region),
       );
       res.set(cacheHeaders(PROVIDERS_TTL));
+      return res.status(200).json({ results });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/find', async (req, res) => {
+    try {
+      const lang = parseLanguage(req.query.lang);
+      let results;
+      if (req.query.imdb !== undefined) {
+        results = await findByImdbId(parseImdbId(req.query.imdb), lang);
+      } else {
+        const query = String(req.query.query ?? '').trim().slice(0, 200);
+        if (!query) {
+          return res.status(400).json({ error: "Falta el parámetro 'imdb' o 'query'." });
+        }
+        results = await searchByTitle(parseMediaType(req.query.type), query, parseReleaseYear(req.query.year), lang);
+      }
+      res.set(cacheHeaders(FIND_TTL));
       return res.status(200).json({ results });
     } catch (error) {
       const { status, body } = toErrorResponse(error);

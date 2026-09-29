@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   TmdbError,
   digitalReleases,
+  findByImdbId,
   getAiring,
   getDiscover,
   getList,
@@ -13,13 +14,16 @@ import {
   getTrending,
   parseDiscoverQuery,
   parseId,
+  parseImdbId,
   parseLanguage,
   parseListKind,
   parseMediaType,
   parseRegion,
+  parseReleaseYear,
   parseSearchKind,
   parseSeasonNumber,
   parseTrendingWindow,
+  searchByTitle,
   searchCompanies,
   searchMulti,
   searchPeople,
@@ -1061,5 +1065,82 @@ describe('lo que el cron de avisos pregunta de una serie', () => {
       next_episode_to_air: { air_date: '2026-09-29', season_number: 2, episode_number: 3, name: 'Quién está vivo' },
       last_episode_to_air: null,
     });
+  });
+});
+
+describe('encontrar lo que llega de otra app', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  function stub(body: unknown) {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+    return fetchMock;
+  }
+
+  it('solo acepta ids de IMDb y años de verdad', () => {
+    expect(parseImdbId('tt6751668')).toBe('tt6751668');
+    expect(() => parseImdbId('6751668')).toThrow(TmdbError);
+    expect(() => parseImdbId('tt67/../x')).toThrow(TmdbError);
+    expect(parseReleaseYear('2023')).toBe(2023);
+    expect(parseReleaseYear(undefined)).toBeUndefined();
+    expect(() => parseReleaseYear('veinte')).toThrow(TmdbError);
+  });
+
+  it('por id de IMDb: películas y series, recortadas', async () => {
+    const fetchMock = stub({
+      movie_results: [
+        {
+          id: 496243,
+          title: 'Parásitos',
+          original_title: 'Gisaengchung',
+          release_date: '2019-05-30',
+          poster_path: '/p.jpg',
+          backdrop_path: '/b.jpg',
+          genre_ids: [35, 53],
+          overview: 'Largo.',
+          popularity: 99,
+        },
+      ],
+      person_results: [{ id: 1, name: 'Alguien' }],
+      tv_results: [],
+      tv_episode_results: [{ id: 2, show_id: 3 }],
+    });
+
+    const results = await findByImdbId('tt6751668', 'es-MX');
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe('/3/find/tt6751668');
+    expect(url.searchParams.get('external_source')).toBe('imdb_id');
+    expect(results).toEqual([
+      {
+        id: 496243,
+        media_type: 'movie',
+        title: 'Parásitos',
+        original_title: 'Gisaengchung',
+        year: 2019,
+        poster_path: '/p.jpg',
+        backdrop_path: '/b.jpg',
+        genre_ids: [35, 53],
+      },
+    ]);
+  });
+
+  it('por título y año, con el filtro de año de cada tipo', async () => {
+    const fetchMock = stub({ results: [{ id: 95396, name: 'Severance', first_air_date: '2022-02-17', genre_ids: [18] }] });
+    const results = await searchByTitle('tv', 'Severance', 2022);
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe('/3/search/tv');
+    expect(url.searchParams.get('first_air_date_year')).toBe('2022');
+    expect(results[0]).toMatchObject({ id: 95396, media_type: 'tv', title: 'Severance', year: 2022 });
+
+    await searchByTitle('movie', 'Past Lives', 2023);
+    const movieUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(movieUrl.pathname).toBe('/3/search/movie');
+    expect(movieUrl.searchParams.get('primary_release_year')).toBe('2023');
   });
 });
