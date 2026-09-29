@@ -4,6 +4,8 @@ import { Table2 } from 'lucide-react';
 export interface ChartDatum {
   label: string;
   value: number;
+  /** Otros valores de la misma fila, para las columnas extra de la tabla. */
+  extra?: Record<string, string | number>;
 }
 
 /**
@@ -20,6 +22,7 @@ export function ChartFrame({
   subtitle,
   data,
   valueLabel,
+  columns = [],
   children,
 }: {
   title: string;
@@ -27,6 +30,13 @@ export function ChartFrame({
   data: ChartDatum[];
   /** Encabezado de la columna de valores en la tabla. */
   valueLabel: string;
+  /**
+   * Columnas que la tabla suma después del valor.
+   *
+   * El gráfico sigue siendo de una sola serie; la tabla, que es la que se lee
+   * con precisión, puede contar lo demás que se sabe de cada fila.
+   */
+  columns?: { key: string; label: string }[];
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
@@ -66,6 +76,11 @@ export function ChartFrame({
               <th scope="col" className="font-medium pb-2 text-right">
                 {valueLabel}
               </th>
+              {columns.map((column) => (
+                <th key={column.key} scope="col" className="font-medium pb-2 text-right">
+                  {column.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -75,6 +90,11 @@ export function ChartFrame({
                   {datum.label}
                 </th>
                 <td className="py-1.5 text-right tabular-nums">{datum.value}</td>
+                {columns.map((column) => (
+                  <td key={column.key} className="py-1.5 text-right tabular-nums">
+                    {datum.extra?.[column.key] ?? ''}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>

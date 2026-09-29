@@ -71,7 +71,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Modo duelo** — comparaciones de a dos que arman un ranking de tu lista, con
   puntaje tipo Elo.
 - **Estadísticas** — horas mirando, distribución por género, actividad por mes y
-  cómo puntuás, con su tabla accesible al lado de cada gráfico.
+  cómo puntuás, con su tabla accesible al lado de cada gráfico. Cada episodio
+  guarda cuándo lo marcaste, así que una serie que miraste todo agosto suma en
+  agosto, y un mapa de actividad muestra los días que miraste algo.
 - **Tu año en Qué Miro?** — resumen anual listo para compartir.
 - **Perfil público** — publicá tus estadísticas y reseñas en `/u/tu-nombre`, con
   su vista previa resuelta del lado del servidor.

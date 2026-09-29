@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activityHeatmap,
   allWatches,
   formatDuration,
   genreDistribution,
@@ -347,5 +348,124 @@ describe('topRated', () => {
     expect(best).toHaveLength(2);
     expect(best[0].media.title).toBe('Matrix');
     expect(best[0].entry.rating).toBe(5);
+  });
+});
+
+describe('la actividad con fechas por episodio', () => {
+  const now = new Date(2026, 8, 15, 12);
+
+  /** Una serie de dos temporadas de 4 episodios de 50 minutos. */
+  function series(overrides: Partial<SavedMedia> = {}): SavedMedia {
+    return makeMedia({
+      tmdbId: 2,
+      mediaType: 'tv',
+      status: 'viendo',
+      runtime: 50,
+      seasons: [
+        { seasonNumber: 1, name: 'T1', episodeCount: 4 },
+        { seasonNumber: 2, name: 'T2', episodeCount: 4 },
+      ],
+      ...overrides,
+    });
+  }
+
+  it('los episodios cuentan en el mes en que se vieron, no cuando se terminó', () => {
+    const list = [
+      series({
+        progress: {
+          watched: { 1: [1, 2, 3] },
+          watchedAt: {
+            '1x1': new Date(2026, 7, 3).toISOString(),
+            '1x2': new Date(2026, 7, 20).toISOString(),
+            '1x3': new Date(2026, 8, 1).toISOString(),
+          },
+        },
+      }),
+    ];
+
+    const activity = monthlyActivity(list, 3, now);
+    const august = activity.find((month) => month.key === '2026-08')!;
+    const september = activity.find((month) => month.key === '2026-09')!;
+
+    expect(august).toMatchObject({ episodes: 2, titles: 0, minutes: 100, value: 2 });
+    expect(september).toMatchObject({ episodes: 1, minutes: 50 });
+  });
+
+  it('lo marcado sin fecha no cuenta en ningún mes', () => {
+    const list = [series({ progress: { watched: { 1: [1, 2, 3] } } })];
+    expect(monthlyActivity(list, 3, now).every((month) => month.value === 0)).toBe(true);
+  });
+
+  it('terminar una serie vista con fechas no cuenta sus horas dos veces', () => {
+    // Ocho episodios de 50: cuatro fechados en agosto, el resto sin fecha. Al
+    // terminarla en septiembre, a septiembre le tocan solo los cuatro que no
+    // se contaron.
+    const watchedAt: Record<string, string> = {};
+    for (const episode of [1, 2, 3, 4]) {
+      watchedAt[`1x${episode}`] = new Date(2026, 7, episode * 2).toISOString();
+    }
+    const list = [
+      series({
+        status: 'completada',
+        progress: { watched: { 1: [1, 2, 3, 4], 2: [1, 2, 3, 4] }, watchedAt },
+        history: [watch(4, new Date(2026, 8, 5).toISOString())],
+      }),
+    ];
+
+    const activity = monthlyActivity(list, 3, now);
+    const total = activity.reduce((sum, month) => sum + month.minutes, 0);
+
+    expect(activity.find((m) => m.key === '2026-08')?.minutes).toBe(200);
+    expect(activity.find((m) => m.key === '2026-09')?.minutes).toBe(200);
+    expect(total).toBe(runtimeMinutes(list[0]));
+  });
+
+  it('las películas siguen contando en el mes en que se vieron', () => {
+    const list = [
+      makeMedia({ runtime: 120, history: [watch(5, new Date(2026, 8, 2).toISOString())] }),
+    ];
+    expect(monthlyActivity(list, 1, now)[0]).toMatchObject({ titles: 1, minutes: 120 });
+  });
+});
+
+describe('activityHeatmap', () => {
+  const now = new Date(2026, 8, 16, 12); // miércoles
+
+  it('arma semanas de lunes a domingo, la última es la actual', () => {
+    const { weeks } = activityHeatmap([], 4, now);
+
+    expect(weeks).toHaveLength(4);
+    expect(weeks.every((week) => week.length === 7)).toBe(true);
+    expect(weeks[3][0].date).toBe('2026-09-14'); // lunes
+    // Del jueves en adelante todavía no llegó.
+    expect(weeks[3].map((day) => day.future)).toEqual([
+      false, false, false, true, true, true, true,
+    ]);
+  });
+
+  it('cuenta episodios y títulos por día, sin repetir la serie terminada ese día', () => {
+    const day = new Date(2026, 8, 15, 21);
+    const list = [
+      makeMedia({ tmdbId: 1, runtime: 100, history: [watch(4, day.toISOString())] }),
+      makeMedia({
+        tmdbId: 2,
+        mediaType: 'tv',
+        seasons: [{ seasonNumber: 1, name: 'T1', episodeCount: 2 }],
+        progress: {
+          watched: { 1: [1, 2] },
+          watchedAt: { '1x1': day.toISOString(), '1x2': day.toISOString() },
+        },
+        history: [watch(5, day.toISOString())],
+      }),
+    ];
+
+    const heatmap = activityHeatmap(list, 1, now);
+    const tuesday = heatmap.weeks[0].find((d) => d.date === '2026-09-15')!;
+
+    // La película, más los dos episodios; la serie terminada ese mismo día ya
+    // está en sus episodios.
+    expect(tuesday.count).toBe(3);
+    expect(heatmap.max).toBe(3);
+    expect(heatmap.total).toBe(3);
   });
 });

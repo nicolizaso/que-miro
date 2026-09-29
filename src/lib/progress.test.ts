@@ -444,3 +444,68 @@ describe('episodios nuevos', () => {
     });
   });
 });
+
+describe('la fecha de cada episodio', () => {
+  const NOW = new Date('2026-08-10T21:30:00.000Z');
+  const LATER = new Date('2026-08-12T22:00:00.000Z');
+  const T1: SeasonInfo = { seasonNumber: 1, name: 'Temporada 1', episodeCount: 3 };
+
+  it('marcar un episodio anota cuándo, y desmarcarlo lo borra', () => {
+    const marked = toggleEpisode(undefined, 1, 2, NOW);
+    expect(marked.watchedAt).toEqual({ '1x2': NOW.toISOString() });
+
+    const unmarked = toggleEpisode(marked, 1, 2, LATER);
+    expect(unmarked.watchedAt).toBeUndefined();
+  });
+
+  it('marcar otro no le cambia la fecha a los que ya estaban', () => {
+    const first = toggleEpisode(undefined, 1, 1, NOW);
+    const second = toggleEpisode(first, 1, 2, LATER);
+
+    expect(second.watchedAt).toEqual({
+      '1x1': NOW.toISOString(),
+      '1x2': LATER.toISOString(),
+    });
+  });
+
+  it('marcar una temporada entera les pone a todos la misma fecha', () => {
+    const progress = toggleSeason(undefined, T1, 3, NOW);
+    expect(Object.values(progress.watchedAt ?? {})).toEqual([
+      NOW.toISOString(),
+      NOW.toISOString(),
+      NOW.toISOString(),
+    ]);
+  });
+
+  it('completar la temporada respeta la fecha de lo que ya tenía', () => {
+    const first = toggleEpisode(undefined, 1, 1, NOW);
+    const progress = toggleSeason(first, T1, 3, LATER);
+
+    expect(progress.watchedAt?.['1x1']).toBe(NOW.toISOString());
+    expect(progress.watchedAt?.['1x3']).toBe(LATER.toISOString());
+  });
+
+  it('desmarcar la temporada entera borra todas sus fechas', () => {
+    const progress = toggleSeason(toggleSeason(undefined, T1, 3, NOW), T1, 3, LATER);
+    expect(progress.watchedAt).toBeUndefined();
+  });
+
+  it('lo marcado sin fecha sigue sin fecha: no se inventa', () => {
+    // Un progreso de antes de que se anotaran las fechas.
+    const old = { watched: { 1: [1, 2] } };
+    const progress = toggleEpisode(old, 1, 3, NOW);
+
+    expect(progress.watchedAt).toEqual({ '1x3': NOW.toISOString() });
+  });
+
+  it('completar la serie fecha solo lo que faltaba', () => {
+    const media = makeSeries({ 1: [1] });
+    media.progress = { watched: { 1: [1] }, watchedAt: { '1x1': NOW.toISOString() } };
+
+    const progress = completeProgress(media, LATER)!;
+
+    expect(progress.watchedAt?.['1x1']).toBe(NOW.toISOString());
+    expect(progress.watchedAt?.['1x2']).toBe(LATER.toISOString());
+    expect(progress.watchedAt?.['2x2']).toBe(LATER.toISOString());
+  });
+});

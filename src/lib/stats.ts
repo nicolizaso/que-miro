@@ -1,5 +1,6 @@
 import { SavedMedia, SeasonInfo, WatchEntry } from '@/types';
 import { countableSeasons, watchedEpisodes } from '@/lib/progress';
+import { toDayKey } from '@/lib/dates';
 
 /** Un visionado junto al título al que pertenece. */
 export interface Watch {
@@ -152,15 +153,104 @@ export function ratingDistribution(list: SavedMedia[]): Slice[] {
   }));
 }
 
+/** Un episodio visto con fecha, con lo que dura. */
+export interface DatedEpisode {
+  media: SavedMedia;
+  seasonNumber: number;
+  episode: number;
+  watchedAt: Date;
+  minutes: number;
+}
+
+/**
+ * Los episodios marcados con fecha, de toda la biblioteca.
+ *
+ * Solo los que tienen fecha: lo marcado antes de que se anotara no dice
+ * cuándo se vio, y ponerle una fecha inventada movería la actividad de un mes
+ * a otro. Tampoco los especiales, que no cuentan para nada más.
+ */
+export function datedEpisodes(list: SavedMedia[]): DatedEpisode[] {
+  const result: DatedEpisode[] = [];
+
+  for (const media of list) {
+    if (media.mediaType !== 'tv' || !media.progress?.watchedAt) continue;
+    const seasons = new Map(countableSeasons(media).map((s) => [s.seasonNumber, s]));
+
+    for (const [key, at] of Object.entries(media.progress.watchedAt)) {
+      const [seasonNumber, episode] = key.split('x').map(Number);
+      const season = seasons.get(seasonNumber);
+      const watchedAt = new Date(at);
+      if (!season || Number.isNaN(watchedAt.getTime())) continue;
+      result.push({
+        media,
+        seasonNumber,
+        episode,
+        watchedAt,
+        minutes: minutesPerEpisode(media, season),
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Los minutos de una vez que se terminó una serie que no están ya contados
+ * episodio por episodio.
+ *
+ * Una serie vista con fechas suma sus horas el día de cada episodio; si además
+ * sumara la serie entera el día en que se la terminó, esas horas contarían
+ * dos veces. A cada vez que se terminó le tocan los episodios fechados entre
+ * la vez anterior y esa: lo demás —lo marcado sin fecha, o una segunda vuelta
+ * sin marcar episodios— va al día en que se terminó, como antes.
+ */
+function completionMinutes(
+  media: SavedMedia,
+  entry: WatchEntry,
+  dated: DatedEpisode[],
+): number {
+  const total = runtimeMinutes(media);
+  if (media.mediaType !== 'tv') return total;
+
+  const completedAt = Date.parse(entry.completedAt);
+  const previous = (media.history ?? [])
+    .map((other) => Date.parse(other.completedAt))
+    .filter((at) => at < completedAt)
+    .sort((a, b) => b - a)[0] ?? -Infinity;
+
+  const covered = dated
+    .filter(
+      (episode) =>
+        episode.media.tmdbId === media.tmdbId &&
+        episode.watchedAt.getTime() > previous &&
+        episode.watchedAt.getTime() <= completedAt,
+    )
+    .reduce((sum, episode) => sum + episode.minutes, 0);
+
+  return Math.max(total - covered, 0);
+}
+
 export interface MonthlyActivity {
   /** `2026-03`, para ordenar sin ambigüedades. */
   key: string;
   label: string;
+  /** Títulos terminados más episodios vistos: todo lo que se hizo ese mes. */
   value: number;
+  titles: number;
+  episodes: number;
+  minutes: number;
+}
+
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /**
- * Cuántos títulos terminaste por mes, incluyendo los meses en cero.
+ * Qué miraste cada mes, incluyendo los meses en cero.
+ *
+ * Cuenta títulos terminados y, desde que se guarda la fecha de cada episodio,
+ * también episodios: una serie que miraste todo agosto aparece en agosto, no
+ * recién el día en que la terminaste. Las horas siguen la misma regla.
  *
  * Los huecos importan: sin ellos, un gráfico de actividad junta marzo con
  * agosto y hace parecer constante algo que fueron dos rachas separadas.
@@ -170,26 +260,113 @@ export function monthlyActivity(
   months = 12,
   now = new Date(),
 ): MonthlyActivity[] {
-  const counts = new Map<string, number>();
+  const byMonth = new Map<string, { titles: number; episodes: number; minutes: number }>();
+  const bump = (key: string, change: { titles?: number; episodes?: number; minutes?: number }) => {
+    const current = byMonth.get(key) ?? { titles: 0, episodes: 0, minutes: 0 };
+    byMonth.set(key, {
+      titles: current.titles + (change.titles ?? 0),
+      episodes: current.episodes + (change.episodes ?? 0),
+      minutes: current.minutes + (change.minutes ?? 0),
+    });
+  };
 
-  for (const { entry } of allWatches(list)) {
+  const dated = datedEpisodes(list);
+  for (const episode of dated) {
+    bump(monthKey(episode.watchedAt), { episodes: 1, minutes: episode.minutes });
+  }
+
+  for (const { media, entry } of allWatches(list)) {
     const date = new Date(entry.completedAt);
     if (Number.isNaN(date.getTime())) continue;
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    bump(monthKey(date), { titles: 1, minutes: completionMinutes(media, entry, dated) });
   }
 
   const result: MonthlyActivity[] = [];
   for (let offset = months - 1; offset >= 0; offset--) {
     const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const key = monthKey(date);
+    const month = byMonth.get(key) ?? { titles: 0, episodes: 0, minutes: 0 };
     result.push({
       key,
       label: date.toLocaleDateString('es-AR', { month: 'short' }),
-      value: counts.get(key) ?? 0,
+      value: month.titles + month.episodes,
+      ...month,
     });
   }
   return result;
+}
+
+export interface HeatmapDay {
+  /** `YYYY-MM-DD`, en la zona horaria del dispositivo. */
+  date: string;
+  count: number;
+  /** Los días que todavía no llegaron, al final de la semana actual. */
+  future: boolean;
+}
+
+export interface Heatmap {
+  /** Columnas de lunes a domingo, de la semana más vieja a la actual. */
+  weeks: HeatmapDay[][];
+  /** El día con más actividad, para la escala de color. */
+  max: number;
+  total: number;
+}
+
+/**
+ * Cuánto miraste cada día, en semanas de lunes a domingo, estilo el mapa de
+ * contribuciones de GitHub.
+ *
+ * Cada episodio fechado es uno, y cada película o serie terminada, otro. Una
+ * serie terminada el mismo día que su último episodio fechado no suma dos
+ * veces: ese día ya tiene su marca.
+ */
+export function activityHeatmap(
+  list: SavedMedia[],
+  weeks = 52,
+  now = new Date(),
+): Heatmap {
+  const counts = new Map<string, number>();
+  const add = (date: Date) => {
+    const key = toDayKey(date);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  };
+
+  const dated = datedEpisodes(list);
+  const episodeDays = new Set(
+    dated.map((episode) => `${episode.media.tmdbId}:${toDayKey(episode.watchedAt)}`),
+  );
+  for (const episode of dated) add(episode.watchedAt);
+
+  for (const { media, entry } of allWatches(list)) {
+    const date = new Date(entry.completedAt);
+    if (Number.isNaN(date.getTime())) continue;
+    if (episodeDays.has(`${media.tmdbId}:${toDayKey(date)}`)) continue;
+    add(date);
+  }
+
+  const today = toDayKey(now);
+  // El lunes de hace `weeks - 1` semanas: la última columna es la actual.
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - (weeks - 1) * 7);
+
+  const columns: HeatmapDay[][] = [];
+  let max = 0;
+  let total = 0;
+  for (let week = 0; week < weeks; week++) {
+    const days: HeatmapDay[] = [];
+    for (let day = 0; day < 7; day++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + week * 7 + day);
+      const key = toDayKey(date);
+      const count = counts.get(key) ?? 0;
+      max = Math.max(max, count);
+      total += count;
+      days.push({ date: key, count, future: key > today });
+    }
+    columns.push(days);
+  }
+
+  return { weeks: columns, max, total };
 }
 
 export interface LibrarySummary {

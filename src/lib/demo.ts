@@ -305,6 +305,32 @@ function daysAgoToIso(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+/**
+ * Fechas para los episodios vistos del seed, hacia atrás desde la última vez.
+ *
+ * Un ritmo creíble —a veces dos seguidos, a veces un par de días sin nada— en
+ * vez de uno por día exacto: es lo que hace que el mapa de actividad del demo
+ * se parezca al de alguien de verdad.
+ */
+function seedWatchedAt(
+  watched: Record<number, number[]>,
+  lastDaysAgo: number,
+): Record<string, string> {
+  const episodes = Object.entries(watched)
+    .flatMap(([season, numbers]) => numbers.map((episode) => [Number(season), episode]))
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+
+  const gaps = [0, 1, 1, 3, 0, 2];
+  const result: Record<string, string> = {};
+  let daysAgo = lastDaysAgo;
+  for (let index = episodes.length - 1; index >= 0; index--) {
+    const [season, episode] = episodes[index];
+    result[`${season}x${episode}`] = daysAgoToIso(daysAgo);
+    daysAgo += gaps[index % gaps.length];
+  }
+  return result;
+}
+
 /** Un episodio del seed, con su fecha contada desde hoy. */
 function seedEpisode(season: number, episode: number, offsetDays: number, name?: string): EpisodeRef {
   return {
@@ -325,7 +351,11 @@ function seedEpisode(season: number, episode: number, offsetDays: number, name?:
 export function buildDemoLibrary(): SavedMedia[] {
   return DEMO_SEED.map((entry) => {
     const progress: SeriesProgress | undefined = entry.watched
-      ? { watched: entry.watched, lastWatchedAt: daysAgoToIso(entry.daysAgo) }
+      ? {
+          watched: entry.watched,
+          watchedAt: seedWatchedAt(entry.watched, entry.daysAgo),
+          lastWatchedAt: daysAgoToIso(entry.daysAgo),
+        }
       : undefined;
 
     const seasons = entry.seasons

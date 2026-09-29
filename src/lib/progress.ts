@@ -238,6 +238,43 @@ function withRange(current: number[], count: number): number[] {
   return Array.from(all).sort((a, b) => a - b);
 }
 
+/** La clave de un episodio en `watchedAt`: `"2x5"`. */
+export function episodeKey(seasonNumber: number, episode: number): string {
+  return `${seasonNumber}x${episode}`;
+}
+
+/**
+ * El progreso con las fechas de los episodios recién marcados.
+ *
+ * Solo los recién marcados: lo que ya tenía fecha la conserva —marcar la
+ * temporada entera no reescribe cuándo viste los primeros episodios—, y lo que
+ * estaba marcado sin fecha sigue sin ella.
+ */
+function withDates(
+  watched: Record<number, number[]>,
+  previous: SeriesProgress | undefined,
+  now: Date,
+): SeriesProgress {
+  const at = now.toISOString();
+  const watchedAt: Record<string, string> = {};
+
+  for (const [season, episodes] of Object.entries(watched)) {
+    const before = previous?.watched[Number(season)] ?? [];
+    for (const episode of episodes) {
+      const key = episodeKey(Number(season), episode);
+      const known = previous?.watchedAt?.[key];
+      if (known) watchedAt[key] = known;
+      else if (!before.includes(episode)) watchedAt[key] = at;
+    }
+  }
+
+  return {
+    watched,
+    ...(Object.keys(watchedAt).length > 0 ? { watchedAt } : {}),
+    lastWatchedAt: at,
+  };
+}
+
 /**
  * Marca o desmarca un episodio, devolviendo el progreso nuevo.
  *
@@ -249,6 +286,7 @@ export function toggleEpisode(
   progress: SeriesProgress | undefined,
   seasonNumber: number,
   episode: number,
+  now: Date = new Date(),
 ): SeriesProgress {
   const watched = { ...(progress?.watched ?? {}) };
   const current = watched[seasonNumber] ?? [];
@@ -260,7 +298,8 @@ export function toggleEpisode(
   if (next.length > 0) watched[seasonNumber] = next;
   else delete watched[seasonNumber];
 
-  return { watched, lastWatchedAt: new Date().toISOString() };
+  // Desmarcar borra la fecha: no se vio, así que tampoco cuándo.
+  return withDates(watched, progress, now);
 }
 
 /**
@@ -277,6 +316,7 @@ export function toggleSeason(
   progress: SeriesProgress | undefined,
   season: SeasonInfo,
   aired: number = season.episodeCount,
+  now: Date = new Date(),
 ): SeriesProgress {
   const watched = { ...(progress?.watched ?? {}) };
   const target = Math.min(aired, season.episodeCount);
@@ -290,7 +330,12 @@ export function toggleSeason(
     watched[season.seasonNumber] = withRange(current, target);
   }
 
-  return { watched, lastWatchedAt: new Date().toISOString() };
+  // Marcar la temporada de golpe les pone a todos los episodios nuevos la
+  // misma fecha, la de ahora: es lo único que se sabe. Quien la marca entera
+  // casi siempre está anotando algo que vio antes, así que en las
+  // estadísticas va a aparecer como un día de mucha actividad, y es honesto:
+  // es el día en que la registró.
+  return withDates(watched, progress, now);
 }
 
 /**
@@ -306,6 +351,7 @@ export function toggleSeason(
  */
 export function completeProgress(
   media: WithAiring & Pick<SavedMedia, 'mediaType'>,
+  now: Date = new Date(),
 ): SeriesProgress | undefined {
   if (media.mediaType !== 'tv') return undefined;
   if (airedEpisodes(media) === 0 || hasWatchedAllAired(media)) return undefined;
@@ -317,7 +363,9 @@ export function completeProgress(
     watched[season.seasonNumber] = withRange(watched[season.seasonNumber] ?? [], aired);
   }
 
-  return { watched, lastWatchedAt: new Date().toISOString() };
+  // Igual que marcar una temporada entera: lo que faltaba queda con la fecha
+  // de ahora, y lo que ya tenía la suya la conserva.
+  return withDates(watched, media.progress, now);
 }
 
 // --- Episodios nuevos -------------------------------------------------------

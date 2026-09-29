@@ -162,8 +162,22 @@ function parseProgress(value: unknown): SeriesProgress | undefined {
 
   if (Object.keys(watched).length === 0) return undefined;
 
+  // Las fechas por episodio: solo las de episodios marcados, y solo si son
+  // fechas. Lo que no tiene fecha queda así —no se inventa ninguna—, que es
+  // lo que pasa con todo lo marcado antes de que existieran.
+  const watchedAt: Record<string, string> = {};
+  if (isRecord(value.watchedAt)) {
+    for (const [key, at] of Object.entries(value.watchedAt)) {
+      const match = /^(\d+)x(\d+)$/.exec(key);
+      if (!match || typeof at !== 'string' || Number.isNaN(Date.parse(at))) continue;
+      if (!watched[Number(match[1])]?.includes(Number(match[2]))) continue;
+      watchedAt[key] = at;
+    }
+  }
+
   return {
     watched,
+    ...(Object.keys(watchedAt).length > 0 ? { watchedAt } : {}),
     lastWatchedAt:
       typeof value.lastWatchedAt === 'string' ? value.lastWatchedAt : undefined,
   };

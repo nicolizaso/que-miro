@@ -87,6 +87,19 @@ export interface SeasonInfo {
  */
 export interface SeriesProgress {
   watched: Record<number, number[]>;
+  /**
+   * Cuándo se marcó cada episodio: clave `"2x5"` (temporada x episodio) →
+   * fecha ISO.
+   *
+   * Va aparte de `watched` a propósito, en vez de convertir cada número en un
+   * objeto con su fecha: una PWA vieja en otro dispositivo sigue leyendo
+   * `watched` como una lista de números, y cambiarle la forma le rompería el
+   * progreso. Este campo lo ignora sin enterarse.
+   *
+   * Lo marcado antes de que existiera no tiene fecha, y no se inventa: las
+   * estadísticas que dependen de cuándo se vio algo lo dejan afuera.
+   */
+  watchedAt?: Record<string, string>;
   lastWatchedAt?: string; // ISO
 }
 

@@ -394,3 +394,40 @@ describe('la marca de episodios nuevos', () => {
     ).toBeUndefined();
   });
 });
+
+describe('las fechas de los episodios', () => {
+  const series = (progress: unknown) =>
+    parseMedia(v1Media({ mediaType: 'tv', review: undefined, status: 'viendo', progress }))!;
+
+  it('un documento viejo sin fechas sigue igual: no se inventa ninguna', () => {
+    const media = series({ watched: { 1: [1, 2, 3] } });
+
+    expect(media.progress?.watched[1]).toEqual([1, 2, 3]);
+    expect(media.progress?.watchedAt).toBeUndefined();
+  });
+
+  it('conserva las fechas de los episodios marcados', () => {
+    const media = series({
+      watched: { 1: [1, 2] },
+      watchedAt: { '1x1': '2026-08-01T22:00:00.000Z', '1x2': '2026-08-02T22:00:00.000Z' },
+    });
+
+    expect(media.progress?.watchedAt).toEqual({
+      '1x1': '2026-08-01T22:00:00.000Z',
+      '1x2': '2026-08-02T22:00:00.000Z',
+    });
+  });
+
+  it('descarta fechas rotas y las de episodios que no están marcados', () => {
+    const media = series({
+      watched: { 1: [1] },
+      watchedAt: {
+        '1x1': 'ayer',
+        '1x5': '2026-08-02T22:00:00.000Z',
+        'T1E1': '2026-08-02T22:00:00.000Z',
+      },
+    });
+
+    expect(media.progress?.watchedAt).toBeUndefined();
+  });
+});
