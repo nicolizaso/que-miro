@@ -14,13 +14,25 @@ import {
   doc,
   setDoc,
   writeBatch,
+  DocumentReference,
+  DocumentSnapshot,
   FirestoreError,
   Unsubscribe,
 } from 'firebase/firestore';
 import { Collection, SavedMedia } from '@/types';
-import { parseCollection, parseMedia } from '@/lib/schema';
+import { parseCollection, parseMedia, toStoredMedia } from '@/lib/schema';
 import { hasPicks, parsePicks } from '@/lib/picks';
 import { picksPath, picksToDocument } from '@/hooks/useTastePicks';
+import { goalsPath } from '@/hooks/useGoals';
+import { goalsToDocument, hasGoals, parseGoals } from '@/lib/goals';
+import { subscriptionsPath } from '@/hooks/useSubscriptions';
+import {
+  hasSubscriptions,
+  parseSubscriptions,
+  subscriptionsToDocument,
+} from '@/lib/subscriptions';
+import { followingPath } from '@/hooks/useFollowing';
+import { followingToDocument, hasFollowing, parseFollowing } from '@/lib/following';
 import { mergeLibraries } from '@/lib/backup';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -36,6 +48,57 @@ export const PERMISSION_RETRY_WINDOW_MS = 30_000;
 export const PERMISSION_RETRY_DELAY_MS = 1_500;
 
 /**
+ * Cómo se resuelve un documento de `profile/`: el cuestionario, las metas, las
+ * suscripciones.
+ *
+ * Los tres son chicos, se tocan cada tanto y no son un historial, así que ante
+ * un conflicto gana el más nuevo: si alguien contestó en el celular y después
+ * en la compu, lo último que dijo es lo que quiso decir. En la primera
+ * sincronización, lo que se guardó sin cuenta —o mientras Firestore rechazaba
+ * las escrituras— se sube si es más nuevo que lo de allá: ahí la copia local
+ * es la buena.
+ */
+function profileDocHandler<T extends { updatedAt: string }>({
+  ref,
+  parse,
+  hasContent,
+  toDocument,
+  localToUpload,
+  getLocal,
+  setLocal,
+  what,
+}: {
+  ref: DocumentReference;
+  parse: (data: unknown) => T;
+  hasContent: (value: T) => boolean;
+  toDocument: (value: T) => Record<string, unknown>;
+  localToUpload: T | null;
+  getLocal: () => T;
+  setLocal: (value: T) => void;
+  /** Para el registro de errores: "los gustos", "las metas". */
+  what: string;
+}) {
+  return (snapshot: DocumentSnapshot) => {
+    const remote = snapshot.exists() ? parse(snapshot.data()) : null;
+
+    if (
+      localToUpload &&
+      hasContent(localToUpload) &&
+      (!remote || Date.parse(remote.updatedAt) < Date.parse(localToUpload.updatedAt))
+    ) {
+      setDoc(ref, toDocument(localToUpload)).catch((error: unknown) => {
+        console.error(`[sync] No se pudieron subir ${what}:`, error);
+      });
+      return;
+    }
+
+    if (!remote) return;
+    if (Date.parse(remote.updatedAt) < Date.parse(getLocal().updatedAt)) return;
+    setLocal(remote);
+  };
+}
+
+/**
  * Mantiene sincronizada la biblioteca local (Zustand + localStorage) con
  * Firestore mientras haya sesión iniciada.
  *
@@ -48,8 +111,8 @@ export const PERMISSION_RETRY_DELAY_MS = 1_500;
  *   le filtraría al siguiente usuario. Los datos del modo demo caen acá: su
  *   `ownerUid` ficticio nunca coincide con un UID real.
  * - Sin sesión, no se toca nada: el modo invitado vive solo en localStorage.
- * - El cuestionario de "Contanos de vos" viaja con la biblioteca: mismo dueño,
- *   mismas reglas.
+ * - El cuestionario de "Contanos de vos", las metas y las suscripciones viajan
+ *   con la biblioteca: mismo dueño, mismas reglas.
  *
  * Todo lo que llega de Firestore pasa por `parseMedia`, que migra los
  * documentos guardados con versiones viejas del schema.
@@ -76,6 +139,9 @@ export function SyncManager() {
       mediaList,
       collections: localCollections,
       picks: localPicks,
+      goals: localGoals,
+      subscriptions: localSubscriptions,
+      following: localFollowing,
       syncedUid,
       setSyncedUid,
     } = useMediaStore.getState();
@@ -92,12 +158,18 @@ export function SyncManager() {
     const localMediaToUpload = isFirstSync ? mediaList : [];
     const localCollectionsToUpload = isFirstSync ? localCollections : [];
     const localPicksToUpload = isFirstSync ? localPicks : null;
+    const localGoalsToUpload = isFirstSync ? localGoals : null;
+    const localSubscriptionsToUpload = isFirstSync ? localSubscriptions : null;
+    const localFollowingToUpload = isFirstSync ? localFollowing : null;
 
     setOwnerUid(user.uid);
 
     const savedMediaRef = collection(db, `users/${user.uid}/saved_media`);
     const collectionsRef = collection(db, `users/${user.uid}/collections`);
     const picksRef = doc(db, picksPath(user.uid));
+    const goalsRef = doc(db, goalsPath(user.uid));
+    const subscriptionsRef = doc(db, subscriptionsPath(user.uid));
+    const followingRef = doc(db, followingPath(user.uid));
     let migrated = false;
 
     const { setIssue } = useSyncStatus.getState();
@@ -244,7 +316,7 @@ export function SyncManager() {
               for (const media of pending) {
                 batch.set(
                   doc(db, `users/${user.uid}/saved_media/${media.tmdbId}`),
-                  media,
+                  toStoredMedia(media),
                 );
               }
               await batch.commit();
@@ -339,40 +411,63 @@ export function SyncManager() {
       onListenError,
     ));
 
-    /**
-     * El cuestionario: un documento y no una colección.
-     *
-     * Ante un conflicto gana el más nuevo, que acá alcanza. Son siete campos
-     * que se contestan una vez y se retocan cada tanto, no un historial: si
-     * alguien contestó en el celular y después en la compu, lo último que dijo
-     * es lo que quiso decir.
-     */
     const unsubscribePicks = listen((onListenError) => onSnapshot(
       picksRef,
-      (snapshot) => {
-        const remote = snapshot.exists() ? parsePicks(snapshot.data()) : null;
-        const { picks: local, setPicks } = useMediaStore.getState();
+      profileDocHandler({
+        ref: picksRef,
+        parse: parsePicks,
+        hasContent: hasPicks,
+        toDocument: picksToDocument,
+        localToUpload: localPicksToUpload,
+        getLocal: () => useMediaStore.getState().picks,
+        setLocal: (picks) => useMediaStore.getState().setPicks(picks),
+        what: 'los gustos',
+      }),
+      onListenError,
+    ));
 
-        if (
-          localPicksToUpload &&
-          hasPicks(localPicksToUpload) &&
-          (!remote ||
-            Date.parse(remote.updatedAt) < Date.parse(localPicksToUpload.updatedAt))
-        ) {
-          // Contestado sin cuenta, o contestado en este dispositivo mientras
-          // Firestore rechazaba las escrituras: la copia local es la buena.
-          setDoc(picksRef, picksToDocument(localPicksToUpload)).catch(
-            (error: unknown) => {
-              console.error('[sync] No se pudieron subir los gustos:', error);
-            },
-          );
-          return;
-        }
+    const unsubscribeGoals = listen((onListenError) => onSnapshot(
+      goalsRef,
+      profileDocHandler({
+        ref: goalsRef,
+        parse: parseGoals,
+        hasContent: hasGoals,
+        toDocument: goalsToDocument,
+        localToUpload: localGoalsToUpload,
+        getLocal: () => useMediaStore.getState().goals,
+        setLocal: (goals) => useMediaStore.getState().setGoals(goals),
+        what: 'las metas',
+      }),
+      onListenError,
+    ));
 
-        if (!remote) return;
-        if (Date.parse(remote.updatedAt) < Date.parse(local.updatedAt)) return;
-        setPicks(remote);
-      },
+    const unsubscribeSubscriptions = listen((onListenError) => onSnapshot(
+      subscriptionsRef,
+      profileDocHandler({
+        ref: subscriptionsRef,
+        parse: parseSubscriptions,
+        hasContent: hasSubscriptions,
+        toDocument: subscriptionsToDocument,
+        localToUpload: localSubscriptionsToUpload,
+        getLocal: () => useMediaStore.getState().subscriptions,
+        setLocal: (subscriptions) => useMediaStore.getState().setSubscriptions(subscriptions),
+        what: 'las suscripciones',
+      }),
+      onListenError,
+    ));
+
+    const unsubscribeFollowing = listen((onListenError) => onSnapshot(
+      followingRef,
+      profileDocHandler({
+        ref: followingRef,
+        parse: parseFollowing,
+        hasContent: hasFollowing,
+        toDocument: followingToDocument,
+        localToUpload: localFollowingToUpload,
+        getLocal: () => useMediaStore.getState().following,
+        setLocal: (following) => useMediaStore.getState().setFollowing(following),
+        what: 'los perfiles que seguís',
+      }),
       onListenError,
     ));
 
@@ -382,6 +477,9 @@ export function SyncManager() {
       unsubscribeMedia();
       unsubscribeCollections();
       unsubscribePicks();
+      unsubscribeGoals();
+      unsubscribeSubscriptions();
+      unsubscribeFollowing();
       // Sin listeners no hay nada que sincronizar: el cartel dejaría de
       // describir el estado de la app.
       setIssue(null);

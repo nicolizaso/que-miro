@@ -281,6 +281,17 @@ test('un perfil público inexistente muestra su propia página, no el login', as
   await expect(page).toHaveURL(/\/u\/no-existe/);
 });
 
+test('una lista compartida inexistente muestra su propia página, no el login', async ({
+  page,
+}) => {
+  await page.goto('/l/abcdefghijkl1234');
+
+  await expect(
+    page.getByRole('heading', { name: /Esta lista no existe|No pudimos cargar la lista/ }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/l\/abcdefghijkl1234/);
+});
+
 test('se navega con teclado desde el salto al contenido', async ({ page }) => {
   // Se recarga primero para que el foco arranque desde el principio del
   // documento: el botón del demo se desmontó al hacer clic, y el navegador
@@ -332,4 +343,235 @@ test('las respuestas de "Contanos de vos" se guardan y sobreviven a una recarga'
   await expect(
     page.getByRole('button', { name: 'Los 80', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('marcar el siguiente episodio desde el inicio', async ({ page }) => {
+  await expect(page.getByRole('heading', { name: 'Continuar viendo' })).toBeVisible();
+
+  // Severance va por T2E4 en el demo: el "+1" lo marca sin abrir la ficha.
+  await page
+    .getByRole('button', { name: 'Marcar T2E4 de Severance como visto' })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Marcar T2E5 de Severance como visto' }),
+  ).toBeVisible();
+
+  // El aviso deja deshacerlo, por si el dedo se adelantó.
+  await page.getByRole('button', { name: 'Deshacer' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Marcar T2E4 de Severance como visto' }),
+  ).toBeVisible();
+
+  // Y lo marcado sobrevive a recargar la página.
+  await page
+    .getByRole('button', { name: 'Marcar T2E4 de Severance como visto' })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Marcar T2E5 de Severance como visto' }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: 'Marcar T2E5 de Severance como visto' }),
+  ).toBeVisible();
+});
+
+test('el calendario muestra lo que sale de lo que seguís', async ({ page }) => {
+  await page.getByRole('link', { name: 'Calendario' }).click();
+  await expect(page).toHaveURL(/\/calendario/);
+
+  // En el demo, The Bear está al día y ya anunció la temporada que viene.
+  await expect(page.getByRole('heading', { name: 'Calendario', level: 1 })).toBeVisible();
+  await expect(page.getByText('The Bear')).toBeVisible();
+  await expect(page.getByText('Estreno de la temporada 4')).toBeVisible();
+
+  // Las que siguen en emisión sin fecha van aparte.
+  await expect(page.getByRole('heading', { name: 'Sin fecha confirmada' })).toBeVisible();
+});
+
+test('abandonar una serie la manda a Archivadas, y retomarla la devuelve', async ({ page }) => {
+  await selectTab(page, /Viendo/);
+  const card = page.getByRole('button', { name: /^Ver detalle de Arcane/ });
+  await card.click();
+
+  const detail = page.getByRole('dialog');
+  await detail.getByRole('button', { name: 'Abandonar' }).click();
+
+  const confirm = page.getByRole('dialog', { name: /¿Abandonás Arcane\?/ });
+  await confirm.getByLabel(/¿Por qué la dejás\?/).fill('No me enganchó');
+  await confirm.getByLabel('2 de 5 estrellas').click({ force: true });
+  await confirm.getByRole('button', { name: 'Abandonar' }).click();
+
+  // Se va de Viendo, y el aviso dice adónde.
+  await expect(page.getByText(/Abandonaste "Arcane"/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Ver detalle de Arcane/ })).toHaveCount(0);
+
+  // El demo ya trae una en pausa y una abandonada: con Arcane son tres.
+  await page.getByRole('button', { name: /Archivadas\s*3/ }).click();
+  await expect(page.getByRole('heading', { name: 'Archivadas' })).toBeVisible();
+  await page.getByRole('button', { name: /Abandonadas/ }).click();
+  await expect(page.getByRole('button', { name: /^Ver detalle de/ })).toHaveCount(2);
+
+  // La ficha cuenta dónde quedó y por qué.
+  await page.getByRole('button', { name: /^Ver detalle de Arcane/ }).click();
+  const archived = page.getByRole('dialog');
+  await expect(archived.getByText(/La abandonaste el .*, en T1E5\./)).toBeVisible();
+  await expect(archived.getByText('No me enganchó')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Retomar "Arcane"' }).click();
+  await expect(page.getByText(/"Arcane" volvió a Viendo/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Volver a las listas' }).click();
+  await selectTab(page, /Viendo/);
+  await expect(page.getByRole('button', { name: /^Ver detalle de Arcane/ })).toBeVisible();
+});
+
+test('una novedad de plataforma se descarta y no vuelve', async ({ page }) => {
+  // En el demo, Duna llegó a Max.
+  await expect(page.getByRole('heading', { name: 'Novedades' })).toBeVisible();
+  await expect(page.getByText('ya está en Max.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Descartar la novedad de Duna' }).click();
+  await expect(page.getByRole('heading', { name: 'Novedades' })).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByText(/Estás viendo el demo/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Novedades' })).toHaveCount(0);
+});
+
+test('importar el export de Letterboxd, revisando lo dudoso', async ({ page }) => {
+  // Sin demo: importar es para una biblioteca propia.
+  await page.getByRole('button', { name: /Salir del demo/ }).click();
+  await page.getByRole('button', { name: /Continuar como Invitado/ }).click();
+
+  // TMDB contesta lo que diría para cada título del export.
+  await page.route('**/api/tmdb/find**', (route) => {
+    const query = new URL(route.request().url()).searchParams.get('query');
+    const movie = (id: number, title: string, year: number) => ({
+      id,
+      media_type: 'movie',
+      title,
+      original_title: title,
+      year,
+      poster_path: null,
+      backdrop_path: null,
+      genre_ids: [18],
+    });
+    const results =
+      query === 'Past Lives'
+        ? [movie(666277, 'Vidas pasadas', 2023)]
+        : query === 'Oppenheimer'
+          ? [movie(872585, 'Oppenheimer', 2023), movie(1, 'Oppenheimer', 2023)]
+          : [];
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results }) });
+  });
+
+  await page.goto('/perfil/ajustes');
+  await page.getByRole('button', { name: 'Importar de Letterboxd, IMDb o Trakt' }).click();
+  await page.getByLabel('Elegir los archivos del export').setInputFiles([
+    'src/lib/importers/__fixtures__/letterboxd/diary.csv',
+    'src/lib/importers/__fixtures__/letterboxd/ratings.csv',
+  ]);
+  await expect(page.getByText(/Letterboxd:/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Buscar en TMDB' }).click();
+  await expect(page.getByRole('heading', { name: 'Dudosos' })).toBeVisible();
+  // El dudoso arranca en la primera opción, que es la buena.
+  await expect(page.getByRole('radio', { name: /Oppenheimer · 2023$/ }).first()).toBeChecked();
+
+  await page.getByRole('button', { name: /^Importar 2 títulos$/ }).click();
+  await expect(page.getByText(/Importamos 2 títulos nuevos/)).toBeVisible();
+
+  await page.goto('/');
+  await selectTab(page, /Completadas/);
+  await expect(page.getByRole('button', { name: /Ver detalle de Vidas pasadas/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ver detalle de Oppenheimer/ })).toBeVisible();
+});
+
+test('del reparto de una ficha a la página de la persona, y de vuelta', async ({ page }) => {
+  // TMDB contesta la búsqueda, la ficha de Duna y la página de Javier Bardem.
+  const duna = {
+    id: 438631,
+    media_type: 'movie',
+    title: 'Duna',
+    poster_path: null,
+    backdrop_path: null,
+    release_date: '2021-09-15',
+    genre_ids: [878],
+    overview: '',
+  };
+  await page.route('**/api/tmdb/search**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [duna] }) }),
+  );
+  await page.route('**/api/tmdb/detail**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...duna,
+        genres: [{ id: 878, name: 'Ciencia ficción' }],
+        runtime: 155,
+        credits: { cast: [{ id: 3810, name: 'Javier Bardem', character: 'Stilgar', profile_path: null }] },
+      }),
+    }),
+  );
+  const credit = (id: number, title: string, date: string, vote_average: number, character: string) => ({
+    id,
+    media_type: 'movie',
+    title,
+    date,
+    poster_path: null,
+    role: 'reparto',
+    character,
+    job: null,
+    vote_average,
+    vote_count: 5000,
+  });
+  await page.route('**/api/tmdb/person-page**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        person: {
+          id: 3810,
+          name: 'Javier Bardem',
+          profile_path: null,
+          biography: 'Actor español.',
+          birthday: '1969-03-01',
+          deathday: null,
+          place_of_birth: 'Las Palmas de Gran Canaria, España',
+          known_for_department: 'Acting',
+        },
+        credits: [
+          credit(438631, 'Duna', '2021-09-15', 7.8, 'Stilgar'),
+          credit(6977, 'Sin lugar para los débiles', '2007-11-09', 7.9, 'Anton Chigurh'),
+          credit(1913, 'Mar adentro', '2004-09-03', 7.8, 'Ramón Sampedro'),
+        ],
+      }),
+    }),
+  );
+
+  // Desde el buscador, que vive en el marco y no en la página: tiene que
+  // cerrarse solo al irse a otra.
+  await page.keyboard.press('Control+k');
+  const search = page.getByRole('dialog', { name: 'Buscar títulos' });
+  await search.getByRole('searchbox', { name: 'Buscar películas o series' }).fill('duna');
+  await search.getByRole('button', { name: 'Ver detalle de Duna', exact: true }).click();
+  await page.getByRole('link', { name: 'Javier Bardem' }).click();
+
+  await expect(page).toHaveURL(/\/persona\/3810$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Javier Bardem' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  // Duna está en el Por Ver del demo: no cuenta como vista ni como "te falta".
+  await expect(page.getByText('Viste 0 de 3')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Te faltan estas 2 bien puntuadas' })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: /Filmografía/ }).getByRole('button', { name: /Duna/ }),
+  ).toContainText('Por ver');
+
+  // "Atrás" vuelve a la lista, sin ficha ni buscador encima.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });

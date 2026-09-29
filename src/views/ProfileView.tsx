@@ -1,12 +1,17 @@
-import { useMemo } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useMemo, useRef } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeRadioGroup } from '@/components/ThemeToggle';
 import { DataSettings } from '@/components/DataSettings';
 import { CollectionsSettings } from '@/components/CollectionsSettings';
 import { StatsDashboard } from '@/components/StatsDashboard';
+import { GoalsPanel } from '@/components/GoalsPanel';
 import { PublicProfileSettings } from '@/components/PublicProfileSettings';
+import { SubscriptionsSettings } from '@/components/SubscriptionsSettings';
+import { NotificationsSettings } from '@/components/NotificationsSettings';
+import { CalendarFeedSettings } from '@/components/CalendarFeedSettings';
+import { AboutSettings } from '@/components/Attribution';
 import { REGIONS, RegionCode, usePreferences } from '@/preferences';
 import { formatWatchDate } from '@/lib/dates';
 import { allWatches } from '@/lib/stats';
@@ -114,6 +119,7 @@ function AppSettings() {
 const PROFILE_TABS = [
   { to: '.', label: 'Resumen', end: true },
   { to: 'gustos', label: 'Contanos de vos', end: false },
+  { to: 'siguiendo', label: 'Siguiendo', end: false },
   { to: 'ajustes', label: 'Ajustes', end: false },
 ] as const;
 
@@ -128,6 +134,21 @@ const PROFILE_TABS = [
  * esperado.
  */
 export function ProfileView() {
+  // "Siguiendo" aparece cuando hay a quién: sin nadie, sería una pestaña para
+  // explicar que está vacía. Se empieza a seguir desde un perfil público.
+  const followsSomeone = useMediaStore((state) => state.following.profiles.length > 0);
+  const tabs = PROFILE_TABS.filter((tab) => tab.to !== 'siguiendo' || followsSomeone);
+
+  // Si la pestaña activa quedó fuera de la barra —se entró directo a
+  // Ajustes desde un teléfono—, se la trae a la vista.
+  const tabList = useRef<HTMLUListElement>(null);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    tabList.current
+      ?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [pathname]);
+
   return (
     <div className="flex flex-col gap-8 w-full max-w-5xl mx-auto px-4 pt-10">
       <div className="flex flex-col gap-5">
@@ -137,16 +158,23 @@ export function ProfileView() {
             de tablist se lo dejamos al patrón que sí lo es (los estados de la
             biblioteca), que no cambia de URL. */}
         <nav aria-label="Secciones del perfil">
-          <ul className="flex items-center gap-1 border-b border-border-card">
-            {PROFILE_TABS.map(({ to, label, end }) => (
-              <li key={label}>
+          {/* Con cuatro pestañas no entra en un teléfono angosto: se desliza
+              de costado, sin barra, como las filas de pósters. */}
+          <ul
+            ref={tabList}
+            className="rail flex items-center gap-1 border-b border-border-card overflow-x-auto"
+          >
+            {tabs.map(({ to, label, end }) => (
+              <li key={label} className="shrink-0">
                 <NavLink
                   to={to}
                   end={end}
                   className={({ isActive }) =>
                     cn(
-                      'relative flex items-center px-4 py-3 text-sm font-medium transition-colors',
-                      'after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full',
+                      'relative flex items-center px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                      // Adentro de la caja y no sobre el borde: con scroll
+                      // horizontal, lo que sobresale se recorta.
+                      'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full',
                       isActive
                         ? 'text-text-main after:bg-accent'
                         : 'text-text-muted hover:text-text-main after:bg-transparent',
@@ -177,6 +205,8 @@ export function ProfileSummary() {
   return (
     <div className="flex flex-col gap-10">
       <SessionCard />
+
+      <GoalsPanel />
 
       <StatsDashboard />
 
@@ -253,11 +283,22 @@ export function ProfileSettings() {
     <div className="flex flex-col gap-10">
       <AppSettings />
 
+      {/* Al lado del país: la lista de plataformas es la de ese país. */}
+      <SubscriptionsSettings />
+
+      <NotificationsSettings />
+
+      <CalendarFeedSettings />
+
       <PublicProfileSettings />
 
       <CollectionsSettings />
 
       <DataSettings />
+
+      {/* Al final, que es donde se busca: es lo que se consulta una vez, no lo
+          que se toca seguido. */}
+      <AboutSettings />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { MediaType, SavedMedia } from '@/types';
 import { runtimeMinutes } from '@/lib/stats';
+import { isAvailableNow } from '@/lib/subscriptions';
 
 /** Tramos de duración que se pueden pedir. */
 export type DurationBucket = 'corta' | 'media' | 'larga';
@@ -22,6 +23,8 @@ export interface PickerFilters {
   tag: string | null;
   collection: string | null;
   duration: DurationBucket | null;
+  /** Solo lo incluido en alguna plataforma que pagás. */
+  availableNow: boolean;
 }
 
 export const EMPTY_PICKER_FILTERS: PickerFilters = {
@@ -31,12 +34,15 @@ export const EMPTY_PICKER_FILTERS: PickerFilters = {
   tag: null,
   collection: null,
   duration: null,
+  availableNow: false,
 };
 
 /** Los títulos de la lista *Por Ver* que cumplen los filtros. */
 export function candidates(
   list: SavedMedia[],
   filters: PickerFilters,
+  /** Las plataformas que se pagan (ver `subscribedNames`). */
+  subscribed: Set<string> = new Set(),
 ): SavedMedia[] {
   const maxMinutes = filters.duration
     ? (DURATION_BUCKETS.find((bucket) => bucket.value === filters.duration)?.max ??
@@ -50,6 +56,7 @@ export function candidates(
     if (filters.provider && !media.providers?.includes(filters.provider)) {
       return false;
     }
+    if (filters.availableNow && !isAvailableNow(media, subscribed)) return false;
     if (filters.collection && !media.collections?.includes(filters.collection)) {
       return false;
     }

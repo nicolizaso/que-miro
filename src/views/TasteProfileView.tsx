@@ -146,15 +146,18 @@ function AnswerChip({
   label,
   image,
   fallback,
+  to,
   onRemove,
 }: {
   label: string;
   image?: string | null;
   fallback: ReactNode;
+  /** Adónde lleva la respuesta, si tiene página propia: la de una persona. */
+  to?: string;
   onRemove: () => void;
 }) {
-  return (
-    <li className="flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-full bg-bg-main border border-border-card">
+  const content = (
+    <>
       <span className="w-7 h-7 rounded-full overflow-hidden bg-border-card grid place-items-center text-text-subtle shrink-0">
         {image ? (
           <img
@@ -168,6 +171,18 @@ function AnswerChip({
         )}
       </span>
       <span className="text-sm font-medium min-w-0">{label}</span>
+    </>
+  );
+
+  return (
+    <li className="flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-full bg-bg-main border border-border-card">
+      {to ? (
+        <Link to={to} className="flex items-center gap-2 min-w-0 rounded-full hover:text-accent transition-colors">
+          {content}
+        </Link>
+      ) : (
+        content
+      )}
       <button
         type="button"
         onClick={onRemove}
@@ -499,6 +514,7 @@ export function TasteProfileView() {
                   label={person.name}
                   image={person.profilePath}
                   fallback={<User size={14} aria-hidden="true" />}
+                  to={`/persona/${person.id}`}
                   onRemove={() => removePerson('actors', person.id)}
                 />
               ))}
@@ -534,6 +550,7 @@ export function TasteProfileView() {
                   label={person.name}
                   image={person.profilePath}
                   fallback={<Clapperboard size={14} aria-hidden="true" />}
+                  to={`/persona/${person.id}`}
                   onRemove={() => removePerson('directors', person.id)}
                 />
               ))}

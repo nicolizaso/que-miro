@@ -3,6 +3,9 @@ import { Sparkles } from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { ShareButton } from '@/components/ShareButton';
 import { availableYears, buildWrapped } from '@/lib/wrapped';
+import { formatEpisode } from '@/lib/progress';
+import { goalUnit } from '@/lib/goals';
+import { formatRating } from '@/components/ui/StarRating';
 
 /**
  * "Tu año en Qué Miro?": el resumen anual, listo para compartir.
@@ -14,13 +17,14 @@ const MIN_WATCHES = 3;
 
 export function WrappedCard() {
   const mediaList = useMediaStore((state) => state.mediaList);
+  const goals = useMediaStore((state) => state.goals);
   const years = useMemo(() => availableYears(mediaList), [mediaList]);
   const [year, setYear] = useState<number | null>(null);
 
   const selectedYear = year ?? years[0] ?? null;
   const wrapped = useMemo(
-    () => (selectedYear ? buildWrapped(mediaList, selectedYear) : null),
-    [mediaList, selectedYear],
+    () => (selectedYear ? buildWrapped(mediaList, selectedYear, goals) : null),
+    [mediaList, selectedYear, goals],
   );
 
   if (!wrapped || wrapped.watches < MIN_WATCHES) return null;
@@ -97,6 +101,46 @@ export function WrappedCard() {
             </span>{' '}
             ({wrapped.best.entry.rating}★)
           </p>
+        )}
+
+        {/* Sin fecha no se sabe en qué año lo viste: ahí se dice de dónde
+            salió, en vez de presentarlo como "el del año". */}
+        {wrapped.bestEpisode && (
+          <p className="text-sm text-text-muted -mt-4">
+            {wrapped.bestEpisode.dated
+              ? 'El episodio del año: '
+              : 'El mejor episodio de tu serie del año: '}
+            <span className="text-text-main font-medium">
+              {wrapped.bestEpisode.media.title},{' '}
+              {formatEpisode(wrapped.bestEpisode.seasonNumber, wrapped.bestEpisode.episode)}
+            </span>{' '}
+            ({formatRating(wrapped.bestEpisode.rating)}★)
+          </p>
+        )}
+
+        {(wrapped.goalsMet.length > 0 || wrapped.bestStreak > 1) && (
+          <ul className="flex flex-col gap-1 text-sm text-text-muted -mt-4">
+            {wrapped.goalsMet.length > 0 && (
+              <li>
+                Cumpliste tu meta:{' '}
+                <span className="text-text-main font-medium">
+                  {wrapped.goalsMet
+                    .map((goal) => goalUnit(goal.kind, goal.target))
+                    .join(' y ')}
+                </span>
+                .
+              </li>
+            )}
+            {wrapped.bestStreak > 1 && (
+              <li>
+                Tu mejor racha:{' '}
+                <span className="text-text-main font-medium">
+                  {wrapped.bestStreak} semanas seguidas
+                </span>{' '}
+                mirando algo.
+              </li>
+            )}
+          </ul>
         )}
       </div>
 

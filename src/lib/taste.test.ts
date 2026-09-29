@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tasteProfile } from './taste';
+import { directedAbandoned, resemblesAbandoned, tasteProfile } from './taste';
 import { Person, SavedMedia } from '@/types';
 
 const NOW = new Date('2026-06-01T00:00:00.000Z');
@@ -224,5 +224,127 @@ describe('tasteProfile', () => {
 
     expect(taste.hasSignal).toBe(false);
     expect(taste.savedIds.size).toBe(0);
+  });
+});
+
+describe('lo abandonado, como señal en contra', () => {
+  const nolan = person(525, 'Christopher Nolan', 'direccion');
+
+  it('no es semilla de nada aunque lo hayas puntuado alto alguna vez', () => {
+    const taste = tasteProfile(
+      [
+        makeMedia({
+          status: 'abandonada',
+          history: [watch(5)],
+          people: [nolan],
+          archive: { at: '2026-03-01T00:00:00.000Z' },
+        }),
+      ],
+      NOW,
+    );
+
+    expect(taste.favorites).toHaveLength(0);
+    expect(taste.directors).toHaveLength(0);
+    expect(taste.abandoned.map((media) => media.title)).toEqual(['Matrix']);
+  });
+
+  it('le baja el puntaje a los géneros de lo que dejaste', () => {
+    const liked = [
+      makeMedia({ tmdbId: 1, genres: ['Drama'], history: [watch(4)] }),
+      makeMedia({ tmdbId: 2, genres: ['Western'], history: [watch(4.5)] }),
+    ];
+    const before = tasteProfile(liked, NOW);
+    expect(before.genres[0].name).toBe('Western');
+
+    const after = tasteProfile(
+      [
+        ...liked,
+        makeMedia({ tmdbId: 3, genres: ['Western'], status: 'abandonada' }),
+        makeMedia({ tmdbId: 4, genres: ['Western'], status: 'abandonada' }),
+      ],
+      NOW,
+    );
+    expect(after.genres[0].name).toBe('Drama');
+  });
+
+  it('sale de "terminá lo que empezaste"', () => {
+    const halfWatched = {
+      mediaType: 'tv' as const,
+      seasons: [{ seasonNumber: 1, name: 'T1', episodeCount: 8 }],
+      progress: { watched: { 1: [1, 2, 3] } },
+    };
+    const taste = tasteProfile(
+      [
+        makeMedia({ tmdbId: 1, title: 'Sigue', status: 'viendo', ...halfWatched }),
+        makeMedia({ tmdbId: 2, title: 'Pausada', status: 'en_pausa', ...halfWatched }),
+        makeMedia({ tmdbId: 3, title: 'Dejada', status: 'abandonada', ...halfWatched }),
+      ],
+      NOW,
+    );
+
+    expect(taste.unfinished.map((media) => media.title).sort()).toEqual(['Pausada', 'Sigue']);
+  });
+
+  it('nunca es un pendiente', () => {
+    const taste = tasteProfile([makeMedia({ status: 'abandonada' })], NOW);
+    expect(taste.pending).toHaveLength(0);
+  });
+});
+
+describe('resemblesAbandoned', () => {
+  const dropped = makeMedia({
+    tmdbId: 10,
+    status: 'abandonada',
+    sagaId: 7,
+    people: [person(1, 'Una Directora', 'direccion'), person(2, 'Un Actor', 'reparto')],
+    keywords: [
+      { id: 1, name: 'robots' },
+      { id: 2, name: 'distopía' },
+      { id: 3, name: 'memoria' },
+    ],
+  });
+
+  it('se parece la misma saga, la misma dirección o tres temas en común', () => {
+    expect(resemblesAbandoned(makeMedia({ tmdbId: 11, sagaId: 7 }), [dropped])).toBe(true);
+    expect(
+      resemblesAbandoned(
+        makeMedia({ tmdbId: 12, people: [person(1, 'Una Directora', 'direccion')] }),
+        [dropped],
+      ),
+    ).toBe(true);
+    expect(
+      resemblesAbandoned(
+        makeMedia({
+          tmdbId: 13,
+          keywords: [
+            { id: 1, name: 'robots' },
+            { id: 2, name: 'distopía' },
+            { id: 3, name: 'memoria' },
+          ],
+        }),
+        [dropped],
+      ),
+    ).toBe(true);
+  });
+
+  it('compartir género, un actor o un par de temas no alcanza', () => {
+    expect(
+      resemblesAbandoned(
+        makeMedia({
+          tmdbId: 14,
+          people: [person(2, 'Un Actor', 'reparto')],
+          keywords: [
+            { id: 1, name: 'robots' },
+            { id: 2, name: 'distopía' },
+          ],
+        }),
+        [dropped],
+      ),
+    ).toBe(false);
+  });
+
+  it('sabe quién dirigió algo que dejaste', () => {
+    expect(directedAbandoned(1, [dropped])).toBe(true);
+    expect(directedAbandoned(2, [dropped])).toBe(false);
   });
 });

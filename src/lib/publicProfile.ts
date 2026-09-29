@@ -1,5 +1,7 @@
-import { SavedMedia } from '@/types';
+import { MediaType, SavedMedia } from '@/types';
 import { allWatches, formatDuration, genreDistribution, summarize, topRated } from '@/lib/stats';
+import { WatchlistItem, parseWatchlist, publicWatchlist } from '@/lib/together';
+import { stableJson } from '@/lib/autoPublish';
 
 /**
  * Instantánea pública de una biblioteca.
@@ -15,6 +17,23 @@ export interface PublicProfile {
   uid: string;
   displayName: string;
   publishedAt: string; // ISO
+  /**
+   * "Mantener actualizado": la app lo republica sola cuando cambia algo de lo
+   * que muestra. Se guarda con el perfil; un perfil de antes, sin el campo,
+   * cuenta como prendido.
+   */
+  autoUpdate: boolean;
+  /**
+   * "Incluir mi Por Ver", para "¿Qué miramos juntos?". Apagado por defecto:
+   * es más de lo que un perfil publicaba antes, y lo decide cada uno.
+   */
+  includeWatchlist: boolean;
+  /** "Incluir mis plataformas", para "En plataformas de los dos". También apagado. */
+  includeSubscriptions: boolean;
+  /** El *Por Ver*, si se eligió incluirlo. */
+  watchlist?: WatchlistItem[];
+  /** Los nombres de las plataformas que paga, si se eligió incluirlas. */
+  subscriptions?: string[];
   summary: {
     watches: number;
     titles: number;
@@ -24,6 +43,8 @@ export interface PublicProfile {
   topGenres: string[];
   favorites: {
     tmdbId: number;
+    /** Aditivo: los perfiles de antes no lo tienen. */
+    mediaType?: MediaType;
     title: string;
     posterPath: string | null;
     releaseYear: string;
@@ -31,7 +52,16 @@ export interface PublicProfile {
   }[];
   reviews: {
     id: string;
+    /**
+     * De qué título es. Aditivo, como el tipo, el póster y el año: con eso,
+     * quien sigue el perfil puede guardarlo en su Por Ver desde la reseña.
+     * En un perfil de antes, `tmdbId` es 0.
+     */
+    tmdbId: number;
+    mediaType?: MediaType;
     title: string;
+    posterPath: string | null;
+    releaseYear: string;
     rating: number;
     text: string;
     tags: string[];
@@ -77,11 +107,20 @@ export function buildPublicProfile({
   uid,
   displayName,
   mediaList,
+  autoUpdate = true,
+  includeWatchlist = false,
+  includeSubscriptions = false,
+  subscriptions = [],
 }: {
   slug: string;
   uid: string;
   displayName: string;
   mediaList: SavedMedia[];
+  autoUpdate?: boolean;
+  includeWatchlist?: boolean;
+  includeSubscriptions?: boolean;
+  /** Los nombres de las plataformas que paga: se publican solo si se pidió. */
+  subscriptions?: string[];
 }): PublicProfile {
   const summary = summarize(mediaList);
 
@@ -90,6 +129,13 @@ export function buildPublicProfile({
     uid,
     displayName,
     publishedAt: new Date().toISOString(),
+    autoUpdate,
+    includeWatchlist,
+    includeSubscriptions,
+    // Solo lo que se eligió publicar, y sin claves vacías: Firestore no
+    // acepta `undefined`.
+    ...(includeWatchlist ? { watchlist: publicWatchlist(mediaList) } : {}),
+    ...(includeWatchlist && includeSubscriptions ? { subscriptions: subscriptions.slice(0, 30) } : {}),
     summary: {
       watches: summary.totalWatches,
       titles: summary.uniqueTitles,
@@ -99,6 +145,7 @@ export function buildPublicProfile({
     topGenres: genreDistribution(mediaList, 5).map((slice) => slice.label),
     favorites: topRated(mediaList, MAX_FAVORITES).map(({ media, entry }) => ({
       tmdbId: media.tmdbId,
+      mediaType: media.mediaType,
       title: media.title,
       posterPath: media.posterPath,
       releaseYear: media.releaseYear,
@@ -111,7 +158,11 @@ export function buildPublicProfile({
       .slice(0, MAX_REVIEWS)
       .map(({ media, entry }) => ({
         id: entry.id,
+        tmdbId: media.tmdbId,
+        mediaType: media.mediaType,
         title: media.title,
+        posterPath: media.posterPath,
+        releaseYear: media.releaseYear,
         rating: entry.rating,
         text: entry.text ?? '',
         tags: entry.tags ?? [],
@@ -122,6 +173,16 @@ export function buildPublicProfile({
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Un campo opcional: presente con su valor, o ausente del todo. */
+function optional<K extends string, V>(key: K, value: V | undefined): { [P in K]?: V } {
+  return value === undefined ? {} : ({ [key]: value } as { [P in K]?: V });
+}
+
+/** El tipo, si es uno válido: `{}` si no, para que el campo quede ausente. */
+function mediaTypeOf(value: unknown): { mediaType?: MediaType } {
+  return value === 'movie' || value === 'tv' ? { mediaType: value } : {};
 }
 
 /**
@@ -150,6 +211,16 @@ export function parsePublicProfile(value: unknown): PublicProfile | null {
       typeof value.publishedAt === 'string'
         ? value.publishedAt
         : new Date().toISOString(),
+    autoUpdate: value.autoUpdate !== false,
+    includeWatchlist: value.includeWatchlist === true,
+    includeSubscriptions: value.includeSubscriptions === true,
+    ...optional('watchlist', parseWatchlist(value.watchlist)),
+    ...optional(
+      'subscriptions',
+      Array.isArray(value.subscriptions)
+        ? value.subscriptions.filter((name): name is string => typeof name === 'string' && name.trim() !== '').slice(0, 30)
+        : undefined,
+    ),
     summary: {
       watches: Number(summary.watches) || 0,
       titles: Number(summary.titles) || 0,
@@ -162,6 +233,7 @@ export function parsePublicProfile(value: unknown): PublicProfile | null {
     favorites: Array.isArray(value.favorites)
       ? value.favorites.filter(isRecord).map((favorite) => ({
           tmdbId: Number(favorite.tmdbId) || 0,
+          ...mediaTypeOf(favorite.mediaType),
           title: typeof favorite.title === 'string' ? favorite.title : '',
           posterPath:
             typeof favorite.posterPath === 'string' ? favorite.posterPath : null,
@@ -173,7 +245,11 @@ export function parsePublicProfile(value: unknown): PublicProfile | null {
     reviews: Array.isArray(value.reviews)
       ? value.reviews.filter(isRecord).map((review, index) => ({
           id: typeof review.id === 'string' ? review.id : `r-${index}`,
+          tmdbId: Number(review.tmdbId) || 0,
+          ...mediaTypeOf(review.mediaType),
           title: typeof review.title === 'string' ? review.title : '',
+          posterPath: typeof review.posterPath === 'string' ? review.posterPath : null,
+          releaseYear: typeof review.releaseYear === 'string' ? review.releaseYear : '',
           rating: Number(review.rating) || 0,
           text: typeof review.text === 'string' ? review.text : '',
           tags: Array.isArray(review.tags)
@@ -185,6 +261,37 @@ export function parsePublicProfile(value: unknown): PublicProfile | null {
       : [],
   };
 }
+
+/**
+ * Lo que el perfil muestra, sin cuándo se publicó ni la opción de
+ * actualizarlo. Dos instantáneas con el mismo contenido son la misma: volver
+ * a escribirla solo cambiaría la fecha.
+ */
+export function profileContent(
+  profile: PublicProfile,
+): Omit<PublicProfile, 'publishedAt' | 'autoUpdate' | 'includeWatchlist' | 'includeSubscriptions'> {
+  const {
+    publishedAt: _publishedAt,
+    autoUpdate: _autoUpdate,
+    includeWatchlist: _includeWatchlist,
+    includeSubscriptions: _includeSubscriptions,
+    ...content
+  } = profile;
+  return content;
+}
+
+export function sameProfileContent(a: PublicProfile, b: PublicProfile): boolean {
+  return stableJson(profileContent(a)) === stableJson(profileContent(b));
+}
+
+/**
+ * Cuánto se espera después del último cambio: el que suma una reseña suele
+ * corregirla enseguida, o puntuar otra. Se publica una vez, con todo.
+ */
+export const PUBLISH_DEBOUNCE_MS = 30_000;
+
+/** El mínimo entre dos publicaciones solas: un perfil no es un chat en vivo. */
+export const MIN_PUBLISH_INTERVAL_MS = 5 * 60_000;
 
 /** Texto que acompaña al link cuando se comparte el perfil. */
 export function shareText(profile: PublicProfile): string {

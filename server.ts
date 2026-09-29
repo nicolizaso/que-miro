@@ -12,24 +12,37 @@ import { createServer as createViteServer } from 'vite';
 import { cacheHeaders } from './api/_lib/cache.js';
 import {
   DISCOVER_TTL,
+  FIND_TTL,
   PERSON_TTL,
+  PROVIDERS_TTL,
   RECOMMENDATIONS_TTL,
+  SEASON_TTL,
   TRENDING_TTL,
+  findByImdbId,
   getDiscover,
   getList,
   getMediaDetail,
   getPersonCredits,
+  getPersonPage,
+  getProviders,
   getRecommendations,
   getSaga,
+  getSeason,
   getSimilar,
   getTrending,
   parseDiscoverQuery,
   parseId,
+  parseImdbId,
+  parseLanguage,
   parseListKind,
   parseMediaType,
   parsePersonRole,
+  parseRegion,
   parseSearchKind,
+  parseSeasonNumber,
   parseTrendingWindow,
+  parseReleaseYear,
+  searchByTitle,
   searchCompanies,
   searchMulti,
   searchPeople,
@@ -53,12 +66,13 @@ async function startServer() {
     }
     try {
       const kind = parseSearchKind(req.query.kind);
+      const lang = parseLanguage(req.query.lang);
       const results =
         kind === 'person'
           ? await searchPeople(query)
           : kind === 'company'
             ? await searchCompanies(query)
-            : await searchMulti(query);
+            : await searchMulti(query, lang);
 
       return res.status(200).json({ results });
     } catch (error) {
@@ -71,7 +85,8 @@ async function startServer() {
     try {
       const mediaType = parseMediaType(req.query.type);
       const id = parseId(req.query.id);
-      return res.status(200).json(await getMediaDetail(mediaType, id));
+      const lang = parseLanguage(req.query.lang);
+      return res.status(200).json(await getMediaDetail(mediaType, id, lang));
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);
@@ -80,12 +95,14 @@ async function startServer() {
 
   app.get('/api/tmdb/trending', async (req, res) => {
     try {
+      const lang = parseLanguage(req.query.lang);
       const results = req.query.type
         ? await getList(
             parseMediaType(req.query.type),
             parseListKind(req.query.list),
+            lang,
           )
-        : await getTrending(parseTrendingWindow(req.query.window));
+        : await getTrending(parseTrendingWindow(req.query.window), lang);
 
       res.set(cacheHeaders(TRENDING_TTL));
       return res.status(200).json({ results });
@@ -99,11 +116,12 @@ async function startServer() {
     try {
       const mediaType = parseMediaType(req.query.type);
       const id = parseId(req.query.id);
+      const lang = parseLanguage(req.query.lang);
 
       const results =
         req.query.mode === 'similar'
-          ? await getSimilar(mediaType, id)
-          : await getRecommendations(mediaType, id);
+          ? await getSimilar(mediaType, id, lang)
+          : await getRecommendations(mediaType, id, lang);
 
       res.set(cacheHeaders(RECOMMENDATIONS_TTL));
       return res.status(200).json({ results });
@@ -129,9 +147,12 @@ async function startServer() {
     try {
       const id = parseId(req.query.id);
       const role = parsePersonRole(req.query.role);
+      const lang = parseLanguage(req.query.lang);
 
       res.set(cacheHeaders(PERSON_TTL));
-      return res.status(200).json({ results: await getPersonCredits(id, role) });
+      return res
+        .status(200)
+        .json({ results: await getPersonCredits(id, role, lang) });
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);
@@ -140,12 +161,94 @@ async function startServer() {
 
   app.get('/api/tmdb/saga', async (req, res) => {
     try {
+      const results = await getSaga(
+        parseId(req.query.id),
+        parseLanguage(req.query.lang),
+      );
       res.set(cacheHeaders(PERSON_TTL));
-      return res.status(200).json({ results: await getSaga(parseId(req.query.id)) });
+      return res.status(200).json({ results });
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);
     }
+  });
+
+  app.get('/api/tmdb/providers', async (req, res) => {
+    try {
+      const results = await getProviders(
+        parseMediaType(req.query.type),
+        parseRegion(req.query.region),
+      );
+      res.set(cacheHeaders(PROVIDERS_TTL));
+      return res.status(200).json({ results });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/find', async (req, res) => {
+    try {
+      const lang = parseLanguage(req.query.lang);
+      let results;
+      if (req.query.imdb !== undefined) {
+        results = await findByImdbId(parseImdbId(req.query.imdb), lang);
+      } else {
+        const query = String(req.query.query ?? '').trim().slice(0, 200);
+        if (!query) {
+          return res.status(400).json({ error: "Falta el parámetro 'imdb' o 'query'." });
+        }
+        results = await searchByTitle(parseMediaType(req.query.type), query, parseReleaseYear(req.query.year), lang);
+      }
+      res.set(cacheHeaders(FIND_TTL));
+      return res.status(200).json({ results });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/person-page', async (req, res) => {
+    try {
+      const result = await getPersonPage(parseId(req.query.id), parseLanguage(req.query.lang));
+      res.set(cacheHeaders(PERSON_TTL));
+      return res.status(200).json(result);
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/season', async (req, res) => {
+    try {
+      const result = await getSeason(
+        parseId(req.query.id),
+        parseSeasonNumber(req.query.season),
+        parseLanguage(req.query.lang),
+      );
+      res.set(cacheHeaders(SEASON_TTL));
+      return res.status(200).json(result);
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  // El calendario suscribible, con la misma dirección que en producción
+  // (`/cal/{token}.ics`, ver el rewrite de `vercel.json`).
+  app.get('/cal/:token.ics', async (req, res) => {
+    const { default: calendar } = await import('./api/cal/[token].js');
+    req.query.token = req.params.token;
+    return calendar(req as never, res as never);
+  });
+
+  // El cron de avisos, para poder dispararlo a mano en local con el mismo
+  // `Authorization: Bearer $CRON_SECRET` que manda Vercel. Se importa recién
+  // cuando se lo llama: Firebase Admin es pesado y el resto del server no lo
+  // necesita.
+  app.get('/api/cron/notify', async (req, res) => {
+    const { default: notify } = await import('./api/cron/notify.js');
+    return notify(req as never, res as never);
   });
 
   const vite = await createViteServer({

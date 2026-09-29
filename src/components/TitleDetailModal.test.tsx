@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Collection, TMDbDetail } from '@/types';
 
 /** Sin sesión: la biblioteca es el store local, que es lo que miran los tests. */
@@ -11,6 +12,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 vi.mock('@/lib/firebase', () => ({
   db: {},
   isFirebaseConfigured: false,
+  isPushConfigured: false,
   isMissingDatabaseError: () => false,
 }));
 
@@ -39,13 +41,21 @@ const getMediaDetail = vi.fn(async () => detail);
 
 vi.mock('@/lib/tmdb', () => ({
   getMediaDetail: (...args: unknown[]) => getMediaDetail(...(args as [])),
+  // Sin los episodios, la temporada queda en su grilla de números.
+  getSeason: async () => {
+    throw new Error('sin red');
+  },
+  currentLanguage: () => 'es-ES',
   TMDB_IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',
+  TMDB_LOGO_URL: 'https://image.tmdb.org/t/p/w92',
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
+  TMDB_STILL_URL: 'https://image.tmdb.org/t/p/w300',
 }));
 
 const { TitleDetailModal } = await import('@/components/TitleDetailModal');
 const { ToastProvider } = await import('@/contexts/ToastContext');
 const { useMediaStore } = await import('@/store');
+const { usePreferences } = await import('@/preferences');
 
 function makeCollection(name: string): Collection {
   return {
@@ -195,5 +205,78 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
       ]),
     );
     expect(useMediaStore.getState().mediaList).toHaveLength(1);
+  });
+});
+
+describe('TitleDetailModal, las plataformas', () => {
+  it('ofrece la página de TMDB con dónde verlo y le atribuye los datos a JustWatch', async () => {
+    const link = 'https://www.themoviedb.org/tv/95396-severance/watch?locale=AR';
+    // jsdom anuncia `en-US`: sin fijarla, la región detectada sería otra.
+    act(() => usePreferences.setState({ region: 'AR' }));
+    getMediaDetail.mockResolvedValueOnce({
+      ...detail,
+      'watch/providers': {
+        results: {
+          AR: {
+            link,
+            flatrate: [{ provider_name: 'Apple TV+', logo_path: '/apple.jpg' }],
+          },
+        },
+      },
+    });
+
+    await renderExploreDetail();
+
+    const whereToWatch = await screen.findByRole('link', { name: /Ver dónde verlo/ });
+    expect(whereToWatch).toHaveAttribute('href', link);
+    expect(whereToWatch).toHaveAttribute('target', '_blank');
+    expect(screen.getByText(/Datos de plataformas/)).toHaveTextContent('JustWatch');
+  });
+});
+
+describe('TitleDetailModal, el reparto', () => {
+  it('cada persona lleva a su página, y la ficha se cierra al irse', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    // El reparto va en una fila deslizable, que mide su ancho con un
+    // observador que jsdom no trae.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    getMediaDetail.mockImplementation(async () => ({
+      ...detail,
+      credits: { cast: [{ id: 525, name: 'Adam Scott', character: 'Mark S.', profile_path: null }] },
+    }));
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/explorar']}>
+          <ToastProvider>
+            <Routes>
+              <Route
+                path="/explorar"
+                element={<TitleDetailModal id={42} mediaType="tv" isOpen onClose={onClose} />}
+              />
+              <Route path="/persona/:id" element={<p>La página de la persona</p>} />
+            </Routes>
+          </ToastProvider>
+        </MemoryRouter>,
+      );
+
+      const link = await screen.findByRole('link', { name: 'Adam Scott' });
+      expect(link).toHaveAttribute('href', '/persona/525');
+
+      await user.click(link);
+      expect(onClose).toHaveBeenCalled();
+      expect(await screen.findByText('La página de la persona')).toBeInTheDocument();
+    } finally {
+      getMediaDetail.mockImplementation(async () => detail);
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -48,6 +48,17 @@ export const isFirebaseConfigured = Boolean(
 );
 
 /**
+ * La clave pública VAPID de Cloud Messaging (Configuración del proyecto →
+ * Cloud Messaging → Certificados push web). Sin ella el navegador no puede
+ * suscribirse a los avisos, así que la app ni los ofrece.
+ */
+export const vapidKey: string = import.meta.env.VITE_FIREBASE_VAPID_KEY?.trim() || '';
+
+/** Si este deploy puede mandar avisos: Firebase, el remitente y la clave VAPID. */
+export const isPushConfigured =
+  isFirebaseConfigured && Boolean(firebaseConfig.messagingSenderId) && vapidKey !== '';
+
+/**
  * Firestore con caché persistente.
  *
  * Es lo que hace que la app funcione sin conexión de verdad y no solo que

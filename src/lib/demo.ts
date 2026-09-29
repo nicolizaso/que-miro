@@ -3,13 +3,23 @@ import { getMediaDetail } from '@/lib/tmdb';
 import { enrichFromDetail } from '@/lib/enrich';
 import { newWatchId } from '@/lib/schema';
 import { emptyPicks, parsePicks } from '@/lib/picks';
+import { emptyGoals, parseGoals } from '@/lib/goals';
+import { emptySubscriptions, parseSubscriptions } from '@/lib/subscriptions';
+import { emptyFollowing, parseFollowing } from '@/lib/following';
 import {
+  EpisodeRef,
+  Goals,
   MediaStatus,
+  Subscriptions,
+  Following,
   MediaType,
   SavedMedia,
   SeriesProgress,
+  SeriesStatus,
   TastePicks,
+  WatchEntry,
 } from '@/types';
+import { toDayKey } from '@/lib/dates';
 
 /**
  * Dueño ficticio de la biblioteca de demostración.
@@ -59,6 +69,28 @@ export function buildDemoPicks(): TastePicks {
   };
 }
 
+/**
+ * Las metas del demo, para el año en curso: una ya cumplida —así se ve la
+ * tarjeta para compartir— y otra en camino, con su ritmo.
+ */
+/**
+ * Las plataformas del demo: una sola, para que "Lo que puedo ver ya" deje
+ * algunas afuera. Sin logo: el de verdad llega con la lista de la región.
+ */
+export function buildDemoSubscriptions(now = new Date()): Subscriptions {
+  return {
+    providers: [{ id: 8, name: 'Netflix', logoPath: null }],
+    updatedAt: now.toISOString(),
+  };
+}
+
+export function buildDemoGoals(now = new Date()): Goals {
+  return {
+    byYear: { [String(now.getFullYear())]: { movies: 6, series: 3 } },
+    updatedAt: now.toISOString(),
+  };
+}
+
 interface DemoSeedEntry {
   tmdbId: number;
   mediaType: MediaType;
@@ -82,6 +114,31 @@ interface DemoSeedEntry {
   seasons?: Record<number, number>;
   /** Episodios vistos por temporada, para las series empezadas. */
   watched?: Record<number, number[]>;
+  /** Puntajes de algunos episodios vistos (`"2x5"`), para "tu mejor episodio". */
+  episodeRatings?: Record<string, number>;
+  /**
+   * Dónde está incluido, para que "Lo que puedo ver ya" tenga algo que
+   * mostrar aunque TMDB no conteste. Si contesta, gana lo de TMDB.
+   */
+  streaming?: string[];
+  /** Una novedad sin ver: llegó a esa plataforma hace `daysAgo` días. */
+  arrivedAt?: { provider: string; daysAgo: number };
+  /**
+   * En qué anda la serie y qué salió, para que el demo muestre "al día" y
+   * las novedades aunque TMDB no conteste. Si contesta, gana lo de TMDB.
+   */
+  seriesStatus?: SeriesStatus;
+  /** El último episodio que salió, hace `daysAgo` días. */
+  lastAired?: { season: number; episode: number; daysAgo: number };
+  /** El próximo episodio, dentro de `inDays` días. */
+  nextToAir?: { season: number; episode: number; inDays: number; name?: string };
+  /** Desde qué episodio hay novedades sin ver, para el aviso de la tarjeta. */
+  newSince?: { season: number; episode: number };
+  /**
+   * Para las que están en pausa o abandonadas: hace cuánto, y el motivo y el
+   * puntaje que se dejaron al abandonar.
+   */
+  archive?: { daysAgo: number; reason?: string; rating?: number };
 }
 
 export const DEMO_SEED: DemoSeedEntry[] = [
@@ -158,6 +215,25 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     reviewText: 'Caótica de una forma que funciona. Se me hizo un poco larga.',
   },
   {
+    // Terminó la primera temporada y ya salió la segunda: es la que muestra el
+    // aviso de "T2 nueva" y el botón para volver a Viendo.
+    tmdbId: 100088,
+    mediaType: 'tv',
+    seasons: { 1: 9, 2: 7 },
+    title: 'The Last of Us',
+    releaseYear: '2023',
+    genres: ['Drama', 'Sci-Fi y Fantasía'],
+    status: 'completada',
+    daysAgo: 45,
+    rating: 4.5,
+    reviewText: 'El tercer episodio solo ya vale la temporada.',
+    tags: ['Para llorar'],
+    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
+    seriesStatus: 'Returning Series',
+    lastAired: { season: 2, episode: 7, daysAgo: 12 },
+    newSince: { season: 2, episode: 1 },
+  },
+  {
     tmdbId: 95396,
     mediaType: 'tv',
     seasons: { 1: 9, 2: 10 },
@@ -167,8 +243,12 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     status: 'viendo',
     daysAgo: 1,
     watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9], 2: [1, 2, 3] },
+    episodeRatings: { '1x1': 4, '1x7': 4.5, '1x9': 5, '2x1': 3.5, '2x3': 4 },
+    seriesStatus: 'Returning Series',
+    nextToAir: { season: 3, episode: 1, inDays: 45 },
   },
   {
+    // Al día: vio todo lo que salió de una serie que sigue saliendo.
     tmdbId: 136315,
     mediaType: 'tv',
     seasons: { 1: 8, 2: 10, 3: 10 },
@@ -177,7 +257,16 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     genres: ['Drama', 'Comedia'],
     status: 'viendo',
     daysAgo: 3,
-    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8] },
+    watched: {
+      1: [1, 2, 3, 4, 5, 6, 7, 8],
+      2: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      3: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    },
+    episodeRatings: { '1x7': 5, '2x6': 5, '2x7': 4.5, '3x1': 2.5, '3x2': 3.5 },
+    seriesStatus: 'Returning Series',
+    lastAired: { season: 3, episode: 10, daysAgo: 20 },
+    // Con fecha para la temporada que viene: es lo que llena el calendario.
+    nextToAir: { season: 4, episode: 1, inDays: 12 },
   },
   {
     tmdbId: 94605,
@@ -191,12 +280,49 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     watched: { 1: [1, 2, 3, 4, 5] },
   },
   {
+    // En pausa: la primera temporada entera y un poco de la segunda. Es la
+    // que muestra Archivadas y el "Retomar".
+    tmdbId: 65494,
+    mediaType: 'tv',
+    seasons: { 1: 10, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10 },
+    title: 'The Crown',
+    releaseYear: '2016',
+    genres: ['Drama'],
+    status: 'en_pausa',
+    daysAgo: 20,
+    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2: [1, 2, 3] },
+    seriesStatus: 'Ended',
+    archive: { daysAgo: 20 },
+  },
+  {
+    // Abandonada con motivo y puntaje: le da algo que mostrar a "Lo que
+    // dejás" en las estadísticas.
+    tmdbId: 63247,
+    mediaType: 'tv',
+    seasons: { 1: 10, 2: 10, 3: 8, 4: 8 },
+    title: 'Westworld',
+    releaseYear: '2016',
+    genres: ['Drama', 'Ciencia Ficción', 'Western'],
+    status: 'abandonada',
+    daysAgo: 45,
+    watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2: [1, 2, 3, 4] },
+    seriesStatus: 'Canceled',
+    archive: {
+      daysAgo: 45,
+      reason: 'Se volvió un laberinto en la segunda temporada',
+      rating: 2.5,
+    },
+  },
+  {
     tmdbId: 438631,
     mediaType: 'movie',
     title: 'Duna',
     releaseYear: '2021',
     genres: ['Ciencia Ficción', 'Aventura'],
     status: 'por_ver',
+    streaming: ['Max'],
+    // La novedad del inicio: "Duna ya está en Max".
+    arrivedAt: { provider: 'Max', daysAgo: 1 },
     daysAgo: 2,
   },
   {
@@ -206,6 +332,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     releaseYear: '2001',
     genres: ['Animación', 'Familia', 'Fantasía'],
     status: 'por_ver',
+    streaming: ['Netflix'],
     daysAgo: 5,
   },
   {
@@ -225,6 +352,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     releaseYear: '2017',
     genres: ['Drama', 'Misterio', 'Sci-Fi y Fantasía'],
     status: 'por_ver',
+    streaming: ['Netflix'],
     daysAgo: 14,
   },
   {
@@ -244,6 +372,7 @@ export const DEMO_SEED: DemoSeedEntry[] = [
     releaseYear: '2018',
     genres: ['Drama'],
     status: 'por_ver',
+    streaming: ['Max'],
     daysAgo: 30,
   },
   {
@@ -262,6 +391,42 @@ function daysAgoToIso(days: number): string {
 }
 
 /**
+ * Fechas para los episodios vistos del seed, hacia atrás desde la última vez.
+ *
+ * Un ritmo creíble —a veces dos seguidos, a veces un par de días sin nada— en
+ * vez de uno por día exacto: es lo que hace que el mapa de actividad del demo
+ * se parezca al de alguien de verdad.
+ */
+function seedWatchedAt(
+  watched: Record<number, number[]>,
+  lastDaysAgo: number,
+): Record<string, string> {
+  const episodes = Object.entries(watched)
+    .flatMap(([season, numbers]) => numbers.map((episode) => [Number(season), episode]))
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+
+  const gaps = [0, 1, 1, 3, 0, 2];
+  const result: Record<string, string> = {};
+  let daysAgo = lastDaysAgo;
+  for (let index = episodes.length - 1; index >= 0; index--) {
+    const [season, episode] = episodes[index];
+    result[`${season}x${episode}`] = daysAgoToIso(daysAgo);
+    daysAgo += gaps[index % gaps.length];
+  }
+  return result;
+}
+
+/** Un episodio del seed, con su fecha contada desde hoy. */
+function seedEpisode(season: number, episode: number, offsetDays: number, name?: string): EpisodeRef {
+  return {
+    seasonNumber: season,
+    episodeNumber: episode,
+    airDate: toDayKey(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000)),
+    ...(name ? { name } : {}),
+  };
+}
+
+/**
  * Arma la biblioteca de ejemplo.
  *
  * Sale sin pósters a propósito: las rutas de imagen de TMDB cambian con el
@@ -271,7 +436,12 @@ function daysAgoToIso(days: number): string {
 export function buildDemoLibrary(): SavedMedia[] {
   return DEMO_SEED.map((entry) => {
     const progress: SeriesProgress | undefined = entry.watched
-      ? { watched: entry.watched, lastWatchedAt: daysAgoToIso(entry.daysAgo) }
+      ? {
+          watched: entry.watched,
+          watchedAt: seedWatchedAt(entry.watched, entry.daysAgo),
+          episodeRatings: entry.episodeRatings,
+          lastWatchedAt: daysAgoToIso(entry.daysAgo),
+        }
       : undefined;
 
     const seasons = entry.seasons
@@ -291,23 +461,74 @@ export function buildDemoLibrary(): SavedMedia[] {
       releaseYear: entry.releaseYear,
       genres: entry.genres,
       status: entry.status,
+      providers: entry.streaming,
+      streaming: entry.streaming,
+      availabilityNews: entry.arrivedAt
+        ? [
+            {
+              kind: 'provider' as const,
+              provider: entry.arrivedAt.provider,
+              since: daysAgoToIso(entry.arrivedAt.daysAgo),
+            },
+          ]
+        : undefined,
       updatedAt: daysAgoToIso(entry.daysAgo),
       seasons,
       progress,
-      history:
-        entry.rating === undefined
-          ? undefined
-          : [
-              {
-                id: newWatchId(),
-                rating: entry.rating,
-                text: entry.reviewText,
-                tags: entry.tags,
-                completedAt: daysAgoToIso(entry.daysAgo),
-              },
-            ],
+      seriesStatus: entry.seriesStatus,
+      lastAired: entry.lastAired
+        ? seedEpisode(entry.lastAired.season, entry.lastAired.episode, -entry.lastAired.daysAgo)
+        : undefined,
+      nextToAir: entry.nextToAir
+        ? seedEpisode(
+            entry.nextToAir.season,
+            entry.nextToAir.episode,
+            entry.nextToAir.inDays,
+            entry.nextToAir.name,
+          )
+        : undefined,
+      newEpisodesSince: entry.newSince
+        ? {
+            seasonNumber: entry.newSince.season,
+            episodeNumber: entry.newSince.episode,
+            detectedAt: daysAgoToIso(entry.lastAired?.daysAgo ?? 1),
+          }
+        : undefined,
+      history: seedHistory(entry),
+      archive: entry.archive
+        ? {
+            at: daysAgoToIso(entry.archive.daysAgo),
+            ...(entry.archive.reason ? { reason: entry.archive.reason } : {}),
+          }
+        : undefined,
     };
   });
+}
+
+/** La reseña del seed, o el puntaje que se dejó al abandonar. */
+function seedHistory(entry: DemoSeedEntry): WatchEntry[] | undefined {
+  if (entry.rating !== undefined) {
+    return [
+      {
+        id: newWatchId(),
+        rating: entry.rating,
+        text: entry.reviewText,
+        tags: entry.tags,
+        completedAt: daysAgoToIso(entry.daysAgo),
+      },
+    ];
+  }
+  if (entry.archive?.rating !== undefined) {
+    return [
+      {
+        id: newWatchId(),
+        rating: entry.archive.rating,
+        completedAt: daysAgoToIso(entry.archive.daysAgo),
+        abandoned: true,
+      },
+    ];
+  }
+  return undefined;
 }
 
 /**
@@ -328,16 +549,15 @@ export async function hydrateDemoLibrary(region: string): Promise<void> {
 
     const detail = result.value;
     const date = detail.release_date || detail.first_air_date || '';
-    const genres = detail.genres?.map((genre) => genre.name).filter(Boolean);
 
     patches.set(DEMO_SEED[index].tmdbId, {
-      title: detail.title || detail.name || DEMO_SEED[index].title,
       posterPath: detail.poster_path,
       backdropPath: detail.backdrop_path,
       releaseYear: date ? date.split('-')[0] : DEMO_SEED[index].releaseYear,
-      genres: genres?.length ? genres : DEMO_SEED[index].genres,
       // Temporadas y plataformas: sin esto el demo no puede mostrar ni el
-      // progreso por episodio ni el filtro por plataforma.
+      // progreso por episodio ni el filtro por plataforma. Trae también el
+      // título y los géneros, en el castellano de la región elegida; si TMDB
+      // no los manda, quedan los del seed.
       ...enrichFromDetail(detail, region),
     });
   });
@@ -362,12 +582,27 @@ export async function hydrateDemoLibrary(region: string): Promise<void> {
  * para poder devolvérselo al salir.
  */
 export function enterDemoMode(): void {
-  const { mediaList, picks, ownerUid, setMediaList, setPicks, setOwnerUid } =
-    useMediaStore.getState();
+  const {
+    mediaList,
+    picks,
+    goals,
+    subscriptions,
+    following,
+    ownerUid,
+    setMediaList,
+    setPicks,
+    setGoals,
+    setSubscriptions,
+    setFollowing,
+    setOwnerUid,
+  } = useMediaStore.getState();
 
   if (ownerUid !== DEMO_OWNER_UID) {
     try {
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ media: mediaList, picks }));
+      localStorage.setItem(
+        SNAPSHOT_KEY,
+        JSON.stringify({ media: mediaList, picks, goals, subscriptions, following }),
+      );
     } catch {
       // Sin storage disponible se pierde el respaldo, pero el demo funciona.
     }
@@ -375,15 +610,24 @@ export function enterDemoMode(): void {
 
   setMediaList(buildDemoLibrary());
   setPicks(buildDemoPicks());
+  setGoals(buildDemoGoals());
+  setSubscriptions(buildDemoSubscriptions());
+  // Sin seguidos: el feed lee perfiles publicados en Firestore, que el demo
+  // no tiene.
+  setFollowing(emptyFollowing());
   setOwnerUid(DEMO_OWNER_UID);
 }
 
 /** Sale del demo y restituye lo que había antes: biblioteca y respuestas. */
 export function exitDemoMode(): void {
-  const { setMediaList, setPicks, setOwnerUid } = useMediaStore.getState();
+  const { setMediaList, setPicks, setGoals, setSubscriptions, setFollowing, setOwnerUid } =
+    useMediaStore.getState();
 
   let media: SavedMedia[] = [];
   let picks: TastePicks = emptyPicks();
+  let goals: Goals = emptyGoals();
+  let subscriptions: Subscriptions = emptySubscriptions();
+  let following: Following = emptyFollowing();
 
   try {
     const snapshot = localStorage.getItem(SNAPSHOT_KEY);
@@ -395,11 +639,20 @@ export function exitDemoMode(): void {
       if (Array.isArray(parsed)) {
         media = parsed as SavedMedia[];
       } else if (parsed && typeof parsed === 'object') {
-        const snapshotObject = parsed as { media?: unknown; picks?: unknown };
+        const snapshotObject = parsed as {
+          media?: unknown;
+          picks?: unknown;
+          goals?: unknown;
+          subscriptions?: unknown;
+          following?: unknown;
+        };
         media = Array.isArray(snapshotObject.media)
           ? (snapshotObject.media as SavedMedia[])
           : [];
         picks = parsePicks(snapshotObject.picks);
+        goals = parseGoals(snapshotObject.goals);
+        subscriptions = parseSubscriptions(snapshotObject.subscriptions);
+        following = parseFollowing(snapshotObject.following);
       }
     }
     localStorage.removeItem(SNAPSHOT_KEY);
@@ -409,5 +662,8 @@ export function exitDemoMode(): void {
 
   setMediaList(media);
   setPicks(picks);
+  setGoals(goals);
+  setSubscriptions(subscriptions);
+  setFollowing(following);
   setOwnerUid(null);
 }

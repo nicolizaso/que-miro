@@ -76,10 +76,38 @@ function seededRandom(seed: number): () => number {
  * El ranking se guarda en el título, así que sobrevive a cerrar la app y se
  * sincroniza como cualquier otro cambio.
  */
-export function DuelMode({ pending }: { pending: SavedMedia[] }) {
+export function DuelMode({
+  pending: candidates,
+  together,
+}: {
+  pending: SavedMedia[];
+  /**
+   * De a dos ("¿Qué miramos juntos?"): el ranking vive solo en esta pantalla.
+   * Es de los dos y de esta noche, no tiene por qué reordenar tu lista.
+   */
+  together?: { name: string };
+}) {
   const { patchMedia } = useMediaActions();
   const [round, setRound] = useState(0);
   const [rounds, setRounds] = useState(0);
+  const [local, setLocal] = useState<Map<string, Pick<SavedMedia, 'duelScore' | 'duelCount'>>>(
+    () => new Map(),
+  );
+
+  const keyOf = (media: SavedMedia) => `${media.mediaType}:${media.tmdbId}`;
+  // De a dos arrancan todos iguales: el puntaje de tu lista no cuenta acá.
+  const pending = useMemo(
+    () =>
+      together
+        ? candidates.map((media) => ({
+            ...media,
+            duelScore: undefined,
+            duelCount: undefined,
+            ...local.get(keyOf(media)),
+          }))
+        : candidates,
+    [candidates, together, local],
+  );
 
   const board = useMemo(() => ranking(pending), [pending]);
   const target = suggestedRounds(pending.length);
@@ -101,13 +129,26 @@ export function DuelMode({ pending }: { pending: SavedMedia[] }) {
   if (pending.length < 2) {
     return (
       <p className="text-text-muted text-center max-w-sm">
-        El duelo necesita al menos dos títulos en tu lista "Por Ver".
+        {together
+          ? 'El duelo necesita al menos dos candidatos.'
+          : 'El duelo necesita al menos dos títulos en tu lista "Por Ver".'}
       </p>
     );
   }
 
   const handlePick = async (winner: SavedMedia, loser: SavedMedia) => {
     const result = resolveDuel(winner, loser);
+
+    if (together) {
+      setLocal((current) =>
+        new Map(current)
+          .set(keyOf(winner), { duelScore: result.winner.duelScore, duelCount: (winner.duelCount ?? 0) + 1 })
+          .set(keyOf(loser), { duelScore: result.loser.duelScore, duelCount: (loser.duelCount ?? 0) + 1 }),
+      );
+      setRounds((count) => count + 1);
+      setRound((current) => current + 1);
+      return;
+    }
 
     await Promise.all([
       patchMedia(result.winner.tmdbId, {
@@ -125,6 +166,12 @@ export function DuelMode({ pending }: { pending: SavedMedia[] }) {
   };
 
   const handleReset = async () => {
+    if (together) {
+      setLocal(new Map());
+      setRounds(0);
+      setRound((current) => current + 1);
+      return;
+    }
     await Promise.all(
       pending
         .filter((media) => (media.duelCount ?? 0) > 0)
@@ -140,7 +187,9 @@ export function DuelMode({ pending }: { pending: SavedMedia[] }) {
     <div className="w-full flex flex-col items-center gap-8">
       {pair && (
         <div className="w-full flex flex-col items-center gap-4">
-          <p className="text-sm text-text-muted">¿Cuál mirarías antes?</p>
+          <p className="text-sm text-text-muted">
+            {together ? '¿Cuál miran antes?' : '¿Cuál mirarías antes?'}
+          </p>
           <div className="flex gap-3 sm:gap-4 w-full max-w-md">
             <Contender
               media={pair[0]}
@@ -158,7 +207,9 @@ export function DuelMode({ pending }: { pending: SavedMedia[] }) {
           <div className="flex flex-col items-center gap-1">
             <p aria-live="polite" className="text-xs text-text-subtle">
               {rounds === 0
-                ? `Con unos ${target} duelos tu lista queda ordenada.`
+                ? together
+                  ? `Con unos ${target} duelos queda claro qué ver.`
+                  : `Con unos ${target} duelos tu lista queda ordenada.`
                 : `${rounds} de ${target}`}
             </p>
             <button
@@ -176,7 +227,7 @@ export function DuelMode({ pending }: { pending: SavedMedia[] }) {
           <div className="flex items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 font-bold">
               <Trophy size={16} className="text-accent" aria-hidden="true" />
-              Tu ranking
+              {together ? `El ranking de los dos` : 'Tu ranking'}
             </h2>
             <button
               onClick={handleReset}
@@ -190,7 +241,7 @@ export function DuelMode({ pending }: { pending: SavedMedia[] }) {
           <ol className="flex flex-col gap-1.5">
             {board.slice(0, 10).map((media, index) => (
               <li
-                key={media.tmdbId}
+                key={keyOf(media)}
                 className="flex items-center gap-3 bg-bg-card border border-border-card rounded-control px-3 py-2"
               >
                 <span className="w-5 text-sm font-bold text-text-subtle tabular-nums shrink-0">

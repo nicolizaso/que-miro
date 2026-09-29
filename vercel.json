@@ -9,6 +9,14 @@
       "destination": "/api/u/:slug"
     },
     {
+      "source": "/l/:id",
+      "destination": "/api/l/:id"
+    },
+    {
+      "source": "/cal/:token.ics",
+      "destination": "/api/cal/:token"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
@@ -35,6 +43,18 @@
   "functions": {
     "api/u/[slug].ts": {
       "includeFiles": "dist/index.html"
+    },
+    "api/l/[id].ts": {
+      "includeFiles": "dist/index.html"
+    },
+    "api/cron/notify.ts": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/notify",
+      "schedule": "0 13 * * *"
+    }
+  ]
 }

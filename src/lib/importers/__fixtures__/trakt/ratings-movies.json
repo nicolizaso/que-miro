@@ -1,0 +1,18 @@
+[
+  {
+    "rated_at": "2024-01-03T10:00:00.000Z",
+    "rating": 9,
+    "type": "movie",
+    "movie": {
+      "title": "Past Lives",
+      "year": 2023,
+      "ids": { "trakt": 612345, "slug": "past-lives-2023", "imdb": "tt13238346", "tmdb": 666277 }
+    }
+  },
+  {
+    "rated_at": "2023-08-01T00:00:00.000Z",
+    "rating": 7,
+    "type": "movie",
+    "movie": { "title": "Barbie", "year": 2023, "ids": { "trakt": 1, "slug": "barbie-2023", "imdb": "tt1517268", "tmdb": 346698 } }
+  }
+]

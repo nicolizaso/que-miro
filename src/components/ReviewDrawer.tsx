@@ -1,16 +1,14 @@
 import { useId, useState } from 'react';
 import { SavedMedia, WatchEntry } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
-import { Loader2, Star, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useToast } from '@/contexts/ToastContext';
 import { Dialog } from '@/components/ui/Dialog';
+import { StarRatingInput } from '@/components/ui/StarRating';
 import { newWatchId, watchCount } from '@/lib/schema';
 import { cn } from '@/lib/utils';
 import { formatWatchDate } from '@/lib/dates';
-
-/** Las cinco estrellas; cada una se parte en dos mitades clicables. */
-const STARS = [1, 2, 3, 4, 5];
 
 /**
  * Etiquetas sugeridas.
@@ -30,10 +28,6 @@ export const MOOD_TAGS = [
   'De fondo',
 ] as const;
 
-function ratingLabel(value: number): string {
-  return `${value.toString().replace('.', ',')} de 5 estrellas`;
-}
-
 /**
  * El formulario de reseña.
  *
@@ -52,7 +46,6 @@ export function ReviewDrawer({
   onClose: () => void;
 }) {
   const [rating, setRating] = useState(entry?.rating ?? 0);
-  const [hoverRating, setHoverRating] = useState(0);
   const [reviewText, setReviewText] = useState(entry?.text ?? '');
   const [tags, setTags] = useState<string[]>(entry?.tags ?? []);
   const [isSaving, setIsSaving] = useState(false);
@@ -63,7 +56,10 @@ export function ReviewDrawer({
 
   const isEditing = entry !== undefined;
   const previousWatches = watchCount(media);
-  const isRewatch = !isEditing && previousWatches > 0;
+  // Reseñar algo abandonado no es "completarlo" ni "volver a verlo": es
+  // opinar de lo que viste antes de dejarlo.
+  const isAbandoned = media.status === 'abandonada';
+  const isRewatch = !isEditing && !isAbandoned && previousWatches > 0;
 
   const handleSave = async () => {
     if (rating === 0 || isSaving) return;
@@ -107,71 +103,6 @@ export function ReviewDrawer({
     );
   };
 
-  /**
-   * Una estrella, partida en dos mitades clicables.
-   *
-   * Cada mitad es un radio de verdad (visualmente oculto) con su `<label>`
-   * encima: así el mouse sigue funcionando igual que antes, pero además se
-   * puede calificar con las flechas del teclado y un lector de pantalla anuncia
-   * "3,5 de 5 estrellas".
-   */
-  const renderStar = (position: number) => {
-    const half = position - 0.5;
-    const shown = hoverRating || rating;
-    const isFull = shown >= position;
-    const isHalf = !isFull && shown >= half;
-
-    return (
-      <div key={position} className="relative w-10 h-10">
-        {[half, position].map((value) => (
-          <input
-            key={value}
-            type="radio"
-            name={groupId}
-            id={`${groupId}-${value}`}
-            value={value}
-            checked={rating === value}
-            onChange={() => setRating(value)}
-            className={value === half ? 'peer/half sr-only' : 'peer/full sr-only'}
-          />
-        ))}
-
-        {[half, position].map((value) => (
-          <label
-            key={value}
-            htmlFor={`${groupId}-${value}`}
-            onMouseEnter={() => setHoverRating(value)}
-            className={
-              'absolute inset-y-0 w-1/2 z-10 cursor-pointer ' +
-              (value === half ? 'left-0' : 'right-0')
-            }
-          >
-            <span className="sr-only">{ratingLabel(value)}</span>
-          </label>
-        ))}
-
-        <span className="block rounded-sm peer-focus-visible/half:outline-2 peer-focus-visible/half:outline-offset-2 peer-focus-visible/half:outline-accent peer-focus-visible/full:outline-2 peer-focus-visible/full:outline-offset-2 peer-focus-visible/full:outline-accent">
-          {isFull ? (
-            <Star className="text-accent fill-accent" size={40} strokeWidth={1} />
-          ) : isHalf ? (
-            <span className="relative block">
-              <Star className="text-border-card" size={40} strokeWidth={1} />
-              <span className="absolute inset-0 overflow-hidden w-1/2">
-                <Star
-                  className="text-accent fill-accent"
-                  size={40}
-                  strokeWidth={1}
-                />
-              </span>
-            </span>
-          ) : (
-            <Star className="text-border-card" size={40} strokeWidth={1} />
-          )}
-        </span>
-      </div>
-    );
-  };
-
   return (
     <Dialog
       isOpen={isOpen}
@@ -190,9 +121,11 @@ export function ReviewDrawer({
             <h2 id={titleId} className="font-serif italic font-bold text-2xl mb-1">
               {isEditing
                 ? 'Editar reseña'
-                : isRewatch
-                  ? 'La volviste a ver'
-                  : 'Completaste'}
+                : isAbandoned
+                  ? 'Lo que viste'
+                  : isRewatch
+                    ? 'La volviste a ver'
+                    : 'Completaste'}
             </h2>
             <p className="text-text-muted">{media.title}</p>
             {entry && (
@@ -216,19 +149,14 @@ export function ReviewDrawer({
           </button>
         </div>
 
-        <fieldset
-          className="flex flex-col items-center gap-4 py-2"
-          onMouseLeave={() => setHoverRating(0)}
-        >
-          <legend className="sr-only">Tu calificación</legend>
-          <span aria-hidden="true" className="text-sm text-text-muted font-medium">
-            TU CALIFICACIÓN
-          </span>
-          <div className="flex gap-2">{STARS.map((position) => renderStar(position))}</div>
-          <p aria-live="polite" className="text-sm text-text-muted h-5">
-            {rating > 0 ? ratingLabel(rating) : ''}
-          </p>
-        </fieldset>
+        <StarRatingInput
+          value={rating}
+          onChange={setRating}
+          legend="Tu calificación"
+          caption="TU CALIFICACIÓN"
+          announce
+          className="py-2"
+        />
 
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium mb-2">

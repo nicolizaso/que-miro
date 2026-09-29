@@ -1,4 +1,6 @@
-import { SavedMedia } from '@/types';
+import { Goals, SavedMedia } from '@/types';
+import { GoalProgress, bestStreakInYear, emptyGoals, goalProgress } from '@/lib/goals';
+import { episodeKey, ratedEpisodes } from '@/lib/progress';
 import {
   Watch,
   allWatches,
@@ -18,10 +20,75 @@ export interface WrappedYear {
   /** El mes con más actividad, ya escrito. */
   busiestMonth: string | null;
   best: Watch | null;
+  /** El episodio mejor puntuado del año (ver {@link bestEpisodeOfYear}). */
+  bestEpisode: YearEpisode | null;
   /** Lo más largo que te bancaste. */
   longest: Watch | null;
+  /** Las metas de ese año que se cumplieron. */
+  goalsMet: GoalProgress[];
+  /** La racha más larga de semanas seguidas mirando algo, dentro del año. */
+  bestStreak: number;
   movies: number;
   series: number;
+}
+
+export interface YearEpisode {
+  media: SavedMedia;
+  seasonNumber: number;
+  episode: number;
+  rating: number;
+  /**
+   * `false` si no se sabe cuándo lo viste y salió de la serie mejor puntuada
+   * del año: lo marcado antes de que los episodios tuvieran fecha no se puede
+   * ubicar en ningún año.
+   */
+  dated: boolean;
+}
+
+/**
+ * El episodio mejor puntuado del año.
+ *
+ * El año lo pone la fecha en que se marcó el episodio. Si ninguno puntuado
+ * tiene fecha de ese año —se marcaron antes de que se anotara cuándo—, sale
+ * el mejor episodio de la serie mejor puntuada entre las que terminaste ese
+ * año, que es lo más cercano que se puede decir sin inventar una fecha.
+ */
+export function bestEpisodeOfYear(
+  list: SavedMedia[],
+  year: number,
+  watches: Watch[] = allWatches(list),
+): YearEpisode | null {
+  let best: (YearEpisode & { at: number }) | null = null;
+
+  for (const media of list) {
+    if (media.mediaType !== 'tv') continue;
+    for (const rated of ratedEpisodes(media)) {
+      const iso = media.progress?.watchedAt?.[episodeKey(rated.seasonNumber, rated.episode)];
+      const at = iso ? Date.parse(iso) : Number.NaN;
+      if (!Number.isFinite(at) || new Date(at).getFullYear() !== year) continue;
+      // A igual puntaje gana el más reciente: es el que se recuerda del año.
+      if (!best || rated.rating > best.rating || (rated.rating === best.rating && at > best.at)) {
+        best = { media, ...rated, dated: true, at };
+      }
+    }
+  }
+  if (best) {
+    const { at: _at, ...episode } = best;
+    return episode;
+  }
+
+  const seriesOfYear = watches
+    .filter(
+      ({ media, entry }) =>
+        media.mediaType === 'tv' && new Date(entry.completedAt).getFullYear() === year,
+    )
+    .sort((a, b) => b.entry.rating - a.entry.rating);
+
+  for (const { media } of seriesOfYear) {
+    const [top] = ratedEpisodes(media);
+    if (top) return { media, ...top, dated: false };
+  }
+  return null;
 }
 
 /** Los años en los que hay algo que resumir, del más nuevo al más viejo. */
@@ -46,6 +113,8 @@ export function availableYears(list: SavedMedia[]): number[] {
 export function buildWrapped(
   list: SavedMedia[],
   year: number,
+  goals: Goals = emptyGoals(),
+  now = new Date(),
 ): WrappedYear | null {
   const watches = allWatches(list).filter(
     ({ entry }) => new Date(entry.completedAt).getFullYear() === year,
@@ -94,7 +163,10 @@ export function buildWrapped(
         })
       : null,
     best: sortedByRating[0] ?? null,
+    bestEpisode: bestEpisodeOfYear(list, year, watches),
     longest: sortedByLength[0] ?? null,
+    goalsMet: goalProgress(list, goals, year, now).filter((goal) => goal.met),
+    bestStreak: bestStreakInYear(list, year),
     movies: watches.filter(({ media }) => media.mediaType === 'movie').length,
     series: watches.filter(({ media }) => media.mediaType === 'tv').length,
   };

@@ -1,21 +1,23 @@
 import { useState } from 'react';
 import { useMediaActions } from '@/hooks/useMediaActions';
+import { useArchiveActions } from '@/hooks/useArchiveActions';
 import { useToast } from '@/contexts/ToastContext';
 import { SavedMedia, MediaStatus } from '@/types';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { latestRating, watchCount } from '@/lib/schema';
-import { progressPercent, watchedEpisodes } from '@/lib/progress';
+import {
+  isCaughtUp,
+  newEpisodesSummary,
+  progressPercent,
+  watchedEpisodes,
+} from '@/lib/progress';
 import { Check, Tv, Film, Repeat, Trash2, Star } from 'lucide-react';
 import { ReviewDrawer } from './ReviewDrawer';
 import { TitleDetailModal } from './TitleDetailModal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { cn } from '@/lib/utils';
-
-const STATUS_LABELS: Record<MediaStatus, string> = {
-  por_ver: 'Por Ver',
-  viendo: 'Viendo',
-  completada: 'Completada',
-};
+import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
+import { newsLabel, unseenNews } from '@/lib/availability';
 
 export function MediaCard({
   media,
@@ -25,6 +27,7 @@ export function MediaCard({
   onClick?: () => void;
 }) {
   const { updateStatus, removeMedia } = useMediaActions();
+  const { resume } = useArchiveActions();
   const { showToast } = useToast();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -37,16 +40,38 @@ export function MediaCard({
       setIsReviewOpen(true);
       return;
     }
+    // Retomar saca la tarjeta de Archivadas: el aviso dice adónde fue.
+    if (newStatus === 'viendo' && isArchivedStatus(media.status)) {
+      resume(media);
+      return;
+    }
     updateStatus(media.tmdbId, newStatus);
   };
 
   const rating = latestRating(media);
   const times = watchCount(media);
+  const isSeries = media.mediaType === 'tv';
   // El progreso solo se muestra en series empezadas y sin terminar: al 0% no
   // dice nada y al 100% lo dice el puntaje.
-  const percent = media.mediaType === 'tv' ? progressPercent(media) : 0;
-  const showProgress =
-    media.mediaType === 'tv' && watchedEpisodes(media) > 0 && percent < 100;
+  const percent = isSeries ? progressPercent(media) : 0;
+  const showProgress = isSeries && watchedEpisodes(media) > 0 && percent < 100;
+  // "Al día" ocupa el lugar de la barra: al 100% de lo que salió, la barra
+  // llena diría "terminada", y no lo está.
+  const caughtUp = isSeries && isCaughtUp(media);
+  const news = isSeries ? newEpisodesSummary(media) : null;
+  const isArchived = isArchivedStatus(media.status);
+  // "Ya está en Max": la misma novedad del inicio, en la tarjeta, para quien
+  // entra directo a Por Ver.
+  const availability = unseenNews(media);
+  const availabilityLabel =
+    availability.length > 0 ? newsLabel(availability).replace(/^ya/, 'Ya') : null;
+  // Con novedades, una serie terminada ofrece volver a *Viendo*: el estado no
+  // se cambia solo, pero tampoco tiene que costar abrir la ficha. Lo archivado
+  // también, y ahí el mismo botón se llama "Retomar".
+  const canMoveToWatching =
+    media.status === 'por_ver' ||
+    isArchived ||
+    (news !== null && media.status !== 'viendo');
 
   const handleDelete = async () => {
     await removeMedia(media.tmdbId);
@@ -84,6 +109,9 @@ export function MediaCard({
             STATUS_LABELS[media.status],
             rating !== undefined && `${rating} de 5 estrellas`,
             showProgress && `${percent}% visto`,
+            caughtUp && 'Al día',
+            news?.label,
+            availabilityLabel,
           ]
             .filter(Boolean)
             .join('. ')}
@@ -118,10 +146,31 @@ export function MediaCard({
               </span>
             )}
 
-            {times > 1 && (
-              <span className="absolute top-3 left-3 flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-medium">
-                <Repeat size={11} aria-hidden="true" />
-                {times}
+            {(times > 1 || news || isArchived || availabilityLabel) && (
+              <span className="absolute top-3 left-3 right-14 flex flex-col items-start gap-1.5">
+                {/* En Archivadas se ven juntas las en pausa y las
+                    abandonadas: acá sí hace falta decir cuál es cuál. */}
+                {isArchived && (
+                  <span className="bg-bg-main/85 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-semibold">
+                    {STATUS_LABELS[media.status]}
+                  </span>
+                )}
+                {times > 1 && (
+                  <span className="flex items-center gap-1 bg-bg-main/80 backdrop-blur-sm px-2 py-1 rounded-lg text-[11px] font-medium">
+                    <Repeat size={11} aria-hidden="true" />
+                    {times}
+                  </span>
+                )}
+                {news && (
+                  <span className="bg-accent text-accent-contrast px-2 py-1 rounded-lg text-[11px] font-semibold shadow-card">
+                    {news.label}
+                  </span>
+                )}
+                {availabilityLabel && (
+                  <span className="bg-accent text-accent-contrast px-2 py-1 rounded-lg text-[11px] font-semibold shadow-card">
+                    {availabilityLabel}
+                  </span>
+                )}
               </span>
             )}
 
@@ -138,6 +187,13 @@ export function MediaCard({
                   </>
                 )}
               </span>
+
+              {caughtUp && (
+                <span className="flex items-center gap-1 text-[11px] font-medium text-status-viendo">
+                  <Check size={12} aria-hidden="true" />
+                  Al día
+                </span>
+              )}
 
               {showProgress && (
                 <span className="flex items-center gap-2">
@@ -167,12 +223,16 @@ export function MediaCard({
             la derecha: quedaban tres cuadraditos flotando al final de una fila
             vacía, y con el dedo son un blanco más chico de lo que hace falta. */}
         <div className="p-3 mt-auto shrink-0 border-t border-border-card grid grid-flow-col auto-cols-fr gap-2">
-          {media.status === 'por_ver' && (
+          {canMoveToWatching && (
             <button
               onClick={() => handleStatusChange('viendo')}
               className="btn-icon w-full h-10 bg-bg-main border border-border-card text-text-muted hover:bg-border-card hover:text-text-main"
-              aria-label={`Mover "${media.title}" a Viendo`}
-              title="Mover a Viendo"
+              aria-label={
+                isArchived
+                  ? `Retomar "${media.title}"`
+                  : `Mover "${media.title}" a Viendo`
+              }
+              title={isArchived ? 'Retomar' : 'Mover a Viendo'}
             >
               <Tv size={16} aria-hidden="true" />
             </button>

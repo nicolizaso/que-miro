@@ -5,6 +5,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useMediaStore } from '@/store';
 import { Collection, SavedMedia } from '@/types';
 import { newWatchId } from '@/lib/schema';
+import { publicListPath } from '@/lib/publicList';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -107,6 +108,15 @@ export function useCollectionActions() {
       return;
     }
 
+    // Una lista publicada deja de estarlo: el link no puede quedar mostrando
+    // una colección que ya no existe.
+    const publicId = useMediaStore.getState().collections.find((item) => item.id === id)?.publicId;
+    if (publicId) {
+      deleteDoc(doc(db, publicListPath(publicId))).catch((error: unknown) => {
+        console.error('[colecciones] No se pudo despublicar la lista:', error);
+      });
+    }
+
     await withErrorToast(async () => {
       for (let i = 0; i < members.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
@@ -153,10 +163,44 @@ export function useCollectionActions() {
     });
   };
 
+  /**
+   * Suma varios títulos que ya están en la biblioteca a una colección, en
+   * lotes. Sin esperar: sin conexión quedan encolados.
+   */
+  const addToCollection = (items: SavedMedia[], collectionId: string) => {
+    const pending = items.filter((media) => !(media.collections ?? []).includes(collectionId));
+    if (pending.length === 0) return;
+    const updatedAt = new Date().toISOString();
+
+    if (!isAuth) {
+      for (const media of pending) {
+        useMediaStore
+          .getState()
+          .patchMedia(media.tmdbId, { collections: [...(media.collections ?? []), collectionId], updatedAt });
+      }
+      return;
+    }
+    for (let i = 0; i < pending.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      for (const media of pending.slice(i, i + BATCH_LIMIT)) {
+        batch.set(
+          mediaDoc(media.tmdbId),
+          { collections: [...(media.collections ?? []), collectionId], updatedAt },
+          { merge: true },
+        );
+      }
+      batch.commit().catch((error: unknown) => {
+        console.error('[colecciones] No se pudo guardar el cambio:', error);
+        showToast('No pudimos guardar el cambio. Intentá de nuevo.', 'error');
+      });
+    }
+  };
+
   return {
     createCollection,
     renameCollection,
     deleteCollection,
     toggleMembership,
+    addToCollection,
   };
 }

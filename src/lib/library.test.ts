@@ -33,6 +33,8 @@ function makeFilters(overrides: Partial<LibraryFilters> = {}): LibraryFilters {
     provider: null,
     collection: null,
     tag: null,
+    onlyNew: false,
+    availableNow: false,
     sort: DEFAULT_SORT,
     ...overrides,
   };
@@ -231,5 +233,85 @@ describe('hasActiveFilters', () => {
     expect(hasActiveFilters(makeFilters({ collection: 'abc' }))).toBe(true);
     expect(hasActiveFilters(makeFilters({ tag: 'Para llorar' }))).toBe(true);
     expect(hasActiveFilters(makeFilters({ sort: 'titulo' }))).toBe(true);
+  });
+});
+
+describe('el filtro de episodios nuevos', () => {
+  const conNovedades = makeMedia({
+    tmdbId: 10,
+    mediaType: 'tv',
+    title: 'The Last of Us',
+    status: 'completada',
+    seasons: [
+      { seasonNumber: 1, name: 'T1', episodeCount: 9 },
+      { seasonNumber: 2, name: 'T2', episodeCount: 7 },
+    ],
+    progress: { watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8, 9] } },
+    newEpisodesSince: { seasonNumber: 2, episodeNumber: 1, detectedAt: '2026-04-15T00:00:00.000Z' },
+  });
+  const sinNovedades = makeMedia({ tmdbId: 11, mediaType: 'tv', status: 'completada' });
+
+  it('deja solo las series con episodios nuevos sin ver', () => {
+    const result = filterLibrary(
+      [conNovedades, sinNovedades],
+      makeFilters({ status: 'completada', onlyNew: true }),
+    );
+
+    expect(result.map((media) => media.tmdbId)).toEqual([10]);
+  });
+
+  it('cuenta como filtro activo', () => {
+    expect(hasActiveFilters(makeFilters({ onlyNew: true }))).toBe(true);
+  });
+});
+
+describe('Archivadas', () => {
+  const list = [
+    makeMedia({ tmdbId: 1, status: 'viendo' }),
+    makeMedia({ tmdbId: 2, status: 'en_pausa' }),
+    makeMedia({ tmdbId: 3, status: 'abandonada' }),
+  ];
+
+  it('junta lo que está en pausa y lo abandonado', () => {
+    const ids = filterLibrary(list, makeFilters({ status: 'archivadas' })).map((m) => m.tmdbId);
+    expect(ids.sort()).toEqual([2, 3]);
+  });
+
+  it('y deja mirar cada uno por separado', () => {
+    expect(filterLibrary(list, makeFilters({ status: 'en_pausa' })).map((m) => m.tmdbId)).toEqual([2]);
+    expect(filterLibrary(list, makeFilters({ status: 'abandonada' })).map((m) => m.tmdbId)).toEqual([3]);
+  });
+
+  it('las pestañas de siempre no muestran nada archivado', () => {
+    expect(filterLibrary(list, makeFilters({ status: 'viendo' })).map((m) => m.tmdbId)).toEqual([1]);
+  });
+});
+
+describe('Lo que puedo ver ya', () => {
+  const list = [
+    makeMedia({ tmdbId: 1, title: 'Incluida', streaming: ['Netflix'] }),
+    // En la misma plataforma, pero para alquilar: no es "ya".
+    makeMedia({ tmdbId: 2, title: 'Alquiler', providers: ['Netflix'], streaming: [] }),
+    makeMedia({ tmdbId: 3, title: 'En otra', streaming: ['Max'] }),
+    makeMedia({ tmdbId: 4, title: 'Sin datos' }),
+  ];
+
+  it('deja lo incluido en alguna plataforma que pagás', () => {
+    const titles = filterLibrary(
+      list,
+      makeFilters({ availableNow: true }),
+      new Set(['netflix']),
+    ).map((m) => m.title);
+
+    expect(titles).toEqual(['Incluida']);
+  });
+
+  it('sin suscripciones no queda nada, y apagado no filtra', () => {
+    expect(filterLibrary(list, makeFilters({ availableNow: true }))).toEqual([]);
+    expect(filterLibrary(list, makeFilters(), new Set(['netflix']))).toHaveLength(4);
+  });
+
+  it('cuenta como filtro activo', () => {
+    expect(hasActiveFilters(makeFilters({ availableNow: true }))).toBe(true);
   });
 });

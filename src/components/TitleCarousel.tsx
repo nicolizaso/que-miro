@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, Film, Plus, Tv } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Check, ChevronRight, Film, Plus, Tv } from 'lucide-react';
 import { TMDbResult } from '@/types';
 import { TMDB_IMAGE_BASE_URL, getGenreNames } from '@/lib/tmdb';
 import { useMediaActions } from '@/hooks/useMediaActions';
@@ -197,19 +198,46 @@ export function TitleCarousel({
 }: {
   title: string;
   subtitle?: string;
-  /** Cuando la fila habla de alguien, su cara al lado del título. */
-  avatar?: { name: string; profilePath?: string | null };
+  /**
+   * Cuando la fila habla de alguien, su cara al lado del título. Con el id,
+   * el título lleva a su página.
+   */
+  avatar?: { id?: number; name: string; profilePath?: string | null };
   results: TMDbResult[];
   isLoading?: boolean;
   error?: string;
 }) {
   if (!isLoading && !error && results.length === 0) return null;
 
+  const personPath = avatar?.id ? `/persona/${avatar.id}` : null;
   const header = (
     <div className="min-w-0 flex items-center gap-3">
-      {avatar && <Avatar {...avatar} />}
+      {avatar &&
+        (personPath ? (
+          // La cara lleva al mismo lugar que el título, pero fuera del orden
+          // de tabulación: con un enlace por fila alcanza para el teclado y el
+          // lector de pantalla, y dos iguales seguidos son ruido.
+          <Link to={personPath} tabIndex={-1} aria-hidden="true" className="shrink-0 rounded-full">
+            <Avatar {...avatar} />
+          </Link>
+        ) : (
+          <Avatar {...avatar} />
+        ))}
       <div className="min-w-0">
-        <h2 className="text-section">{title}</h2>
+        <h2 className="text-section">
+          {personPath ? (
+            <Link to={personPath} className="group inline-flex items-center gap-1 hover:text-accent transition-colors">
+              {title}
+              <ChevronRight
+                size={18}
+                className="shrink-0 text-text-subtle group-hover:text-accent motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </Link>
+          ) : (
+            title
+          )}
+        </h2>
         {subtitle && <p className="text-sm text-text-muted mt-0.5">{subtitle}</p>}
       </div>
     </div>

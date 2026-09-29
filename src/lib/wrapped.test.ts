@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { availableYears, buildWrapped } from './wrapped';
+import { availableYears, bestEpisodeOfYear, buildWrapped } from './wrapped';
 import { SavedMedia } from '@/types';
 
 function makeMedia(overrides: Partial<SavedMedia> = {}): SavedMedia {
@@ -116,5 +116,119 @@ describe('buildWrapped', () => {
 
   it('devuelve null si ese año no hubo nada', () => {
     expect(buildWrapped(list, 2020)).toBeNull();
+  });
+});
+
+describe('el episodio del año', () => {
+  function series(
+    tmdbId: number,
+    title: string,
+    ratings: Record<string, number>,
+    watchedAt: Record<string, string> = {},
+    overrides: Partial<SavedMedia> = {},
+  ): SavedMedia {
+    return makeMedia({
+      tmdbId,
+      title,
+      mediaType: 'tv',
+      runtime: 50,
+      seasons: [
+        { seasonNumber: 1, name: 'T1', episodeCount: 8 },
+        { seasonNumber: 2, name: 'T2', episodeCount: 8 },
+      ],
+      progress: {
+        watched: { 1: [1, 2, 3, 4, 5, 6, 7, 8], 2: [1, 2, 3, 4, 5, 6, 7, 8] },
+        watchedAt,
+        episodeRatings: ratings,
+      },
+      ...overrides,
+    });
+  }
+
+  it('sale de los episodios puntuados que viste ese año', () => {
+    const list = [
+      series(1, 'The Bear', { '2x6': 5, '1x1': 4 }, {
+        '2x6': '2026-03-10T21:00:00.000Z',
+        '1x1': '2026-01-05T21:00:00.000Z',
+      }),
+      // Un cinco de otro año no cuenta.
+      series(2, 'Dark', { '1x8': 5 }, { '1x8': '2025-11-01T21:00:00.000Z' }),
+    ];
+
+    expect(bestEpisodeOfYear(list, 2026)).toMatchObject({
+      media: { title: 'The Bear' },
+      seasonNumber: 2,
+      episode: 6,
+      rating: 5,
+      dated: true,
+    });
+  });
+
+  it('a igual puntaje, el más reciente', () => {
+    const list = [
+      series(1, 'Uno', { '1x1': 5 }, { '1x1': '2026-02-01T21:00:00.000Z' }),
+      series(2, 'Dos', { '1x2': 5 }, { '1x2': '2026-08-01T21:00:00.000Z' }),
+    ];
+
+    expect(bestEpisodeOfYear(list, 2026)?.media.title).toBe('Dos');
+  });
+
+  it('sin fechas, sale de la serie mejor puntuada que terminaste ese año', () => {
+    const list = [
+      series(1, 'Floja', { '1x1': 5 }, {}, {
+        history: [watch(3, '2026-04-01T00:00:00.000Z')],
+      }),
+      series(2, 'Buena', { '1x3': 4.5, '2x1': 4 }, {}, {
+        history: [watch(5, '2026-05-01T00:00:00.000Z')],
+      }),
+    ];
+
+    expect(bestEpisodeOfYear(list, 2026)).toMatchObject({
+      media: { title: 'Buena' },
+      seasonNumber: 1,
+      episode: 3,
+      dated: false,
+    });
+  });
+
+  it('sin puntajes, no hay episodio del año', () => {
+    const list = [series(1, 'Sin puntajes', {}, {}, { history: [watch(5, '2026-05-01T00:00:00.000Z')] })];
+    expect(bestEpisodeOfYear(list, 2026)).toBeNull();
+  });
+
+  it('va en el resumen del año', () => {
+    const list = [
+      series(1, 'The Bear', { '2x6': 5 }, { '2x6': '2026-03-10T21:00:00.000Z' }, {
+        history: [watch(4.5, '2026-06-01T00:00:00.000Z')],
+      }),
+    ];
+
+    expect(buildWrapped(list, 2026)?.bestEpisode?.episode).toBe(6);
+  });
+});
+
+describe('las metas y la racha en el resumen del año', () => {
+  const movies = [1, 2, 3].map((id) =>
+    makeMedia({
+      tmdbId: id,
+      title: `Película ${id}`,
+      // Tres semanas seguidas de enero.
+      history: [watch(4, new Date(2026, 0, 5 + (id - 1) * 7, 12).toISOString())],
+    }),
+  );
+
+  it('dice qué metas del año se cumplieron', () => {
+    const goals = { byYear: { '2026': { movies: 3, series: 5 } }, updatedAt: '2026-01-01T00:00:00.000Z' };
+    const wrapped = buildWrapped(movies, 2026, goals, new Date(2026, 11, 31, 12))!;
+
+    expect(wrapped.goalsMet.map((goal) => goal.kind)).toEqual(['movies']);
+  });
+
+  it('sin metas, no hay nada cumplido', () => {
+    expect(buildWrapped(movies, 2026)!.goalsMet).toEqual([]);
+  });
+
+  it('trae la mejor racha del año', () => {
+    expect(buildWrapped(movies, 2026)!.bestStreak).toBe(3);
   });
 });

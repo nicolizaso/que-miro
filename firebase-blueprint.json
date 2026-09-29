@@ -28,7 +28,53 @@
           { "name": "genres", "type": "list", "required": false },
           { "name": "status", "type": "string", "required": true },
           { "name": "updatedAt", "type": "timestamp", "required": true },
+          { "name": "runtime", "type": "number", "required": false },
+          { "name": "seasons", "type": "list", "required": false },
+          { "name": "totalEpisodes", "type": "number", "required": false },
+          { "name": "providers", "type": "list", "required": false },
+          { "name": "streaming", "type": "list", "required": false },
+          { "name": "providerRegion", "type": "string", "required": false },
+          { "name": "people", "type": "list", "required": false },
+          { "name": "keywords", "type": "list", "required": false },
+          { "name": "sagaId", "type": "number", "required": false },
+          { "name": "sagaName", "type": "string", "required": false },
+          { "name": "originalLanguage", "type": "string", "required": false },
+          { "name": "releaseDate", "type": "string", "required": false },
+          { "name": "digitalRelease", "type": "string", "required": false },
+          { "name": "enrichedLanguage", "type": "string", "required": false },
+          { "name": "enrichedRegion", "type": "string", "required": false },
+          { "name": "enrichedAt", "type": "timestamp", "required": false },
+          { "name": "seriesStatus", "type": "string", "required": false },
+          { "name": "lastAired", "type": "map", "required": false },
+          { "name": "nextToAir", "type": "map", "required": false },
+          { "name": "newEpisodesSince", "type": "map", "required": false },
+          { "name": "archive", "type": "map", "required": false },
+          { "name": "availabilityNews", "type": "list", "required": false },
+          { "name": "notify", "type": "boolean", "required": false },
+          { "name": "progress", "type": "map", "required": false },
+          { "name": "history", "type": "list", "required": false },
+          { "name": "collections", "type": "list", "required": false },
+          { "name": "duelScore", "type": "number", "required": false },
+          { "name": "duelCount", "type": "number", "required": false },
           { "name": "review", "type": "map", "required": false }
+        ]
+      }
+    },
+    {
+      "collection": "collections",
+      "path": "/users/{userId}/collections/{collectionId}",
+      "description": "User-defined lists beyond the three statuses; membership lives in saved_media.collections. publicId points to its public_lists snapshot while published",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "id", "type": "string", "required": true },
+          { "name": "name", "type": "string", "required": true },
+          { "name": "createdAt", "type": "timestamp", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true },
+          { "name": "publicId", "type": "string", "required": false }
         ]
       }
     },
@@ -49,6 +95,155 @@
           { "name": "directors", "type": "list", "required": true },
           { "name": "studios", "type": "list", "required": true },
           { "name": "decade", "type": "number", "required": false },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/goals",
+      "description": "Annual goals (movies, series, hours) per year, synced newest-wins like the taste document",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "byYear", "type": "map", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/subscriptions",
+      "description": "Streaming platforms the user pays for, used by the 'available now' filter; synced newest-wins",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "providers", "type": "list", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/calendar",
+      "description": "Which token the account's subscribable calendar uses; null when turned off. Not in the backup: it is a capability link, not data",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "token", "type": "string", "required": false },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/following",
+      "description": "Public profiles the user follows (slug, owner uid at follow time, name, since), capped at 100; synced newest-wins, in the backup and deleted with the account",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "profiles", "type": "list", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "public_profiles",
+      "path": "/public_profiles/{slug}",
+      "description": "Curated public snapshot of a library (never a window into saved_media). Public read; writes only by the uid the document declares, which cannot change. Republished automatically while autoUpdate is on. Optionally, the Por Ver list (includeWatchlist) and the names of the platforms paid for (includeSubscriptions), both off by default, for \"¿Qué miramos juntos?\"",
+      "access": {
+        "read": "true",
+        "create": "request.auth != null && request.auth.uid == request.resource.data.uid",
+        "update": "request.auth != null && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid",
+        "delete": "request.auth != null && request.auth.uid == resource.data.uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "slug", "type": "string", "required": true },
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "displayName", "type": "string", "required": true },
+          { "name": "publishedAt", "type": "timestamp", "required": true },
+          { "name": "autoUpdate", "type": "boolean", "required": false },
+          { "name": "includeWatchlist", "type": "boolean", "required": false },
+          { "name": "includeSubscriptions", "type": "boolean", "required": false },
+          { "name": "watchlist", "type": "list", "required": false },
+          { "name": "subscriptions", "type": "list", "required": false },
+          { "name": "summary", "type": "map", "required": true },
+          { "name": "topGenres", "type": "list", "required": true },
+          { "name": "favorites", "type": "list", "required": true },
+          { "name": "reviews", "type": "list", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "public_lists",
+      "path": "/public_lists/{listId}",
+      "description": "Curated snapshot of a shared list: name, optional description and minimal items (tmdbId, mediaType, title, posterPath, releaseYear). Public get, list forbidden, owner-only writes with immutable uid; republished automatically while autoUpdate is on",
+      "access": {
+        "get": "true",
+        "list": "false",
+        "create": "request.auth != null && request.auth.uid == request.resource.data.uid && listId.matches('^[A-Za-z0-9_-]{12,32}$')",
+        "update": "request.auth != null && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid",
+        "delete": "request.auth != null && request.auth.uid == resource.data.uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "id", "type": "string", "required": true },
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "ownerName", "type": "string", "required": true },
+          { "name": "name", "type": "string", "required": true },
+          { "name": "description", "type": "string", "required": false },
+          { "name": "items", "type": "list", "required": true },
+          { "name": "publishedAt", "type": "timestamp", "required": true },
+          { "name": "autoUpdate", "type": "boolean", "required": false }
+        ]
+      }
+    },
+    {
+      "collection": "calendar_feeds",
+      "path": "/calendar_feeds/{token}",
+      "description": "Snapshot behind /cal/{token}.ics: only upcoming episodes (series, season, episode, name, date). Public get by long random token, list forbidden, owner-only writes with immutable uid",
+      "access": {
+        "get": "true",
+        "list": "false",
+        "create": "request.auth != null && request.auth.uid == request.resource.data.uid && token.matches('^[A-Za-z0-9_-]{32,64}$')",
+        "update": "request.auth != null && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid",
+        "delete": "request.auth != null && request.auth.uid == resource.data.uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "events", "type": "list", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "push_subscriptions",
+      "path": "/push_subscriptions/{uid}",
+      "description": "Snapshot read by the daily episode-alerts cron: device tokens, region, language and only the ids of series with alerts on. Outside users/ so the server never reads the library; owner-only, closed keys",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == uid",
+        "write": "request.auth != null && request.auth.uid == uid && request.resource.data.keys().hasOnly(['tokens', 'series', 'region', 'language', 'updatedAt'])"
+      },
+      "schema": {
+        "fields": [
+          { "name": "tokens", "type": "list", "required": true },
+          { "name": "series", "type": "list", "required": true },
+          { "name": "region", "type": "string", "required": true },
+          { "name": "language", "type": "string", "required": true },
           { "name": "updatedAt", "type": "timestamp", "required": true }
         ]
       }

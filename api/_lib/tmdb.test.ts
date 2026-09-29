@@ -1,17 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   TmdbError,
+  digitalReleases,
+  findByImdbId,
+  getAiring,
   getDiscover,
   getList,
+  getMediaDetail,
   getPersonCredits,
+  getPersonPage,
+  getProviders,
   getRecommendations,
+  getSeason,
   getTrending,
   parseDiscoverQuery,
   parseId,
+  parseImdbId,
+  parseLanguage,
   parseListKind,
   parseMediaType,
+  parseRegion,
+  parseReleaseYear,
   parseSearchKind,
+  parseSeasonNumber,
   parseTrendingWindow,
+  searchByTitle,
   searchCompanies,
   searchMulti,
   searchPeople,
@@ -574,5 +587,641 @@ describe('getPersonCredits', () => {
     const results = await getPersonCredits(7, 'reparto');
 
     expect(results.map((credit) => credit.id)).toEqual([2, 1]);
+  });
+});
+
+describe('el idioma de los textos', () => {
+  const originalKey = process.env.TMDB_API_KEY;
+
+  beforeEach(() => {
+    process.env.TMDB_API_KEY = 'test-key';
+    clearCache();
+  });
+
+  afterEach(() => {
+    process.env.TMDB_API_KEY = originalKey;
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  /** La URL con la que se llamó a TMDB en la enésima llamada. */
+  function calledUrl(fetchMock: ReturnType<typeof vi.fn>, index = 0): URL {
+    return new URL(fetchMock.mock.calls[index][0] as string);
+  }
+
+  describe('parseLanguage', () => {
+    it('sin parámetro es castellano de España, para no romper a nadie', () => {
+      expect(parseLanguage(undefined)).toBe('es-ES');
+      expect(parseLanguage('')).toBe('es-ES');
+    });
+
+    it('acepta los dos castellanos', () => {
+      expect(parseLanguage('es-ES')).toBe('es-ES');
+      expect(parseLanguage('es-MX')).toBe('es-MX');
+    });
+
+    it.each(['es', 'en-US', 'es-AR', 'ES-MX', ['es-MX']])(
+      'rechaza %o con un 400',
+      (value) => {
+        expect(() => parseLanguage(value)).toThrow(TmdbError);
+      },
+    );
+  });
+
+  it('le pasa el idioma a TMDB', async () => {
+    const fetchMock = stubFetch([]);
+
+    await searchMulti('duro de matar', 'es-MX');
+    await searchMulti('la jungla de cristal');
+
+    expect(calledUrl(fetchMock, 0).searchParams.get('language')).toBe('es-MX');
+    expect(calledUrl(fetchMock, 1).searchParams.get('language')).toBe('es-ES');
+  });
+
+  it('cachea cada idioma por separado', async () => {
+    // Sin el idioma en la clave, la respuesta en un idioma se serviría a quien
+    // pidió el otro.
+    const fetchMock = stubFetch([{ id: 1, media_type: 'movie' }]);
+
+    await getTrending('day', 'es-ES');
+    await getTrending('day', 'es-MX');
+    await getTrending('day', 'es-MX');
+    await getPersonCredits(525, 'reparto', 'es-ES');
+    await getPersonCredits(525, 'reparto', 'es-MX');
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  describe('getMediaDetail', () => {
+    /** Un `fetch` que contesta distinto según el idioma pedido. */
+    function stubDetail(byLanguage: Record<string, Record<string, unknown>>) {
+      const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+        const language = new URL(url).searchParams.get('language') ?? '';
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...byLanguage[language] }),
+        };
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      return fetchMock;
+    }
+
+    it('en latino, sin sinopsis, la completa con la de España', async () => {
+      const fetchMock = stubDetail({
+        'es-MX': { id: 562, title: 'Duro de matar', overview: '' },
+        'es-ES': { id: 562, title: 'La jungla de cristal', overview: 'Un policía...' },
+      });
+
+      const detail = await getMediaDetail('movie', 562, 'es-MX');
+
+      expect(detail.overview).toBe('Un policía...');
+      // El título no se toca: el latino es el que se pidió.
+      expect(detail.title).toBe('Duro de matar');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // La segunda es liviana: de ella solo se usa la sinopsis.
+      expect(calledUrl(fetchMock, 1).searchParams.get('append_to_response')).toBeNull();
+    });
+
+    it('en latino, con sinopsis, es una sola llamada', async () => {
+      const fetchMock = stubDetail({
+        'es-MX': { id: 562, title: 'Duro de matar', overview: 'Un policía...' },
+      });
+
+      await getMediaDetail('movie', 562, 'es-MX');
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('en castellano de España no hay a quién pedirle respaldo', async () => {
+      const fetchMock = stubDetail({ 'es-ES': { id: 562, overview: '' } });
+
+      await getMediaDetail('movie', 562);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('si el respaldo falla, la ficha llega igual', async () => {
+      let calls = 0;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async () => {
+          calls++;
+          if (calls > 1) throw new Error('ECONNRESET');
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ id: 562, title: 'Duro de matar', overview: '' }),
+          };
+        }),
+      );
+
+      const detail = await getMediaDetail('movie', 562, 'es-MX');
+
+      expect(detail.title).toBe('Duro de matar');
+      expect(detail.overview).toBe('');
+    });
+  });
+
+  describe('discover', () => {
+    it('el idioma original se pide con `original`', () => {
+      expect(
+        parseDiscoverQuery({ type: 'movie', original: 'ko', lang: 'es-MX' }),
+      ).toMatchObject({ originalLanguage: 'ko', lang: 'es-MX' });
+    });
+
+    it('un cliente viejo que manda `lang=ko` sigue pidiendo coreanas', () => {
+      // Antes `lang` era el idioma original. Un código pelado no puede ser un
+      // idioma de textos, así que se lee como el original que quería decir.
+      expect(parseDiscoverQuery({ type: 'movie', lang: 'ko' })).toMatchObject({
+        originalLanguage: 'ko',
+        lang: 'es-ES',
+      });
+    });
+
+    it.each([
+      { type: 'movie', original: 'Coreano' },
+      { type: 'movie', lang: 'en-US' },
+    ])('rechaza %o con un 400', (query) => {
+      expect(() => parseDiscoverQuery(query)).toThrow(TmdbError);
+    });
+
+    it('manda a TMDB los dos idiomas, cada uno donde va', async () => {
+      const fetchMock = stubFetch([]);
+
+      await getDiscover(
+        parseDiscoverQuery({ type: 'movie', original: 'ko', lang: 'es-MX' }),
+      );
+
+      const url = calledUrl(fetchMock);
+      expect(url.searchParams.get('with_original_language')).toBe('ko');
+      expect(url.searchParams.get('language')).toBe('es-MX');
+    });
+
+    it('cachea cada idioma por separado', async () => {
+      const fetchMock = stubFetch([]);
+
+      await getDiscover(parseDiscoverQuery({ type: 'movie', genre: '27' }));
+      await getDiscover(parseDiscoverQuery({ type: 'movie', genre: '27', lang: 'es-MX' }));
+      await getDiscover(parseDiscoverQuery({ type: 'movie', genre: '27', lang: 'es-MX' }));
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+});
+
+describe('la temporada de una serie', () => {
+  const originalKey = process.env.TMDB_API_KEY;
+
+  beforeEach(() => {
+    process.env.TMDB_API_KEY = 'test-key';
+    clearCache();
+  });
+
+  afterEach(() => {
+    process.env.TMDB_API_KEY = originalKey;
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  /** Un episodio como lo manda TMDB, con todo lo que la app no usa. */
+  function rawEpisode(number: number, overrides: Record<string, unknown> = {}) {
+    return {
+      id: 1000 + number,
+      episode_number: number,
+      season_number: 2,
+      name: `Episodio ${number}`,
+      overview: `Pasa algo en el ${number}.`,
+      air_date: '2025-01-17',
+      runtime: 52,
+      still_path: `/still-${number}.jpg`,
+      vote_average: 8.4,
+      vote_count: 120,
+      episode_type: 'standard',
+      production_code: '',
+      show_id: 95396,
+      crew: [{ id: 1, name: 'Alguien', job: 'Director' }],
+      guest_stars: [{ id: 2, name: 'Otra persona', character: 'Invitada' }],
+      ...overrides,
+    };
+  }
+
+  function stubSeason(byLanguage: Record<string, unknown>) {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      const language = new URL(url).searchParams.get('language') ?? '';
+      return { ok: true, status: 200, json: async () => byLanguage[language] };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  describe('parseSeasonNumber', () => {
+    it('acepta los especiales y las temporadas normales', () => {
+      expect(parseSeasonNumber('0')).toBe(0);
+      expect(parseSeasonNumber(3)).toBe(3);
+    });
+
+    it.each([undefined, '', '-1', '1.5', 'dos', '201'])('rechaza %o con un 400', (value) => {
+      expect(() => parseSeasonNumber(value)).toThrow(TmdbError);
+    });
+  });
+
+  it('reenvía solo lo que la app dibuja de cada episodio', async () => {
+    stubSeason({
+      'es-ES': {
+        _id: 'x',
+        season_number: 2,
+        name: 'Temporada 2',
+        overview: 'La temporada entera.',
+        episodes: [rawEpisode(1, { episode_type: 'finale' })],
+      },
+    });
+
+    const season = await getSeason(95396, 2);
+
+    expect(season).toEqual({
+      season_number: 2,
+      name: 'Temporada 2',
+      episodes: [
+        {
+          episode_number: 1,
+          name: 'Episodio 1',
+          overview: 'Pasa algo en el 1.',
+          air_date: '2025-01-17',
+          runtime: 52,
+          still_path: '/still-1.jpg',
+          vote_average: 8.4,
+          episode_type: 'finale',
+        },
+      ],
+    });
+    // Ni el equipo ni las invitadas: son cientos de personas por temporada.
+    expect(JSON.stringify(season)).not.toContain('guest_stars');
+    expect(JSON.stringify(season)).not.toContain('crew');
+  });
+
+  it('un episodio sin anunciar llega con fecha y duración vacías', async () => {
+    stubSeason({
+      'es-ES': {
+        season_number: 3,
+        episodes: [rawEpisode(1, { air_date: '', runtime: null, still_path: null })],
+      },
+    });
+
+    const [episode] = (await getSeason(95396, 3)).episodes;
+
+    expect(episode.air_date).toBeNull();
+    expect(episode.runtime).toBeNull();
+    expect(episode.still_path).toBeNull();
+  });
+
+  it('en latino completa las sinopsis que faltan con las de España', async () => {
+    const fetchMock = stubSeason({
+      'es-MX': {
+        season_number: 2,
+        episodes: [rawEpisode(1), rawEpisode(2, { overview: '' })],
+      },
+      'es-ES': {
+        season_number: 2,
+        episodes: [rawEpisode(1, { overview: 'Otra' }), rawEpisode(2, { overview: 'La de España.' })],
+      },
+    });
+
+    const season = await getSeason(95396, 2, 'es-MX');
+
+    expect(season.episodes.map((episode) => episode.overview)).toEqual([
+      'Pasa algo en el 1.',
+      'La de España.',
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('cachea por serie, temporada e idioma', async () => {
+    const fetchMock = stubSeason({
+      'es-ES': { season_number: 1, episodes: [rawEpisode(1)] },
+      'es-MX': { season_number: 1, episodes: [rawEpisode(1)] },
+    });
+
+    await getSeason(95396, 1);
+    await getSeason(95396, 1);
+    await getSeason(95396, 2);
+    await getSeason(95396, 1, 'es-MX');
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('las plataformas de una región', () => {
+  beforeEach(() => {
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('valida el país', () => {
+    expect(parseRegion('AR')).toBe('AR');
+    for (const value of ['ar', 'ARG', '', undefined, 'A1']) {
+      expect(() => parseRegion(value)).toThrow(TmdbError);
+    }
+  });
+
+  it('ordena por la prioridad de esa región y manda solo lo que se usa', async () => {
+    stubFetch([
+      {
+        provider_id: 8,
+        provider_name: 'Netflix',
+        logo_path: '/netflix.png',
+        display_priority: 1,
+        display_priorities: { AR: 3, ES: 1 },
+      },
+      {
+        provider_id: 300,
+        provider_name: 'Flow',
+        logo_path: '/flow.png',
+        display_priority: 40,
+        display_priorities: { AR: 1 },
+      },
+      { provider_id: 9, provider_name: 'Sin orden', logo_path: null },
+    ]);
+
+    const providers = await getProviders('tv', 'AR');
+
+    expect(providers).toEqual([
+      { id: 300, name: 'Flow', logoPath: '/flow.png', priority: 1 },
+      { id: 8, name: 'Netflix', logoPath: '/netflix.png', priority: 3 },
+      { id: 9, name: 'Sin orden', logoPath: null, priority: Number.MAX_SAFE_INTEGER },
+    ]);
+  });
+
+  it('le pide a TMDB una sola vez por tipo y país', async () => {
+    const fetchMock = stubFetch([]);
+    await getProviders('movie', 'AR');
+    await getProviders('movie', 'AR');
+    await getProviders('movie', 'ES');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('watch_region=AR');
+  });
+});
+
+describe('los estrenos digitales', () => {
+  it('se queda con la primera fecha de tipo 4 de cada país', () => {
+    expect(
+      digitalReleases({
+        results: [
+          {
+            iso_3166_1: 'AR',
+            release_dates: [
+              { type: 3, release_date: '2024-02-29T00:00:00.000Z' },
+              { type: 4, release_date: '2024-05-21T00:00:00.000Z' },
+              { type: 4, release_date: '2024-05-10T00:00:00.000Z' },
+            ],
+          },
+          { iso_3166_1: 'US', release_dates: [{ type: 4, release_date: '2024-04-16T00:00:00.000Z' }] },
+          { iso_3166_1: 'ES', release_dates: [{ type: 3, release_date: '2024-03-01T00:00:00.000Z' }] },
+        ],
+      }),
+    ).toEqual({ AR: '2024-05-10', US: '2024-04-16' });
+  });
+
+  it('lo que no se puede leer se ignora', () => {
+    expect(digitalReleases(undefined)).toEqual({});
+    expect(digitalReleases({ results: [{ iso_3166_1: 'xx', release_dates: [] }, null] })).toEqual({});
+  });
+
+  it('la ficha de una película manda las fechas digitales y no las crudas', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 693134,
+        title: 'Duna: Parte Dos',
+        overview: 'Paul Atreides se une a los Fremen.',
+        release_dates: {
+          results: [{ iso_3166_1: 'AR', release_dates: [{ type: 4, release_date: '2024-05-21T00:00:00.000Z' }] }],
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+
+    const detail = await getMediaDetail('movie', 693134);
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('release_dates');
+    expect(detail.digital_releases).toEqual({ AR: '2024-05-21' });
+    expect(detail).not.toHaveProperty('release_dates');
+
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('lo que el cron de avisos pregunta de una serie', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  it('la ficha liviana, recortada a los episodios de alrededor de hoy', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 95396,
+        name: 'Severance',
+        overview: 'Largo.',
+        seasons: [{ season_number: 1 }, { season_number: 2 }],
+        next_episode_to_air: {
+          id: 1,
+          air_date: '2026-09-29',
+          season_number: 2,
+          episode_number: 3,
+          name: 'Quién está vivo',
+          overview: 'Spoilers.',
+          crew: [{ name: 'Alguien' }],
+        },
+        last_episode_to_air: null,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+
+    const airing = await getAiring(95396, 'es-MX');
+    await getAiring(95396, 'es-MX');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe('/3/tv/95396');
+    expect(url.searchParams.get('append_to_response')).toBeNull();
+    expect(url.searchParams.get('language')).toBe('es-MX');
+    expect(airing).toEqual({
+      name: 'Severance',
+      next_episode_to_air: { air_date: '2026-09-29', season_number: 2, episode_number: 3, name: 'Quién está vivo' },
+      last_episode_to_air: null,
+    });
+  });
+});
+
+describe('encontrar lo que llega de otra app', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  function stub(body: unknown) {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+    return fetchMock;
+  }
+
+  it('solo acepta ids de IMDb y años de verdad', () => {
+    expect(parseImdbId('tt6751668')).toBe('tt6751668');
+    expect(() => parseImdbId('6751668')).toThrow(TmdbError);
+    expect(() => parseImdbId('tt67/../x')).toThrow(TmdbError);
+    expect(parseReleaseYear('2023')).toBe(2023);
+    expect(parseReleaseYear(undefined)).toBeUndefined();
+    expect(() => parseReleaseYear('veinte')).toThrow(TmdbError);
+  });
+
+  it('por id de IMDb: películas y series, recortadas', async () => {
+    const fetchMock = stub({
+      movie_results: [
+        {
+          id: 496243,
+          title: 'Parásitos',
+          original_title: 'Gisaengchung',
+          release_date: '2019-05-30',
+          poster_path: '/p.jpg',
+          backdrop_path: '/b.jpg',
+          genre_ids: [35, 53],
+          overview: 'Largo.',
+          popularity: 99,
+        },
+      ],
+      person_results: [{ id: 1, name: 'Alguien' }],
+      tv_results: [],
+      tv_episode_results: [{ id: 2, show_id: 3 }],
+    });
+
+    const results = await findByImdbId('tt6751668', 'es-MX');
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe('/3/find/tt6751668');
+    expect(url.searchParams.get('external_source')).toBe('imdb_id');
+    expect(results).toEqual([
+      {
+        id: 496243,
+        media_type: 'movie',
+        title: 'Parásitos',
+        original_title: 'Gisaengchung',
+        year: 2019,
+        poster_path: '/p.jpg',
+        backdrop_path: '/b.jpg',
+        genre_ids: [35, 53],
+      },
+    ]);
+  });
+
+  it('por título y año, con el filtro de año de cada tipo', async () => {
+    const fetchMock = stub({ results: [{ id: 95396, name: 'Severance', first_air_date: '2022-02-17', genre_ids: [18] }] });
+    const results = await searchByTitle('tv', 'Severance', 2022);
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe('/3/search/tv');
+    expect(url.searchParams.get('first_air_date_year')).toBe('2022');
+    expect(results[0]).toMatchObject({ id: 95396, media_type: 'tv', title: 'Severance', year: 2022 });
+
+    await searchByTitle('movie', 'Past Lives', 2023);
+    const movieUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(movieUrl.pathname).toBe('/3/search/movie');
+    expect(movieUrl.searchParams.get('primary_release_year')).toBe('2023');
+  });
+});
+
+describe('la página de una persona', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  it('datos y filmografía en una llamada, sin lo que no es obra', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 525,
+        name: 'Christopher Nolan',
+        profile_path: '/cn.jpg',
+        biography: 'Director británico.',
+        birthday: '1970-07-30',
+        deathday: null,
+        place_of_birth: 'Londres, Inglaterra',
+        known_for_department: 'Directing',
+        popularity: 30,
+        combined_credits: {
+          cast: [
+            { id: 1, media_type: 'movie', title: 'Cameo', release_date: '2010-01-01', character: 'Man on Street', vote_average: 6, vote_count: 10 },
+            { id: 2, media_type: 'tv', name: 'The Tonight Show', genre_ids: [10767], character: 'Self' },
+            { id: 3, media_type: 'movie', title: 'Making of', character: 'Himself', release_date: '2011-01-01' },
+          ],
+          crew: [
+            { id: 27205, media_type: 'movie', title: 'El origen', release_date: '2010-07-15', job: 'Director', department: 'Directing', poster_path: '/o.jpg', vote_average: 8.4, vote_count: 36000, overview: 'Largo.', credit_id: 'x' },
+            { id: 27205, media_type: 'movie', title: 'El origen', release_date: '2010-07-15', job: 'Writer', department: 'Writing' },
+            { id: 9, media_type: 'movie', title: 'La próxima', release_date: '', job: 'Director' },
+          ],
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+
+    const page = await getPersonPage(525, 'es-ES');
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe('/3/person/525');
+    expect(url.searchParams.get('append_to_response')).toBe('combined_credits');
+    expect(page.person).toEqual({
+      id: 525,
+      name: 'Christopher Nolan',
+      profile_path: '/cn.jpg',
+      biography: 'Director británico.',
+      birthday: '1970-07-30',
+      deathday: null,
+      place_of_birth: 'Londres, Inglaterra',
+      known_for_department: 'Directing',
+    });
+    expect(page.credits).toEqual([
+      { id: 1, media_type: 'movie', title: 'Cameo', date: '2010-01-01', poster_path: null, role: 'reparto', character: 'Man on Street', job: null, vote_average: 6, vote_count: 10 },
+      { id: 27205, media_type: 'movie', title: 'El origen', date: '2010-07-15', poster_path: '/o.jpg', role: 'direccion', character: null, job: 'Director', vote_average: 8.4, vote_count: 36000 },
+      { id: 9, media_type: 'movie', title: 'La próxima', date: null, poster_path: null, role: 'direccion', character: null, job: 'Director', vote_average: 0, vote_count: 0 },
+    ]);
+  });
+
+  it('sin biografía en latino, la de España', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      const language = new URL(url).searchParams.get('language');
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          language === 'es-MX'
+            ? { id: 1, name: 'Alguien', biography: '', combined_credits: { cast: [], crew: [] } }
+            : { id: 1, name: 'Alguien', biography: 'La de España.' },
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+
+    expect((await getPersonPage(1, 'es-MX')).person.biography).toBe('La de España.');
   });
 });

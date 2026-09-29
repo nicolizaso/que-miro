@@ -111,6 +111,27 @@ describe('parseBackup', () => {
     const { media } = parseBackup(JSON.stringify(backup));
     expect(media[0].tmdbId).toBe(1);
   });
+
+  it('exporta lo archivado en el formato de Firestore, y vuelve igual', () => {
+    const abandoned = makeMedia({
+      status: 'abandonada',
+      archive: { at: '2026-05-03T10:00:00.000Z', reason: 'No me enganchó' },
+    });
+    const backup = buildBackup([abandoned]);
+
+    // Una versión vieja que importe este archivo lo deja en Viendo, no en
+    // Por Ver.
+    expect(backup.media[0].status).toBe('viendo');
+    expect(backup.media[0].archive).toEqual({
+      status: 'abandonada',
+      at: '2026-05-03T10:00:00.000Z',
+      reason: 'No me enganchó',
+    });
+
+    const { media } = parseBackup(JSON.stringify(backup));
+    expect(media[0].status).toBe('abandonada');
+    expect(media[0].archive?.reason).toBe('No me enganchó');
+  });
 });
 
 describe('el cuestionario en el backup', () => {
@@ -225,5 +246,62 @@ describe('toCsv', () => {
     expect(csv).toContain('"2","5"');
     expect(csv).toContain('"Netflix"');
     expect(csv).toContain('"50%"');
+  });
+});
+
+describe('las metas en el backup', () => {
+  it('viajan con la biblioteca y vuelven enteras', () => {
+    const goals = {
+      byYear: { '2026': { movies: 30, hours: 200 } },
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+
+    const backup = buildBackup([makeMedia()], [], undefined, goals);
+    const { goals: restored } = parseBackup(JSON.stringify(backup));
+
+    expect(restored).toEqual(goals);
+  });
+
+  it('sin metas no se escriben, y un backup viejo vuelve sin ellas', () => {
+    const backup = buildBackup([makeMedia()], [], undefined, {
+      byYear: {},
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    });
+
+    expect(backup).not.toHaveProperty('goals');
+    expect(parseBackup(JSON.stringify(backup)).goals).toBeNull();
+  });
+});
+
+describe('las suscripciones en el backup', () => {
+  it('viajan con la biblioteca y vuelven enteras', () => {
+    const subscriptions = {
+      providers: [{ id: 8, name: 'Netflix', logoPath: '/n.png' }],
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+    const backup = buildBackup([makeMedia()], [], undefined, undefined, subscriptions);
+
+    expect(parseBackup(JSON.stringify(backup)).subscriptions).toEqual(subscriptions);
+  });
+});
+
+describe('los perfiles seguidos en el backup', () => {
+  it('viajan con la biblioteca y vuelven enteros', () => {
+    const following = {
+      profiles: [{ slug: 'ana', uid: 'uid-ana', name: 'Ana', since: '2026-03-01T00:00:00.000Z' }],
+      updatedAt: '2026-03-01T00:00:00.000Z',
+    };
+    const backup = buildBackup([makeMedia()], [], undefined, undefined, undefined, following);
+
+    expect(parseBackup(JSON.stringify(backup)).following).toEqual(following);
+  });
+
+  it('sin seguidos no se escriben, y un backup viejo vuelve sin ellos', () => {
+    const backup = buildBackup([makeMedia()], [], undefined, undefined, undefined, {
+      profiles: [],
+      updatedAt: '2026-03-01T00:00:00.000Z',
+    });
+    expect(backup).not.toHaveProperty('following');
+    expect(parseBackup(JSON.stringify(backup)).following).toBeNull();
   });
 });

@@ -44,8 +44,25 @@ describe('buildDemoLibrary', () => {
 
   it('le pone reseña a todas las completadas y solo a ellas', () => {
     for (const media of buildDemoLibrary()) {
-      expect(Boolean(media.history?.length)).toBe(media.status === 'completada');
+      // Lo puntuado al abandonar no es una reseña de algo terminado.
+      const reviews = (media.history ?? []).filter((entry) => !entry.abandoned);
+      expect(reviews.length > 0).toBe(media.status === 'completada');
     }
+  });
+
+  it('suma una en pausa y una abandonada, con su archivo', () => {
+    const library = buildDemoLibrary();
+    const paused = library.filter((media) => media.status === 'en_pausa');
+    const abandoned = library.filter((media) => media.status === 'abandonada');
+
+    expect(paused).toHaveLength(1);
+    expect(abandoned).toHaveLength(1);
+    for (const media of [...paused, ...abandoned]) {
+      expect(media.archive?.at).toBeTruthy();
+      expect(Object.keys(media.progress?.watched ?? {}).length).toBeGreaterThan(0);
+    }
+    expect(abandoned[0].archive?.reason).toBeTruthy();
+    expect(abandoned[0].history?.every((entry) => entry.abandoned)).toBe(true);
   });
 
   it('las series que se están viendo arrancan con progreso', () => {

@@ -1,0 +1,19 @@
+{
+  // El service worker (src/sw.ts), con las librerías de un worker y no las
+  // del DOM. Lo compila vite-plugin-pwa; esto es solo para chequear tipos.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "WebWorker"],
+    "types": [],
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true
+  },
+  "include": ["src/sw.ts", "src/sw-env.d.ts"]
+}

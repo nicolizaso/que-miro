@@ -5,9 +5,23 @@ import { usePreferences } from '@/preferences';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { getMediaDetail } from '@/lib/tmdb';
-import { enrichFromDetail } from '@/lib/enrich';
-import { completeProgress } from '@/lib/progress';
-import { SavedMedia, MediaStatus, SeriesProgress, WatchEntry } from '@/types';
+import { MediaEnrichment, enrichFromDetail, mergeSeasons } from '@/lib/enrich';
+import {
+  completeProgress,
+  detectNewEpisodes,
+  hasNewEpisodes,
+} from '@/lib/progress';
+import {
+  ArchivedStatus,
+  SavedMedia,
+  MediaStatus,
+  SeriesProgress,
+  WatchEntry,
+} from '@/types';
+import { newWatchId, toStoredMedia, toStoredPatch, withArchive } from '@/lib/schema';
+import { isArchivedStatus } from '@/lib/archive';
+import { detectAvailabilityNews, markNewsSeen } from '@/lib/availability';
+import { hasSubscriptions, subscribedNames } from '@/lib/subscriptions';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -78,21 +92,57 @@ export function useMediaActions() {
   };
 
   /**
-   * Escribe un cambio parcial sobre un título.
+   * Escribe los campos de un cambio parcial, cada uno entero.
    *
-   * Con `merge` a propósito: el documento remoto puede tener campos más nuevos
-   * que los del estado local, y reescribirlo entero desde acá los perdería.
+   * Parcial a propósito: el documento remoto puede tener campos más nuevos que
+   * los del estado local, y reescribirlo entero desde acá los perdería.
+   *
+   * Pero `mergeFields` y no `merge: true`. Con `merge`, Firestore mezcla
+   * también los mapas de adentro: lo que se borró acá de `progress` —la
+   * temporada que se desmarcó entera, el puntaje que se sacó— no viajaba, y
+   * seguía vivo allá hasta volver con el próximo snapshot. Lo mismo el nombre
+   * de un episodio de `nextToAir` que ya no es el próximo. Así, cada campo que
+   * se manda queda exactamente como se mandó, y los que no se mandan no se
+   * tocan.
    */
+  const setFields = (tmdbId: number, data: Record<string, unknown>) =>
+    setDoc(mediaDoc(tmdbId), data, { mergeFields: Object.keys(data) });
+
+  /** Escribe un cambio parcial sobre un título (ver {@link setFields}). */
   const write = async (tmdbId: number, patch: Partial<SavedMedia>) => {
-    const withTimestamp = { ...patch, updatedAt: new Date().toISOString() };
+    const withTimestamp = {
+      ...withArchive(patch),
+      updatedAt: new Date().toISOString(),
+    };
 
     if (!isAuth) {
       useMediaStore.getState().patchMedia(tmdbId, withTimestamp);
       return;
     }
-    fireAndForget(
-      setDoc(mediaDoc(tmdbId), sanitizeData(withTimestamp), { merge: true }),
-    );
+    fireAndForget(setFields(tmdbId, sanitizeData(toStoredPatch(withTimestamp))));
+  };
+
+  /**
+   * Escribe datos refrescados de TMDB sin tocar `updatedAt`.
+   *
+   * Es la diferencia entre algo que hizo la persona y algo que hizo la app
+   * por su cuenta: `updatedAt` ordena "Agregados hace poco", y un refresco en
+   * segundo plano que lo moviera reacomodaría la lista en cada visita.
+   *
+   * Los errores no se avisan: nadie pidió este cambio, así que un toast de
+   * "no pudimos guardar" hablaría de algo que la persona no hizo. El próximo
+   * refresco lo vuelve a intentar.
+   */
+  const writeSilently = (tmdbId: number, patch: Partial<SavedMedia>) => {
+    if (!isAuth) {
+      useMediaStore.getState().enrichMedia(tmdbId, patch);
+      return;
+    }
+    const data = sanitizeData(toStoredPatch(patch));
+    if (Object.keys(data).length === 0) return;
+    setFields(tmdbId, data).catch((error: unknown) => {
+      console.warn('[media] No se pudo guardar el refresco:', error);
+    });
   };
 
   /**
@@ -125,7 +175,9 @@ export function useMediaActions() {
       useMediaStore.getState().addMedia(media);
     } else {
       const fullMedia = { ...media, updatedAt: new Date().toISOString() };
-      fireAndForget(setDoc(mediaDoc(media.tmdbId), sanitizeData(fullMedia)));
+      fireAndForget(
+        setDoc(mediaDoc(media.tmdbId), sanitizeData(toStoredMedia(fullMedia))),
+      );
     }
 
     try {
@@ -144,10 +196,78 @@ export function useMediaActions() {
     }
   };
 
-  /** Vuelve a pedirle la ficha a TMDB y actualiza los datos cacheados. */
+  /**
+   * Vuelve a pedirle la ficha a TMDB y actualiza los datos cacheados.
+   *
+   * No toca el progreso: los episodios vistos se guardan por número de
+   * temporada, así que sobreviven a que la serie sume una temporada nueva.
+   */
   const refreshDetails = async (media: SavedMedia) => {
     const detail = await getMediaDetail(media.tmdbId, media.mediaType);
-    await write(media.tmdbId, enrichFromDetail(detail, region));
+    applyEnrichment(media, enrichFromDetail(detail, region));
+  };
+
+  /**
+   * Guarda datos de TMDB sobre un título ya guardado, sin moverlo de lugar.
+   *
+   * Es la puerta de todo lo que la app trae sola: el refresco en segundo
+   * plano, el completado del reparto y lo que la ficha completa al abrirse.
+   */
+  const applyEnrichment = (media: SavedMedia, enrichment: MediaEnrichment) => {
+    const patch: Partial<SavedMedia> =
+      'seasons' in enrichment
+        ? { ...enrichment, seasons: mergeSeasons(enrichment.seasons, media.seasons) }
+        : enrichment;
+
+    // Si trajo episodios que salieron desde el refresco anterior, en una serie
+    // que habías terminado o en la que estabas al día, queda anotado desde
+    // cuál: es lo que muestra el aviso de la tarjeta. El estado no se toca —
+    // mudarla a *Viendo* lo decide la persona.
+    const marker = media.newEpisodesSince
+      ? undefined
+      : detectNewEpisodes(media, { ...media, ...patch });
+
+    // Lo mismo con lo que llegó a una plataforma o salió en digital, en lo
+    // que está en Por Ver: se anota, y se muestra hasta que se descarte.
+    const { subscriptions } = useMediaStore.getState();
+    const availabilityNews = detectAvailabilityNews(
+      media,
+      { ...media, ...patch },
+      hasSubscriptions(subscriptions) ? subscribedNames(subscriptions) : null,
+    );
+
+    writeSilently(media.tmdbId, {
+      ...patch,
+      ...(marker ? { newEpisodesSince: marker } : {}),
+      ...(availabilityNews ? { availabilityNews } : {}),
+    });
+  };
+
+  /**
+   * Descarta las novedades de un título.
+   *
+   * Sin tocar `updatedAt`, como el refresco que las trajo: descartar un aviso
+   * no es algo que se haya hecho con el título, y lo subiría al principio de
+   * "Agregados hace poco".
+   */
+  const dismissAvailabilityNews = (media: SavedMedia) => {
+    writeSilently(media.tmdbId, { availabilityNews: markNewsSeen(media) });
+  };
+
+  /**
+   * Prende o apaga el aviso de episodios nuevos de una serie.
+   *
+   * Sin tocar `updatedAt`, como descartar una novedad: es una preferencia
+   * sobre la serie, no algo que se hizo con ella, y no tiene por qué subirla
+   * en "Agregados hace poco". Pero con aviso si falla: esto sí lo pidió la
+   * persona. `usePushSnapshot` se encarga de que el servidor se entere.
+   */
+  const setNotify = (tmdbId: number, notify: boolean) => {
+    if (!isAuth) {
+      useMediaStore.getState().enrichMedia(tmdbId, { notify });
+      return;
+    }
+    fireAndForget(setFields(tmdbId, { notify }));
   };
 
   const updateStatus = async (tmdbId: number, status: MediaStatus) => {
@@ -171,15 +291,19 @@ export function useMediaActions() {
    * dos veces lo mismo con el mismo puntaje y sin comentario se perdería.
    */
   const addWatchEntry = async (media: SavedMedia, entry: WatchEntry) => {
-    const progress = progressOnComplete(media);
+    // Reseñar algo que abandonaste es opinar de lo que viste, no terminarlo:
+    // no se mueve a Completadas ni se le marcan los episodios que faltaban.
+    const isAbandoned = media.status === 'abandonada';
+    const progress = isAbandoned ? undefined : progressOnComplete(media);
+    const saved: WatchEntry = isAbandoned ? { ...entry, abandoned: true } : entry;
     if (!isAuth) {
-      useMediaStore.getState().addWatchEntry(media.tmdbId, entry);
+      useMediaStore.getState().addWatchEntry(media.tmdbId, saved);
       if (progress) useMediaStore.getState().setProgress(media.tmdbId, progress);
       return;
     }
     await write(media.tmdbId, {
-      history: [entry, ...(media.history ?? [])],
-      status: 'completada',
+      history: [saved, ...(media.history ?? [])],
+      ...(isAbandoned ? {} : { status: 'completada' as const }),
       ...(progress ? { progress } : {}),
     });
   };
@@ -210,8 +334,49 @@ export function useMediaActions() {
     const history = (media.history ?? []).filter((entry) => entry.id !== entryId);
     await write(media.tmdbId, {
       history,
-      status: history.length > 0 ? 'completada' : 'viendo',
+      // Uno en pausa o abandonado se queda donde está: borrar una reseña no
+      // lo retoma.
+      ...(isArchivedStatus(media.status)
+        ? {}
+        : { status: history.length > 0 ? ('completada' as const) : ('viendo' as const) }),
     });
+  };
+
+  /**
+   * Pone un título en pausa o lo abandona.
+   *
+   * Al abandonar se puede dejar un motivo corto y un puntaje de lo que se vio.
+   * El puntaje va al historial como cualquier otro —así lo lee el gusto, que
+   * lo toma como señal en contra—, pero marcado como de una vuelta abandonada,
+   * que es lo que lo separa de las veces que sí lo terminaste (ver
+   * `isAbandonedEntry`).
+   */
+  const archiveMedia = async (
+    media: SavedMedia,
+    status: ArchivedStatus,
+    options: { reason?: string; rating?: number } = {},
+  ) => {
+    const at = new Date().toISOString();
+    const entry: WatchEntry | undefined =
+      status === 'abandonada' && options.rating
+        ? { id: newWatchId(), rating: options.rating, completedAt: at, abandoned: true }
+        : undefined;
+
+    await write(media.tmdbId, {
+      status,
+      archive: { at, ...(options.reason ? { reason: options.reason } : {}) },
+      ...(entry ? { history: [entry, ...(media.history ?? [])] } : {}),
+      // Lo abandonado no avisa más de episodios nuevos: si igual te enterás y
+      // la retomás, el progreso sigue ahí.
+      ...(status === 'abandonada' && media.newEpisodesSince
+        ? { newEpisodesSince: undefined }
+        : {}),
+    });
+  };
+
+  /** Saca un título de la pausa o del abandono y lo devuelve a *Viendo*. */
+  const resumeMedia = async (media: SavedMedia) => {
+    await write(media.tmdbId, { status: 'viendo' });
   };
 
   const setProgress = async (
@@ -220,9 +385,19 @@ export function useMediaActions() {
     status?: MediaStatus,
   ) => {
     const hasProgress = Object.keys(progress.watched).length > 0;
+    const current = useMediaStore
+      .getState()
+      .mediaList.find((media) => media.tmdbId === tmdbId);
+    // Viste lo nuevo: el aviso ya no tiene de qué hablar y se apaga en la
+    // misma escritura.
+    const clearsNews =
+      current?.newEpisodesSince !== undefined &&
+      !hasNewEpisodes({ ...current, progress });
+
     await write(tmdbId, {
       progress: hasProgress ? progress : undefined,
       ...(status ? { status } : {}),
+      ...(clearsNews ? { newEpisodesSince: undefined } : {}),
     });
   };
 
@@ -258,7 +433,7 @@ export function useMediaActions() {
       for (let i = 0; i < items.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
         for (const item of items.slice(i, i + BATCH_LIMIT)) {
-          batch.set(mediaDoc(item.tmdbId), sanitizeData(item));
+          batch.set(mediaDoc(item.tmdbId), sanitizeData(toStoredMedia(item)));
         }
         await batch.commit();
       }
@@ -268,11 +443,16 @@ export function useMediaActions() {
   return {
     addMedia,
     refreshDetails,
+    applyEnrichment,
+    dismissAvailabilityNews,
+    setNotify,
     updateStatus,
     patchMedia,
     addWatchEntry,
     updateWatchEntry,
     removeWatchEntry,
+    archiveMedia,
+    resumeMedia,
     setProgress,
     removeMedia,
     saveMany,

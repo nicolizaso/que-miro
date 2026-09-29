@@ -1,0 +1,18 @@
+[
+  {
+    "rank": 1,
+    "id": 101,
+    "listed_at": "2024-02-01T00:00:00.000Z",
+    "notes": null,
+    "type": "movie",
+    "movie": { "title": "Aftersun", "year": 2022, "ids": { "trakt": 2, "slug": "aftersun-2022", "tmdb": 965150 } }
+  },
+  {
+    "rank": 2,
+    "id": 102,
+    "listed_at": "2024-02-02T00:00:00.000Z",
+    "notes": null,
+    "type": "show",
+    "show": { "title": "The Bear", "year": 2022, "ids": { "trakt": 3, "slug": "the-bear", "tmdb": 136315 } }
+  }
+]

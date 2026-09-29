@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { PushDeviceRecord } from '@/lib/push';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -47,12 +48,29 @@ export function detectRegion(): RegionCode {
   return DEFAULT_REGION;
 }
 
+/** Cuántas respuestas a "¿La ponés en pausa?" se recuerdan. */
+const MAX_PAUSE_HINTS = 100;
+
 interface PreferencesState {
   theme: ThemePreference;
   /** País cuyo catálogo de plataformas se muestra en la ficha del título. */
   region: RegionCode;
+  /**
+   * Las series a las que ya les dijiste que no a "¿La ponés en pausa?", con
+   * cuándo. Es del dispositivo como el resto de acá: es un cartel que se
+   * calla, no un dato de tu biblioteca.
+   */
+  pauseHintsDismissed: Record<string, string>;
+  /**
+   * El token de avisos de este dispositivo y de qué cuenta es. Del
+   * dispositivo por definición: cada navegador tiene el suyo, y es lo que
+   * permite decir "acá sí recibís avisos" y sacarlo de la cuenta al salir.
+   */
+  pushDevice: PushDeviceRecord | null;
   setTheme: (theme: ThemePreference) => void;
   setRegion: (region: RegionCode) => void;
+  dismissPauseHint: (tmdbId: number) => void;
+  setPushDevice: (device: PushDeviceRecord | null) => void;
 }
 
 /**
@@ -66,8 +84,24 @@ export const usePreferences = create<PreferencesState>()(
     (set) => ({
       theme: 'system',
       region: detectRegion(),
+      pauseHintsDismissed: {},
+      pushDevice: null,
       setTheme: (theme) => set({ theme }),
       setRegion: (region) => set({ region }),
+      setPushDevice: (pushDevice) => set({ pushDevice }),
+      dismissPauseHint: (tmdbId) =>
+        set((state) => {
+          // Se queda con las más recientes: una respuesta de hace un año ya no
+          // calla nada, porque la serie o se movió o se terminó.
+          const all: Record<string, string> = {
+            ...state.pauseHintsDismissed,
+            [tmdbId]: new Date().toISOString(),
+          };
+          const entries = Object.entries(all)
+            .sort((a, b) => b[1].localeCompare(a[1]))
+            .slice(0, MAX_PAUSE_HINTS);
+          return { pauseHintsDismissed: Object.fromEntries(entries) };
+        }),
     }),
     { name: 'que-miro-preferences' },
   ),

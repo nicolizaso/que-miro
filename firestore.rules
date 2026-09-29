@@ -19,9 +19,13 @@ service cloud.firestore {
         allow read, write: if isOwner();
       }
 
-      // "Contanos de vos": un documento con los gustos declarados. Mismo dueño
-      // y mismas reglas que la biblioteca — es dato de la cuenta, no algo
-      // publicado.
+      // "Contanos de vos" (`profile/taste`), las metas del año
+      // (`profile/goals`), las plataformas que se pagan
+      // (`profile/subscriptions`), el token del calendario suscribible
+      // (`profile/calendar`) y los perfiles que se siguen
+      // (`profile/following`): documentos de la cuenta. Mismo dueño y mismas
+      // reglas que la biblioteca — son datos de la persona, no algo publicado.
+      // Un documento nuevo acá no necesita regla nueva: `{docId}` ya lo cubre.
       match /profile/{docId} {
         allow read, write: if isOwner();
       }
@@ -51,6 +55,105 @@ service cloud.firestore {
 
       allow delete: if request.auth != null
         && request.auth.uid == resource.data.uid;
+    }
+
+    /**
+     * Listas compartidas (`/l/{id}`, ver `api/l/[id].ts`).
+     *
+     * El mismo patrón que los perfiles públicos: una instantánea curada que
+     * se lee sin sesión, y que solo escribe el `uid` que declara, sin poder
+     * cambiarlo —si no, cualquiera con sesión podría quedarse con la lista de
+     * otro reescribiéndola—. Con una diferencia: `list` está prohibido. Una
+     * lista se comparte por su link, no es un directorio para recorrer.
+     */
+    match /public_lists/{listId} {
+      function validList() {
+        return request.resource.data.id == listId
+          && request.resource.data.items is list
+          && request.resource.data.items.size() <= 200;
+      }
+
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.uid
+        && listId.matches('^[A-Za-z0-9_-]{12,32}$')
+        && validList();
+
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.resource.data.uid == resource.data.uid
+        && validList();
+
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+    }
+
+    /**
+     * Calendarios para suscribirse (`/cal/{token}.ics`, ver `api/cal/[token].ts`).
+     *
+     * Google Calendar y compañía piden la dirección sin sesión, así que el
+     * documento se lee sin sesión: `get` es público. Pero solo de a uno y
+     * sabiendo el token —largo y al azar, no el slug del perfil, que se
+     * adivina—: `list` está prohibido para que no se puedan enumerar. Lo que
+     * hay adentro es solo la lista de próximos episodios.
+     *
+     * Escribir exige ser el dueño, y el `uid` no cambia nunca: sin eso,
+     * alguien que conociera un token podría quedárselo reescribiéndolo. El
+     * token tiene que ser largo también acá, no solo en la app.
+     */
+    match /calendar_feeds/{token} {
+      function validFeed() {
+        return request.resource.data.keys().hasOnly(['uid', 'events', 'updatedAt'])
+          && request.resource.data.events is list
+          && request.resource.data.events.size() <= 500;
+      }
+
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.uid
+        && token.matches('^[A-Za-z0-9_-]{32,64}$')
+        && validFeed();
+
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.resource.data.uid == resource.data.uid
+        && validFeed();
+
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+    }
+
+    /**
+     * Avisos de episodios: la instantánea que lee el cron diario
+     * (`api/cron/notify.ts`, con Firebase Admin, que no pasa por estas reglas).
+     *
+     * Fuera de `users/` por lo mismo que los perfiles públicos: el servidor no
+     * lee la biblioteca de nadie, solo esto. Pero no es pública: los tokens
+     * son de los dispositivos de la persona y la lista de series es suya, así
+     * que la lee y la escribe solo su dueño.
+     *
+     * Las claves están cerradas a propósito. Lo que se publica para el
+     * servidor es tokens, país, idioma y los ids de las series con aviso; si
+     * algún día se colara un estado o un puntaje, la escritura tiene que
+     * fallar acá y no terminar en un documento que lee el servidor.
+     */
+    match /push_subscriptions/{uid} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+
+      allow read, delete: if isOwner();
+
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly(['tokens', 'series', 'region', 'language', 'updatedAt'])
+        && request.resource.data.tokens is list
+        && request.resource.data.tokens.size() <= 10
+        && request.resource.data.series is list
+        && request.resource.data.series.size() <= 1000;
     }
   }
 }

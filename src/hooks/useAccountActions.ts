@@ -10,6 +10,14 @@ import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaStore } from '@/store';
 import { picksPath } from '@/hooks/useTastePicks';
+import { goalsPath } from '@/hooks/useGoals';
+import { subscriptionsPath } from '@/hooks/useSubscriptions';
+import { followingPath } from '@/hooks/useFollowing';
+import { pushPath } from '@/lib/push';
+import { publicListPath } from '@/lib/publicList';
+import { releasePushDevice } from '@/lib/pushDevice';
+import { deleteCalendarFeed } from '@/hooks/useCalendarFeed';
+import { deletePublicProfile } from '@/hooks/usePublicProfile';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -39,6 +47,29 @@ export function useAccountActions() {
     // El documento del usuario puede no existir: `deleteDoc` sobre algo que no
     // está es un no-op, así que no hace falta chequearlo antes.
     await deleteDoc(doc(db, `users/${uid}`));
+  };
+
+  /**
+   * Borra las listas propias y, de las publicadas, su instantánea pública.
+   *
+   * Borrar `users/{uid}` no borra sus subcolecciones: sin esto, las listas
+   * sobrevivían a la cuenta, y las publicadas seguían a la vista de todos.
+   */
+  const deleteRemoteCollections = async (uid: string) => {
+    const snapshot = await getDocs(collection(db, `users/${uid}/collections`));
+    for (const document of snapshot.docs) {
+      const publicId: unknown = document.data().publicId;
+      if (typeof publicId === 'string' && publicId) {
+        await deleteDoc(doc(db, publicListPath(publicId)));
+      }
+    }
+    for (let i = 0; i < snapshot.docs.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      for (const document of snapshot.docs.slice(i, i + BATCH_LIMIT)) {
+        batch.delete(document.ref);
+      }
+      await batch.commit();
+    }
   };
 
   /**
@@ -74,17 +105,34 @@ export function useAccountActions() {
     }
 
     try {
+      // Primero el perfil público: el slug está en `users/{uid}`, que se borra
+      // con la biblioteca.
+      await deletePublicProfile(user.uid);
+      await deleteRemoteCollections(user.uid);
       await deleteRemoteLibrary(user.uid);
       // Las respuestas de "Contanos de vos" están fuera de `saved_media`, y
       // borrar el documento de un usuario no borra sus subcolecciones: sin
       // esta línea el cuestionario sobreviviría a la cuenta que lo escribió.
       await deleteDoc(doc(db, picksPath(user.uid)));
+      // Las metas, las suscripciones y los perfiles seguidos viven al lado y
+      // tienen el mismo problema.
+      await deleteDoc(doc(db, goalsPath(user.uid)));
+      await deleteDoc(doc(db, subscriptionsPath(user.uid)));
+      await deleteDoc(doc(db, followingPath(user.uid)));
+      // La instantánea de avisos está fuera de `users/`: sin esto, el cron
+      // seguiría avisándole a una cuenta que ya no existe.
+      await deleteDoc(doc(db, pushPath(user.uid)));
+      // El calendario publicado también: su link seguiría andando.
+      await deleteCalendarFeed(user.uid);
     } catch (error) {
       console.error('[cuenta] No se pudieron borrar los datos:', error);
       throw new AccountDeletionError(
         'No pudimos borrar tus datos. Revisá tu conexión e intentá de nuevo.',
       );
     }
+
+    // El documento ya no está; esto anula la suscripción de este navegador.
+    await releasePushDevice();
 
     try {
       await deleteUser(auth.currentUser!);

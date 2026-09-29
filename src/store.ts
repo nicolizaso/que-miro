@@ -2,14 +2,26 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
   Collection,
+  Following,
   MediaStatus,
+  Goals,
   SavedMedia,
   SeriesProgress,
+  Subscriptions,
   TastePicks,
   WatchEntry,
 } from './types';
-import { SCHEMA_VERSION, parseCollection, parseMedia } from './lib/schema';
+import {
+  SCHEMA_VERSION,
+  parseCollection,
+  parseMedia,
+  withArchive,
+} from './lib/schema';
+import { isArchivedStatus } from './lib/archive';
 import { emptyPicks, parsePicks } from './lib/picks';
+import { emptyGoals, parseGoals } from './lib/goals';
+import { emptySubscriptions, parseSubscriptions } from './lib/subscriptions';
+import { emptyFollowing, parseFollowing } from './lib/following';
 
 interface MediaState {
   mediaList: SavedMedia[];
@@ -24,6 +36,15 @@ interface MediaState {
    * aparecería al siguiente que inicie sesión.
    */
   picks: TastePicks;
+  /**
+   * Las metas del año. Como el cuestionario, son de la cuenta: se sincronizan,
+   * van al backup y tienen el mismo dueño que la biblioteca.
+   */
+  goals: Goals;
+  /** Las plataformas que la persona paga. De la cuenta, como las metas. */
+  subscriptions: Subscriptions;
+  /** Los perfiles públicos que sigue. De la cuenta, como las metas. */
+  following: Following;
   /**
    * UID del usuario dueño de los datos que hay en memoria/localStorage.
    * `null` significa "datos de invitado", todavía no asociados a ninguna cuenta.
@@ -46,6 +67,14 @@ interface MediaState {
   updateStatus: (tmdbId: number, status: MediaStatus) => void;
   /** Cambios sueltos sobre un título: progreso, plataformas, colecciones. */
   patchMedia: (tmdbId: number, patch: Partial<SavedMedia>) => void;
+  /**
+   * Datos de TMDB refrescados, sin tocar `updatedAt`.
+   *
+   * `updatedAt` es la fecha en que la persona tocó el título —por ella se
+   * ordena "Agregados hace poco" y se decide quién gana en un conflicto—, y un
+   * refresco en segundo plano no es algo que la persona haya hecho.
+   */
+  enrichMedia: (tmdbId: number, patch: Partial<SavedMedia>) => void;
   addWatchEntry: (tmdbId: number, entry: WatchEntry) => void;
   /** Corrige una reseña ya guardada: puntaje, comentario o etiquetas. */
   updateWatchEntry: (tmdbId: number, entry: WatchEntry) => void;
@@ -55,6 +84,9 @@ interface MediaState {
   setMediaList: (list: SavedMedia[]) => void;
 
   setPicks: (picks: TastePicks) => void;
+  setGoals: (goals: Goals) => void;
+  setSubscriptions: (subscriptions: Subscriptions) => void;
+  setFollowing: (following: Following) => void;
 
   setCollections: (collections: Collection[]) => void;
   addCollection: (collection: Collection) => void;
@@ -87,10 +119,16 @@ export const useMediaStore = create<MediaState>()(
       mediaList: [],
       collections: [],
       picks: emptyPicks(),
+      goals: emptyGoals(),
+      subscriptions: emptySubscriptions(),
+      following: emptyFollowing(),
       ownerUid: null,
       syncedUid: null,
       setMediaList: (list) => set({ mediaList: list }),
       setPicks: (picks) => set({ picks }),
+      setGoals: (goals) => set({ goals }),
+      setSubscriptions: (subscriptions) => set({ subscriptions }),
+      setFollowing: (following) => set({ following }),
       setOwnerUid: (uid) => set({ ownerUid: uid }),
       setSyncedUid: (uid) => set({ syncedUid: uid }),
       reset: () =>
@@ -98,6 +136,9 @@ export const useMediaStore = create<MediaState>()(
           mediaList: [],
           collections: [],
           picks: emptyPicks(),
+          goals: emptyGoals(),
+          subscriptions: emptySubscriptions(),
+          following: emptyFollowing(),
           ownerUid: null,
           syncedUid: null,
         }),
@@ -119,7 +160,7 @@ export const useMediaStore = create<MediaState>()(
         set((state) => ({
           mediaList: mapMedia(state.mediaList, tmdbId, (media) => ({
             ...media,
-            status,
+            ...withArchive({ status }),
           })),
         })),
 
@@ -127,8 +168,15 @@ export const useMediaStore = create<MediaState>()(
         set((state) => ({
           mediaList: mapMedia(state.mediaList, tmdbId, (media) => ({
             ...media,
-            ...patch,
+            ...withArchive(patch),
           })),
+        })),
+
+      enrichMedia: (tmdbId, patch) =>
+        set((state) => ({
+          mediaList: state.mediaList.map((media) =>
+            media.tmdbId === tmdbId ? { ...media, ...patch } : media,
+          ),
         })),
 
       addWatchEntry: (tmdbId, entry) =>
@@ -137,7 +185,10 @@ export const useMediaStore = create<MediaState>()(
             ...media,
             // Al frente: el historial va de lo más reciente a lo más viejo.
             history: [entry, ...(media.history ?? [])],
-            status: 'completada',
+            // Reseñar algo abandonado no lo termina: es opinar de lo que viste.
+            ...(media.status === 'abandonada'
+              ? {}
+              : withArchive({ status: 'completada' })),
           })),
         })),
 
@@ -161,7 +212,11 @@ export const useMediaStore = create<MediaState>()(
               history: history.length > 0 ? history : undefined,
               // Borrar el último visionado deja el título como "viendo": lo
               // tenías, lo abriste, pero ya no consta que lo hayas terminado.
-              status: history.length > 0 ? 'completada' : 'viendo',
+              // Uno archivado se queda donde está: borrar una reseña no lo
+              // saca de la pausa ni lo retoma.
+              ...(isArchivedStatus(media.status)
+                ? {}
+                : { status: history.length > 0 ? 'completada' : 'viendo' }),
             };
           }),
         })),
@@ -224,7 +279,13 @@ export const useMediaStore = create<MediaState>()(
        */
       merge: (persisted, current) => {
         const state = { ...current, ...(persisted as Partial<MediaState>) };
-        return { ...state, picks: parsePicks(state.picks) };
+        return {
+          ...state,
+          picks: parsePicks(state.picks),
+          goals: parseGoals(state.goals),
+          subscriptions: parseSubscriptions(state.subscriptions),
+          following: parseFollowing(state.following),
+        };
       },
       /**
        * Migra lo que ya estaba guardado en el dispositivo.
@@ -249,6 +310,9 @@ export const useMediaStore = create<MediaState>()(
             .map(parseCollection)
             .filter((collection): collection is Collection => collection !== null),
           picks: parsePicks(state?.picks),
+          goals: parseGoals(state?.goals),
+          subscriptions: parseSubscriptions(state?.subscriptions),
+          following: parseFollowing(state?.following),
         } as MediaState;
       },
     },

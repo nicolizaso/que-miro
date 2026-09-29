@@ -18,7 +18,11 @@ import {
 } from '@/lib/backup';
 import { clearRescue, readRescue } from '@/lib/rescue';
 import { useTastePicks } from '@/hooks/useTastePicks';
+import { useGoals } from '@/hooks/useGoals';
+import { useSubscriptions } from '@/hooks/useSubscriptions';
+import { useFollowing } from '@/hooks/useFollowing';
 import { formatWatchDate } from '@/lib/dates';
+import { ImportDialog } from '@/components/ImportDialog';
 
 type PendingDialog = 'import' | 'clear' | 'delete' | null;
 
@@ -31,12 +35,16 @@ type PendingDialog = 'import' | 'clear' | 'delete' | null;
 export function DataSettings() {
   const { mediaList, collections } = useMediaStore();
   const { picks, savePicks } = useTastePicks();
+  const { goals, replaceGoals } = useGoals();
+  const { subscriptions, replaceSubscriptions } = useSubscriptions();
+  const { following, replaceFollowing } = useFollowing();
   const { authState } = useAuth();
   const { showToast } = useToast();
   const { saveMany } = useMediaActions();
   const { clearLibrary, deleteAccount } = useAccountActions();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportingOther, setIsImportingOther] = useState(false);
   const [dialog, setDialog] = useState<PendingDialog>(null);
   const [isPending, setIsPending] = useState(false);
   // Se guarda el archivo elegido para confirmarlo antes de tocar la biblioteca.
@@ -51,7 +59,11 @@ export function DataSettings() {
   const handleExportJson = () => {
     downloadFile(
       backupFilename('json'),
-      JSON.stringify(buildBackup(mediaList, collections, picks), null, 2),
+      JSON.stringify(
+        buildBackup(mediaList, collections, picks, goals, subscriptions, following),
+        null,
+        2,
+      ),
       'application/json',
     );
     showToast('Descargamos tu biblioteca en JSON.');
@@ -69,6 +81,9 @@ export function DataSettings() {
       media: rescue.media,
       collections: rescue.collections,
       picks: null,
+      goals: null,
+      subscriptions: null,
+      following: null,
       skipped: 0,
     });
     setDialog('import');
@@ -129,6 +144,28 @@ export function DataSettings() {
         Date.parse(incomingPicks.updatedAt) > Date.parse(picks.updatedAt)
       ) {
         savePicks(incomingPicks);
+      }
+      // Y las metas, igual.
+      const incomingGoals = pendingImport.goals;
+      if (
+        incomingGoals &&
+        Date.parse(incomingGoals.updatedAt) > Date.parse(goals.updatedAt)
+      ) {
+        replaceGoals(incomingGoals);
+      }
+      const incomingSubscriptions = pendingImport.subscriptions;
+      if (
+        incomingSubscriptions &&
+        Date.parse(incomingSubscriptions.updatedAt) > Date.parse(subscriptions.updatedAt)
+      ) {
+        replaceSubscriptions(incomingSubscriptions);
+      }
+      const incomingFollowing = pendingImport.following;
+      if (
+        incomingFollowing &&
+        Date.parse(incomingFollowing.updatedAt) > Date.parse(following.updatedAt)
+      ) {
+        replaceFollowing(incomingFollowing);
       }
 
       showToast(
@@ -266,7 +303,22 @@ export function DataSettings() {
           El JSON se puede volver a importar; el CSV es para abrir en una
           planilla.
         </p>
+
+        <button
+          type="button"
+          onClick={() => setIsImportingOther(true)}
+          disabled={isDemo}
+          title={isDemo ? 'No disponible mientras estás en el demo' : undefined}
+          className="flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <FileUp size={16} aria-hidden="true" />
+          Importar de Letterboxd, IMDb o Trakt
+        </button>
       </div>
+
+      {isImportingOther && (
+        <ImportDialog isOpen onClose={() => setIsImportingOther(false)} />
+      )}
 
       <div className="surface p-4 flex flex-col gap-3">
         <button

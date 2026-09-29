@@ -1,23 +1,42 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getMediaDetail,
   TMDB_IMAGE_BASE_URL,
   TMDB_IMAGE_ORIGINAL_URL,
+  TMDB_LOGO_URL,
 } from '@/lib/tmdb';
+import { canonicalGenreNames } from '@/lib/genres';
 import { MediaStatus, SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
-import { X, Play, AlertCircle, Check, Loader2, Plus } from 'lucide-react';
+import {
+  X,
+  Play,
+  AlertCircle,
+  Check,
+  ExternalLink,
+  Loader2,
+  Plus,
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
 import { ScrollRail } from '@/components/ui/ScrollRail';
 import { SeriesProgress } from '@/components/SeriesProgress';
 import { CollectionPicker } from '@/components/CollectionPicker';
+import { StatusActions } from '@/components/StatusActions';
+import { NotifyToggle } from '@/components/NotifyToggle';
 import { WatchHistory } from '@/components/WatchHistory';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { ShareButton } from '@/components/ShareButton';
+import { JustWatchCredit } from '@/components/Attribution';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
 import { enrichFromDetail, isStale } from '@/lib/enrich';
-import { pickProviders } from '@/lib/providers';
+import { ProviderLogo, pickProviders } from '@/lib/providers';
+import { paysFor, subscribedNames } from '@/lib/subscriptions';
+import { newEpisodesSummary } from '@/lib/progress';
+import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
+import { cn } from '@/lib/utils';
+import { useMediaStore } from '@/store';
 import { getRegionName, usePreferences } from '@/preferences';
 
 interface Props {
@@ -44,12 +63,6 @@ function seasonsFromDetail(detail: TMDbDetail | null): SeasonInfo[] {
     }));
 }
 
-const STATUS_LABELS: Record<MediaStatus, string> = {
-  por_ver: 'Por Ver',
-  viendo: 'Viendo',
-  completada: 'Completada',
-};
-
 /**
  * Las dos listas a las que se llega de un clic desde la ficha.
  *
@@ -65,12 +78,65 @@ const QUICK_ADD: { status: MediaStatus; listName: string }[] = [
   { status: 'completada', listName: 'Completadas' },
 ];
 
+/**
+ * Un grupo de plataformas —incluidas o de alquiler— con sus logos. Las que
+ * pagás llevan un anillo y lo dicen: es lo que responde "¿lo puedo ver ya?".
+ */
+function ProviderGroup({
+  label,
+  providers,
+  subscribed,
+}: {
+  label: string;
+  providers: ProviderLogo[];
+  subscribed: Set<string>;
+}) {
+  if (providers.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-eyebrow text-text-subtle">{label}</span>
+      <ul className="flex flex-wrap gap-3">
+        {providers.slice(0, 6).map((provider) => {
+          const isMine = paysFor(subscribed, provider.provider_name);
+          return (
+            <li
+              key={provider.provider_name}
+              className="flex flex-col items-center gap-1 w-14"
+              title={provider.provider_name}
+            >
+              <span
+                className={cn(
+                  'block w-12 h-12 rounded-control bg-border-card overflow-hidden',
+                  isMine && 'ring-2 ring-accent ring-offset-2 ring-offset-bg-card',
+                )}
+              >
+                <img
+                  src={`${TMDB_LOGO_URL}${provider.logo_path}`}
+                  alt={isMine ? `${provider.provider_name} (la pagás)` : provider.provider_name}
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+              </span>
+              {isMine && (
+                <span aria-hidden="true" className="text-[10px] font-medium text-accent">
+                  La pagás
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Props) {
   const [detail, setDetail] = useState<TMDbDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const preferredRegion = usePreferences((state) => state.region);
-  const { addMedia, patchMedia } = useMediaActions();
+  const { addMedia, applyEnrichment, updateStatus } = useMediaActions();
   const { showToast } = useToast();
   /**
    * Lo que se acaba de guardar desde acá, hasta que el store lo devuelva.
@@ -124,12 +190,13 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   }, [id, mediaType, isOpen]);
 
   /**
-   * Completa los datos que el título no tenía cacheados.
+   * Completa los datos que el título no tenía cacheados, o que envejecieron.
    *
    * Cubre a los que se guardaron antes de que existieran las plataformas y las
-   * temporadas, y a los que quedaron con el catálogo de otro país. Como la
-   * ficha ya se pidió para mostrar el modal, sale gratis: es una escritura, sin
-   * llamada extra a TMDB.
+   * temporadas, a los que quedaron con el catálogo o el idioma de otro país, y
+   * a los que pasaron su fecha de vencimiento. Como la ficha ya se pidió para
+   * mostrar el modal, sale gratis: es una escritura, sin llamada extra a TMDB,
+   * y no mueve el título de lugar en la lista.
    */
   useEffect(() => {
     if (!detail || !media) return;
@@ -137,9 +204,9 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
     if (!isStale(media, preferredRegion)) return;
 
     backfilled.current = media.tmdbId;
-    void patchMedia(media.tmdbId, enrichFromDetail(detail, preferredRegion));
-    // `patchMedia` cambia de identidad en cada render del hook, así que queda
-    // afuera: lo que dispara este efecto es que llegue la ficha.
+    applyEnrichment(media, enrichFromDetail(detail, preferredRegion));
+    // `applyEnrichment` cambia de identidad en cada render del hook, así que
+    // queda afuera: lo que dispara este efecto es que llegue la ficha.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail, media, preferredRegion]);
 
@@ -160,11 +227,14 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   const cast = detail?.credits?.cast?.slice(0, 5) ?? [];
 
   const picked = pickProviders(detail, preferredRegion);
-  const allProviders = picked?.providers.slice(0, 4) ?? [];
+  const allProviders = picked?.providers ?? [];
+  const subscriptions = useMediaStore((state) => state.subscriptions);
+  const subscribed = subscribedNames(subscriptions);
 
   // El store manda; `justSaved` solo cubre el instante entre guardar y que el
   // título vuelva desde ahí.
   const saved = media ?? justSaved;
+  const news = saved?.mediaType === 'tv' ? newEpisodesSummary(saved) : null;
 
   const title = detail?.title || detail?.name || saved?.title || '';
   // Las cacheadas ganan: reflejan lo que la persona vio cuando marcó episodios.
@@ -191,7 +261,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
       releaseYear: (detail.release_date || detail.first_air_date || '').split(
         '-',
       )[0],
-      genres: detail.genres?.map((genre) => genre.name) ?? [],
+      genres: canonicalGenreNames(detail.genres),
       status,
       ...(collections?.length ? { collections } : {}),
       ...enrichFromDetail(detail, preferredRegion),
@@ -329,13 +399,47 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                 <div className="flex flex-col gap-3">
                   <h3 className="text-section">Tu biblioteca</h3>
                   {saved ? (
-                    <p className="text-sm text-text-muted">
-                      Ya está en tu biblioteca, en{' '}
-                      <strong className="text-text-main">
-                        {STATUS_LABELS[saved.status]}
-                      </strong>
-                      .
-                    </p>
+                    <>
+                      <p className="text-sm text-text-muted">
+                        Ya está en tu biblioteca, en{' '}
+                        <strong className="text-text-main">
+                          {isArchivedStatus(saved.status)
+                            ? 'Archivadas'
+                            : STATUS_LABELS[saved.status]}
+                        </strong>
+                        .
+                      </p>
+                      {/* El aviso ofrece volver a Viendo, pero no la mueve
+                          solo: puede que la persona quiera esperar a que
+                          salga la temporada entera. */}
+                      {news && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-accent/30 bg-accent/10 px-4 py-3">
+                          <p className="text-sm text-text-main">
+                            <strong className="text-accent">{news.label}</strong>{' '}
+                            {saved.status === 'completada'
+                              ? 'desde que la terminaste.'
+                              : 'desde la última vez que estabas al día.'}
+                          </p>
+                          {/* Una en pausa ya ofrece "Retomar" abajo: dos
+                              botones que hacen lo mismo se leen como dos
+                              cosas distintas. */}
+                          {saved.status !== 'viendo' && !isArchivedStatus(saved.status) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void updateStatus(saved.tmdbId, 'viendo');
+                                showToast(`"${saved.title}" volvió a Viendo.`);
+                              }}
+                              className="btn btn-primary px-3 py-2 text-sm"
+                            >
+                              Pasar a Viendo
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <StatusActions media={saved} />
+                      <NotifyToggle media={saved} />
+                    </>
                   ) : (
                     <ul className="flex flex-wrap gap-2">
                       {QUICK_ADD.map(({ status, listName }) => (
@@ -457,23 +561,31 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                       header={<h3 className="text-lg font-bold">Reparto Principal</h3>}
                     >
                       {cast.map((c) => (
-                        <li
-                          key={c.id}
-                          className="rail-item flex flex-col gap-2 w-20 shrink-0"
-                        >
-                          <div className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0 shadow-card">
-                            {c.profile_path && (
-                              <img
-                                src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`}
-                                alt=""
-                                loading="lazy"
-                                className="w-full h-full object-cover"
-                              />
-                            )}
-                          </div>
-                          <span className="text-xs text-center font-medium leading-tight truncate">
-                            {c.name}
-                          </span>
+                        <li key={c.id} className="rail-item w-20 shrink-0">
+                          {/* Un enlace de verdad y no un botón: la página de la
+                              persona tiene su dirección, así que "atrás" vuelve
+                              adonde estabas y se puede abrir en otra pestaña.
+                              La ficha se cierra al salir: queda atrás, no
+                              encima de la página nueva. */}
+                          <Link
+                            to={`/persona/${c.id}`}
+                            onClick={onClose}
+                            className="group flex flex-col gap-2 rounded-control"
+                          >
+                            <span className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0 shadow-card ring-2 ring-transparent group-hover:ring-accent transition-[box-shadow]">
+                              {c.profile_path && (
+                                <img
+                                  src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`}
+                                  alt=""
+                                  loading="lazy"
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                            </span>
+                            <span className="text-xs text-center font-medium leading-tight truncate group-hover:text-accent">
+                              {c.name}
+                            </span>
+                          </Link>
                         </li>
                       ))}
                     </ScrollRail>
@@ -490,22 +602,38 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                           cambiar el país en tu perfil.
                         </p>
                       )}
-                      <ul className="flex gap-3 mt-3">
-                        {allProviders.map((p) => (
-                          <li
-                            key={p.provider_name}
-                            className="w-12 h-12 rounded-control bg-border-card overflow-hidden shrink-0"
-                            title={p.provider_name}
+                      {/* Incluido primero y aparte: "está en Prime Video" podía
+                          ser incluido o alquiler, y para decidir qué ver esta
+                          noche son dos respuestas opuestas. */}
+                      <div className="flex flex-col gap-4 mt-3">
+                        <ProviderGroup
+                          label="Incluido en"
+                          providers={picked.included}
+                          subscribed={subscribed}
+                        />
+                        <ProviderGroup
+                          label="Alquiler o compra"
+                          providers={picked.rentOrBuy}
+                          subscribed={subscribed}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-3">
+                        {/* La API da nombres y logos, pero los enlaces a cada
+                            plataforma viven en la página de TMDB. */}
+                        {picked.link && (
+                          <a
+                            href={picked.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline underline-offset-4"
                           >
-                            <img
-                              src={`${TMDB_IMAGE_BASE_URL}${p.logo_path}`}
-                              alt={p.provider_name}
-                              loading="lazy"
-                              className="w-full h-full object-cover"
-                            />
-                          </li>
-                        ))}
-                      </ul>
+                            Ver dónde verlo
+                            <ExternalLink size={14} aria-hidden="true" />
+                            <span className="sr-only">(se abre en TMDB)</span>
+                          </a>
+                        )}
+                        <JustWatchCredit />
+                      </div>
                     </div>
                   )}
 

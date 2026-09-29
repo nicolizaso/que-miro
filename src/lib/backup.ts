@@ -1,6 +1,14 @@
-import { Collection, SavedMedia, TastePicks } from '@/types';
-import { SCHEMA_VERSION, parseCollection, parseMediaList } from '@/lib/schema';
+import { Collection, Following, Goals, SavedMedia, Subscriptions, TastePicks } from '@/types';
+import {
+  SCHEMA_VERSION,
+  parseCollection,
+  parseMediaList,
+  toStoredMedia,
+} from '@/lib/schema';
 import { hasPicks, parsePicks } from '@/lib/picks';
+import { hasGoals, parseGoals } from '@/lib/goals';
+import { hasSubscriptions, parseSubscriptions } from '@/lib/subscriptions';
+import { hasFollowing, parseFollowing } from '@/lib/following';
 import { progressPercent, watchedEpisodes } from '@/lib/progress';
 
 export { SCHEMA_VERSION };
@@ -10,10 +18,20 @@ export interface LibraryBackup {
   app: 'que-miro';
   version: number;
   exportedAt: string;
-  media: SavedMedia[];
+  /**
+   * Los títulos, en el formato de Firestore (ver `toStoredMedia`) y no en el
+   * del store: es lo que entiende también una versión vieja de la app.
+   */
+  media: Record<string, unknown>[];
   collections?: Collection[];
   /** Las respuestas de "Contanos de vos", si había alguna. */
   picks?: TastePicks;
+  /** Las metas por año, si había alguna. */
+  goals?: Goals;
+  /** Las plataformas que se pagan, si había alguna. */
+  subscriptions?: Subscriptions;
+  /** Los perfiles que se siguen, si había alguno. */
+  following?: Following;
 }
 
 /** Error de importación con un mensaje pensado para mostrarle a la persona. */
@@ -28,17 +46,26 @@ export function buildBackup(
   media: SavedMedia[],
   collections: Collection[] = [],
   picks?: TastePicks,
+  goals?: Goals,
+  subscriptions?: Subscriptions,
+  following?: Following,
 ): LibraryBackup {
   return {
     app: 'que-miro',
     version: SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
-    media,
+    // Con el mismo formato que Firestore: un backup de esta versión que se
+    // importa en una vieja deja lo archivado en Viendo, en vez de en Por Ver.
+    media: media.map(toStoredMedia),
     collections,
     // Un cuestionario en blanco no se escribe: el archivo no gana nada con
     // siete campos vacíos adentro, y el importador lo trataría como una
     // respuesta más.
     ...(picks && hasPicks(picks) ? { picks } : {}),
+    // Lo mismo con las metas: sin ninguna, no van.
+    ...(goals && hasGoals(goals) ? { goals } : {}),
+    ...(subscriptions && hasSubscriptions(subscriptions) ? { subscriptions } : {}),
+    ...(following && hasFollowing(following) ? { following } : {}),
   };
 }
 
@@ -47,6 +74,12 @@ export interface ParsedBackup {
   collections: Collection[];
   /** `null` si el archivo no traía cuestionario: un backup de antes de QM-3. */
   picks: TastePicks | null;
+  /** `null` si no traía metas. */
+  goals: Goals | null;
+  /** `null` si no traía suscripciones. */
+  subscriptions: Subscriptions | null;
+  /** `null` si no traía perfiles seguidos. */
+  following: Following | null;
   /** Títulos descartados por estar incompletos o corruptos. */
   skipped: number;
 }
@@ -93,8 +126,20 @@ export function parseBackup(contents: string): ParsedBackup {
     : [];
 
   const picks = raw.picks === undefined ? null : parsePicks(raw.picks);
+  const goals = raw.goals === undefined ? null : parseGoals(raw.goals);
+  const subscriptions =
+    raw.subscriptions === undefined ? null : parseSubscriptions(raw.subscriptions);
+  const following = raw.following === undefined ? null : parseFollowing(raw.following);
 
-  return { media, collections, picks: picks && hasPicks(picks) ? picks : null, skipped };
+  return {
+    media,
+    collections,
+    picks: picks && hasPicks(picks) ? picks : null,
+    goals: goals && hasGoals(goals) ? goals : null,
+    subscriptions: subscriptions && hasSubscriptions(subscriptions) ? subscriptions : null,
+    following: following && hasFollowing(following) ? following : null,
+    skipped,
+  };
 }
 
 export interface MergeResult {
@@ -140,6 +185,7 @@ const CSV_HEADERS = [
   'estado',
   'generos',
   'plataformas',
+  'incluido_en',
   'veces_visto',
   'puntaje',
   'tags',
@@ -174,6 +220,7 @@ export function toCsv(media: SavedMedia[]): string {
       csvCell(item.status),
       csvCell(item.genres.join(', ')),
       csvCell(item.providers?.join(', ')),
+      csvCell(item.streaming?.join(', ')),
       csvCell(item.history?.length ?? 0),
       csvCell(latest?.rating),
       csvCell(latest?.tags?.join(', ')),

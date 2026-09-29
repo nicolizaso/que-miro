@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, FolderPlus, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import { Check, FolderPlus, Globe, Loader2, Pencil, Share2, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMediaStore } from '@/store';
 import {
@@ -8,6 +8,9 @@ import {
 } from '@/hooks/useCollectionActions';
 import { useToast } from '@/contexts/ToastContext';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ShareListDialog } from '@/components/ShareListDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { isFirebaseConfigured } from '@/lib/firebase';
 
 /** Administración de las listas propias: crear, renombrar y borrar. */
 export function CollectionsSettings() {
@@ -22,6 +25,11 @@ export function CollectionsSettings() {
   const [editingName, setEditingName] = useState('');
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const { authState } = useAuth();
+  // Publicar necesita cuenta: la instantánea lleva el uid de quien la publica.
+  const canShare = isFirebaseConfigured && authState === 'authenticated';
+  const sharing = collections.find((collection) => collection.id === sharingId);
 
   const countIn = (id: string) =>
     mediaList.filter((media) => media.collections?.includes(id)).length;
@@ -127,7 +135,24 @@ export function CollectionsSettings() {
                     <span className="text-text-subtle">
                       ({count} {count === 1 ? 'título' : 'títulos'})
                     </span>
+                    {collection.publicId && (
+                      <Globe
+                        size={12}
+                        className="inline ml-1.5 text-accent align-[-1px]"
+                        aria-label="Publicada"
+                      />
+                    )}
                   </Link>
+                  {canShare && (
+                    <button
+                      type="button"
+                      onClick={() => setSharingId(collection.id)}
+                      aria-label={`Compartir ${collection.name}`}
+                      className="p-2 rounded-lg text-text-subtle hover:text-text-main hover:bg-border-card transition-colors"
+                    >
+                      <Share2 size={14} aria-hidden="true" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -177,6 +202,10 @@ export function CollectionsSettings() {
         </form>
       </div>
 
+      {sharing && (
+        <ShareListDialog collection={sharing} isOpen onClose={() => setSharingId(null)} />
+      )}
+
       <ConfirmDialog
         isOpen={pendingDelete !== null}
         title="Borrar la lista"
@@ -195,6 +224,8 @@ export function CollectionsSettings() {
               </>
             )}
             . Los títulos siguen en tu biblioteca con sus reseñas intactas.
+            {collections.find((collection) => collection.id === pendingDelete)?.publicId &&
+              ' Como estaba publicada, su link deja de andar.'}
           </p>
         }
       />

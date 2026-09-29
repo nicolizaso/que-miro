@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Shuffle, X } from 'lucide-react';
+import { Shuffle, X, Zap } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { SavedMedia } from '@/types';
 import { useMediaStore } from '@/store';
 import { MediaCard } from '@/components/MediaCard';
 import { ShareButton } from '@/components/ShareButton';
+import { JustWatchCredit } from '@/components/Attribution';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { collectGenres, collectProviders, collectTags } from '@/lib/library';
 import {
@@ -18,6 +19,7 @@ import {
 } from '@/lib/picker';
 import { MediaType } from '@/types';
 import { cn } from '@/lib/utils';
+import { hasSubscriptions, subscribedNames } from '@/lib/subscriptions';
 
 /** Cuánto dura la vuelta de la ruleta. */
 const SPIN_MS = 1400;
@@ -32,8 +34,25 @@ const FRAME_MS = 90;
  * ahora se ve de dónde sale el resultado. Para quien pidió menos movimiento en
  * su sistema, el sorteo es instantáneo.
  */
-export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
-  const collections = useMediaStore((state) => state.collections);
+export function PickerRoulette({
+  pending,
+  together,
+}: {
+  pending: SavedMedia[];
+  /**
+   * Para sortear con otra persona ("¿Qué miramos juntos?"): el filtro de
+   * plataformas pasa a ser "de los dos", los de la biblioteca propia —listas,
+   * ánimo— no se ofrecen, y el resultado se muestra y se comparte distinto.
+   */
+  together?: {
+    name: string;
+    /** Las plataformas que pagan los dos, normalizadas. Vacío: sin el filtro. */
+    shared: Set<string>;
+    renderResult: (picked: SavedMedia) => React.ReactNode;
+  };
+}) {
+  const ownCollections = useMediaStore((state) => state.collections);
+  const collections = together ? [] : ownCollections;
   const reduceMotion = useReducedMotion();
 
   const [filters, setFilters] = useState<PickerFilters>(EMPTY_PICKER_FILTERS);
@@ -45,8 +64,17 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
 
   const genres = useMemo(() => collectGenres(pending), [pending]);
   const providers = useMemo(() => collectProviders(pending), [pending]);
-  const tags = useMemo(() => collectTags(pending), [pending]);
-  const pool = useMemo(() => candidates(pending, filters), [pending, filters]);
+  const tags = useMemo(() => (together ? [] : collectTags(pending)), [pending, together]);
+  const subscriptions = useMediaStore((state) => state.subscriptions);
+  const subscribed = useMemo(
+    () => together?.shared ?? subscribedNames(subscriptions),
+    [subscriptions, together],
+  );
+  const canFilterAvailable = together ? together.shared.size > 0 : hasSubscriptions(subscriptions);
+  const pool = useMemo(
+    () => candidates(pending, filters, subscribed),
+    [pending, filters, subscribed],
+  );
 
   useEffect(
     () => () => {
@@ -86,7 +114,9 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
     setPicked(null);
   };
 
-  const isFiltered = Object.values(filters).some((value) => value !== null);
+  const isFiltered = Object.values(filters).some(
+    (value) => value !== null && value !== false,
+  );
 
   const spinning = pool[frame % Math.max(pool.length, 1)];
 
@@ -202,6 +232,28 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
           )}
         </div>
 
+        {/* Solo con suscripciones marcadas: sin ellas, "lo que puedo ver
+            ya" no tiene contra qué compararse. De a dos, con las que pagan
+            los dos. */}
+        {canFilterAvailable && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              aria-pressed={filters.availableNow}
+              onClick={() => setFilters((f) => ({ ...f, availableNow: !f.availableNow }))}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
+                filters.availableNow
+                  ? 'bg-accent text-accent-contrast border-accent font-medium'
+                  : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
+              )}
+            >
+              <Zap size={16} aria-hidden="true" />
+              {together ? 'En plataformas de los dos' : 'Lo que puedo ver ya'}
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-center gap-3 text-sm">
           <p aria-live="polite" className="text-text-muted">
             {pool.length === 0
@@ -218,6 +270,11 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
             </button>
           )}
         </div>
+
+        {/* Sortear por plataforma es usar los datos de JustWatch. */}
+        {(filters.provider || filters.availableNow) && (
+          <JustWatchCredit className="text-center" />
+        )}
       </div>
 
       {isSpinning ? (
@@ -268,20 +325,24 @@ export function PickerRoulette({ pending }: { pending: SavedMedia[] }) {
       ) : (
         <div className="flex flex-col items-center w-full max-w-sm">
           <p aria-live="polite" className="sr-only">
-            Te tocó {picked.title}
+            {together ? `Les tocó ${picked.title}` : `Te tocó ${picked.title}`}
           </p>
           <div className="w-full mb-4">
-            <MediaCard media={picked} />
+            {together ? together.renderResult(picked) : <MediaCard media={picked} />}
           </div>
           <ShareButton
             className="mb-4"
             label="Compartir"
             title="Qué Miro?"
-            text={`Esta noche me toca ${picked.title}.`}
+            text={
+              together
+                ? `Esta noche vemos ${picked.title} con ${together.name}.`
+                : `Esta noche me toca ${picked.title}.`
+            }
             card={{
-              eyebrow: 'Me tocó',
+              eyebrow: together ? 'Esta noche vemos' : 'Me tocó',
               headline: picked.title,
-              subline: [picked.releaseYear, picked.genres[0]]
+              subline: [together ? `Con ${together.name}` : null, picked.releaseYear, picked.genres[0]]
                 .filter(Boolean)
                 .join(' · '),
             }}

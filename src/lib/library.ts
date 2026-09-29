@@ -1,7 +1,20 @@
 import { MediaStatus, MediaType, SavedMedia } from '@/types';
 import { latestRating } from '@/lib/schema';
-import { progressPercent } from '@/lib/progress';
+import { hasNewEpisodes, progressPercent } from '@/lib/progress';
 import { scoreOf } from '@/lib/duel';
+import { isArchivedStatus } from '@/lib/archive';
+import { isAvailableNow } from '@/lib/subscriptions';
+
+/**
+ * Qué se está mirando de la biblioteca: una de las tres pestañas, uno de los
+ * dos estados archivados, o `archivadas`, que son los dos juntos.
+ */
+export type LibraryStatus = MediaStatus | 'archivadas';
+
+/** Si un título entra en lo que se está mirando. */
+export function matchesStatus(media: SavedMedia, status: LibraryStatus): boolean {
+  return status === 'archivadas' ? isArchivedStatus(media.status) : media.status === status;
+}
 
 export type SortOption =
   | 'recientes'
@@ -23,7 +36,7 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 export const DEFAULT_SORT: SortOption = 'recientes';
 
 export interface LibraryFilters {
-  status: MediaStatus;
+  status: LibraryStatus;
   /** Búsqueda de texto sobre el título. */
   query: string;
   /** Nombre exacto de un género, o `null` para todos. */
@@ -36,6 +49,10 @@ export interface LibraryFilters {
   collection: string | null;
   /** Etiqueta de ánimo de alguna reseña del título. */
   tag: string | null;
+  /** Solo las series con episodios nuevos que todavía no viste. */
+  onlyNew: boolean;
+  /** Solo lo que está incluido en alguna plataforma que pagás. */
+  availableNow: boolean;
   sort: SortOption;
 }
 
@@ -46,6 +63,8 @@ export const EMPTY_FILTERS: Omit<LibraryFilters, 'status'> = {
   provider: null,
   collection: null,
   tag: null,
+  onlyNew: false,
+  availableNow: false,
   sort: DEFAULT_SORT,
 };
 
@@ -147,12 +166,14 @@ function compare(a: SavedMedia, b: SavedMedia, sort: SortOption): number {
 export function filterLibrary(
   list: SavedMedia[],
   filters: LibraryFilters,
+  /** Las plataformas que se pagan (ver `subscribedNames`), para "Lo que puedo ver ya". */
+  subscribed: Set<string> = new Set(),
 ): SavedMedia[] {
   const query = normalizeText(filters.query);
 
   return list
     .filter((media) => {
-      if (media.status !== filters.status) return false;
+      if (!matchesStatus(media, filters.status)) return false;
       if (filters.type && media.mediaType !== filters.type) return false;
       if (filters.genre && !media.genres.includes(filters.genre)) return false;
       if (filters.provider && !media.providers?.includes(filters.provider)) {
@@ -170,6 +191,8 @@ export function filterLibrary(
       ) {
         return false;
       }
+      if (filters.onlyNew && !hasNewEpisodes(media)) return false;
+      if (filters.availableNow && !isAvailableNow(media, subscribed)) return false;
       if (query && !normalizeText(media.title).includes(query)) return false;
       return true;
     })
@@ -185,6 +208,8 @@ export function hasActiveFilters(filters: LibraryFilters): boolean {
     filters.provider !== null ||
     filters.collection !== null ||
     filters.tag !== null ||
+    filters.onlyNew ||
+    filters.availableNow ||
     filters.sort !== DEFAULT_SORT
   );
 }

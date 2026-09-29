@@ -1,39 +1,343 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Star } from 'lucide-react';
-import { SavedMedia, SeasonInfo } from '@/types';
+import { MediaStatus, SavedMedia, SeasonInfo, TMDbEpisode } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
+import { useSeasonDetail } from '@/hooks/useSeasonDetail';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
+import { StarRatingInput, formatRating, ratingLabel } from '@/components/ui/StarRating';
 import {
+  RatedEpisode,
+  airedBoundary,
+  airedEpisodes,
+  airedInSeason,
+  episodeHighlights,
+  episodeRating,
   formatEpisode,
+  hasWatchedAllAired,
+  isCaughtUp,
   isEpisodeWatched,
-  isSeriesComplete,
+  isStillAiring,
   nextEpisode,
   progressPercent,
+  rateEpisode,
   toggleEpisode,
   toggleSeason,
   totalEpisodes,
+  watchedAiredEpisodes,
   watchedEpisodes,
-  watchedInSeason,
 } from '@/lib/progress';
+import {
+  episodeTypeLabel,
+  isEpisodeAired,
+  seasonTotalRuntime,
+  withSeasonRuntime,
+} from '@/lib/episodes';
+import { TMDB_STILL_URL } from '@/lib/tmdb';
+import { watchCount } from '@/lib/schema';
+import { formatDay, formatShortDay, toDayKey } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 
-/** Una temporada, con su grilla de episodios. */
+/** El botón que marca un episodio, igual en la grilla y en la lista. */
+function EpisodeToggle({
+  episode,
+  seasonName,
+  watched,
+  disabled = false,
+  title,
+  onToggle,
+}: {
+  episode: number;
+  seasonName: string;
+  watched: boolean;
+  disabled?: boolean;
+  title?: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={watched}
+      aria-label={`Episodio ${episode} de ${seasonName}`}
+      title={title}
+      disabled={disabled}
+      onClick={onToggle}
+      className={cn(
+        'w-9 h-9 shrink-0 rounded-lg border text-xs font-medium transition-colors',
+        'disabled:opacity-40 disabled:cursor-not-allowed',
+        watched
+          ? 'bg-accent text-accent-contrast border-accent'
+          : 'bg-bg-main border-border-card text-text-muted hover:text-text-main hover:border-text-subtle',
+      )}
+    >
+      {episode}
+    </button>
+  );
+}
+
+/**
+ * El puntaje de un episodio visto: cerrado, un botón chico con las
+ * estrellas que le pusiste; abierto, las cinco para elegir.
+ *
+ * Plegado a propósito. Cinco estrellas con medias estrellas en cada fila de
+ * una temporada de diez son cien blancos de ocho píxeles: imposibles de
+ * acertar con el dedo, y una pared de estrellas que tapa la lista. Así cada
+ * fila suma un renglón chico y las estrellas aparecen del tamaño que hace
+ * falta, de a una fila por vez.
+ */
+function EpisodeRatingControl({
+  label,
+  rating,
+  onRate,
+}: {
+  label: string;
+  rating: number | undefined;
+  onRate: (rating: number) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+
+  // El foco acompaña: al abrir va a las estrellas, al cerrar vuelve al botón.
+  // Sin esto, quien usa teclado queda parado en un elemento que ya no existe.
+  useEffect(() => {
+    if (isOpen) {
+      panelRef.current
+        ?.querySelector<HTMLInputElement>('input:checked, input')
+        ?.focus();
+    } else if (wasOpen.current) {
+      triggerRef.current?.focus();
+    }
+    wasOpen.current = isOpen;
+  }, [isOpen]);
+
+  if (isOpen) {
+    return (
+      <div ref={panelRef} className="mt-2 flex flex-wrap items-start gap-x-4 gap-y-2">
+        <StarRatingInput
+          value={rating ?? 0}
+          onChange={onRate}
+          legend={`Tu puntaje para ${label}`}
+          size={28}
+          clearable
+          className="items-start gap-1"
+        />
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="btn btn-secondary px-3 py-1.5 text-xs"
+        >
+          Listo
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      ref={triggerRef}
+      type="button"
+      onClick={() => setIsOpen(true)}
+      aria-label={
+        rating
+          ? `Tu puntaje para ${label}: ${ratingLabel(rating)}. Cambiarlo`
+          : `Puntuar ${label}`
+      }
+      className="mt-1.5 inline-flex items-center gap-1 min-h-6 text-xs text-text-muted hover:text-text-main transition-colors"
+    >
+      <Star
+        size={12}
+        aria-hidden="true"
+        className={rating ? 'fill-accent text-accent' : undefined}
+      />
+      {rating ? formatRating(rating) : 'Puntuar'}
+    </button>
+  );
+}
+
+/**
+ * Un episodio con su ficha: nombre, fecha, duración e imagen.
+ *
+ * La sinopsis de lo que no viste queda escondida detrás de un botón. Es la
+ * regla anti-spoiler: quien abre la temporada para marcar el episodio de
+ * anoche no tiene por qué enterarse de qué pasa en el siguiente.
+ */
+function EpisodeRow({
+  episode,
+  seasonName,
+  watched,
+  rating,
+  today,
+  onToggle,
+  onRate,
+}: {
+  episode: TMDbEpisode;
+  seasonName: string;
+  watched: boolean;
+  rating: number | undefined;
+  today: string;
+  onToggle: () => void;
+  onRate: (rating: number) => void;
+}) {
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
+  const aired = isEpisodeAired(episode, today);
+  const typeLabel = episodeTypeLabel(episode.episode_type);
+
+  const when = episode.air_date
+    ? aired
+      ? formatShortDay(episode.air_date)
+      : `Sale el ${formatDay(episode.air_date)}`
+    : 'Sin fecha todavía';
+
+  const meta = [
+    when,
+    episode.runtime && `${episode.runtime} min`,
+    episode.vote_average > 0 &&
+      `${episode.vote_average.toFixed(1).replace('.', ',')} en TMDB`,
+  ].filter(Boolean);
+
+  return (
+    <li className="flex gap-3 py-3">
+      {/* Lo que todavía no salió no se puede marcar, salvo que ya estuviera
+          marcado: si no, no habría forma de desmarcarlo. */}
+      <EpisodeToggle
+        episode={episode.episode_number}
+        seasonName={seasonName}
+        watched={watched}
+        disabled={!aired && !watched}
+        title={!aired && !watched ? 'Todavía no salió' : undefined}
+        onToggle={onToggle}
+      />
+
+      <div className="hidden min-[420px]:block w-24 aspect-video shrink-0 rounded-md bg-border-card overflow-hidden">
+        {episode.still_path && (
+          <img
+            src={`${TMDB_STILL_URL}${episode.still_path}`}
+            alt=""
+            loading="lazy"
+            className={cn('w-full h-full object-cover', !aired && 'opacity-50')}
+          />
+        )}
+      </div>
+
+      <div className={cn('min-w-0 flex-1', !aired && 'text-text-subtle')}>
+        <p className="text-sm font-medium leading-snug">
+          {episode.name || `Episodio ${episode.episode_number}`}
+          {typeLabel && (
+            <span className="ml-2 inline-block align-middle rounded-full border border-accent/40 px-2 py-px text-[10px] font-medium uppercase tracking-wide text-accent">
+              {typeLabel}
+            </span>
+          )}
+        </p>
+        <p className="text-xs text-text-subtle mt-0.5">{meta.join(' · ')}</p>
+
+        {episode.overview &&
+          (watched || isOverviewOpen ? (
+            <p className="text-xs text-text-muted leading-relaxed mt-1.5">
+              {episode.overview}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsOverviewOpen(true)}
+              className="text-xs text-text-muted underline underline-offset-2 hover:text-text-main mt-1.5"
+            >
+              Mostrar sinopsis
+              <span className="sr-only">
+                {' '}
+                del episodio {episode.episode_number}
+              </span>
+            </button>
+          ))}
+
+        {/* Se puntúa lo que viste: lo demás no tiene con qué. */}
+        {watched && (
+          <div>
+            <EpisodeRatingControl
+              label={episode.name || `el episodio ${episode.episode_number}`}
+              rating={rating}
+              onRate={onRate}
+            />
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/** Mientras llegan los episodios: la forma de la lista, sin saltos. */
+function EpisodeSkeleton({ count }: { count: number }) {
+  return (
+    <ul aria-hidden="true" className="divide-y divide-border-card px-3">
+      {Array.from({ length: Math.min(count, 4) }, (_, index) => (
+        <li key={index} className="flex gap-3 py-3">
+          <span className="w-9 h-9 rounded-lg bg-border-card animate-pulse shrink-0" />
+          <span className="flex-1 flex flex-col gap-2 pt-1">
+            <span className="h-3 w-3/5 rounded bg-border-card animate-pulse" />
+            <span className="h-2.5 w-2/5 rounded bg-border-card animate-pulse" />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Una temporada: la lista de episodios, o su grilla de números.
+ *
+ * Al desplegarse pide sus episodios a TMDB. Mientras no llegan —o si no hay
+ * conexión, o TMDB no contesta— queda la grilla de números de siempre, que
+ * para marcar lo visto alcanza y no depende de nadie.
+ */
 function Season({
   media,
   season,
+  aired,
   defaultOpen,
   onToggleEpisode,
+  onRateEpisode,
   onToggleSeason,
+  onRuntimeKnown,
 }: {
   media: SavedMedia;
   season: SeasonInfo;
+  /** Cuántos episodios de la temporada ya salieron. */
+  aired: number;
   defaultOpen: boolean;
   onToggleEpisode: (seasonNumber: number, episode: number) => void;
+  onRateEpisode: (seasonNumber: number, episode: number, rating: number) => void;
   onToggleSeason: (season: SeasonInfo) => void;
+  /** Avisa cuánto dura la temporada entera, cuando se supo. */
+  onRuntimeKnown: (seasonNumber: number, totalRuntime: number) => void;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const seen = watchedInSeason(media.progress, season.seasonNumber);
-  const isComplete = seen >= season.episodeCount;
+  // Contra lo que salió: en una temporada en emisión, "4/10" en rojo dice que
+  // faltan seis que todavía nadie pudo ver.
+  const seen = (media.progress?.watched[season.seasonNumber] ?? []).filter(
+    (episode) => episode <= aired,
+  ).length;
+  const isComplete = aired > 0 && seen >= aired;
+  const upcoming = season.episodeCount - aired;
+  const { season: detail, status } = useSeasonDetail(
+    media.tmdbId,
+    season.seasonNumber,
+    isOpen,
+  );
+  const today = toDayKey(new Date());
+
+  const episodes = detail?.episodes ?? [];
+
+  // La duración se anota solo si la temporada trae los mismos episodios que
+  // la biblioteca cree que tiene: si no, la suma sería de otra temporada.
+  const totalRuntime =
+    episodes.length === season.episodeCount ? seasonTotalRuntime(episodes) : undefined;
+  useEffect(() => {
+    if (totalRuntime !== undefined && totalRuntime !== season.totalRuntime) {
+      onRuntimeKnown(season.seasonNumber, totalRuntime);
+    }
+    // `onRuntimeKnown` cambia en cada render del padre; lo que importa es el dato.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalRuntime, season.totalRuntime, season.seasonNumber]);
 
   return (
     <div className="border border-border-card rounded-control overflow-hidden">
@@ -56,49 +360,162 @@ function Season({
               isComplete ? 'text-status-completada' : 'text-text-subtle',
             )}
           >
-            {seen}/{season.episodeCount}
+            {seen}/{aired}
+            {upcoming > 0 && (
+              <span className="text-text-subtle"> · {upcoming} por salir</span>
+            )}
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => onToggleSeason(season)}
-          className="text-xs text-text-muted hover:text-text-main transition-colors shrink-0 px-2 py-1 rounded-lg hover:bg-border-card"
-        >
-          {isComplete ? 'Desmarcar' : 'Marcar toda'}
-        </button>
+        {/* Una temporada que todavía no salió no tiene nada para marcar. */}
+        {aired > 0 && (
+          <button
+            type="button"
+            onClick={() => onToggleSeason(season)}
+            className="text-xs text-text-muted hover:text-text-main transition-colors shrink-0 px-2 py-1 rounded-lg hover:bg-border-card"
+          >
+            {isComplete ? 'Desmarcar' : 'Marcar toda'}
+          </button>
+        )}
       </div>
 
-      {isOpen && (
-        <ul className="flex flex-wrap gap-1.5 p-3">
-          {Array.from({ length: season.episodeCount }, (_, index) => {
-            const episode = index + 1;
-            const watched = isEpisodeWatched(
-              media.progress,
-              season.seasonNumber,
-              episode,
-            );
+      {isOpen &&
+        (status === 'loading' ? (
+          <EpisodeSkeleton count={season.episodeCount} />
+        ) : status === 'ready' && episodes.length > 0 ? (
+          <ul className="divide-y divide-border-card px-3">
+            {episodes.map((episode) => (
+              <EpisodeRow
+                key={episode.episode_number}
+                episode={episode}
+                seasonName={season.name}
+                today={today}
+                watched={isEpisodeWatched(
+                  media.progress,
+                  season.seasonNumber,
+                  episode.episode_number,
+                )}
+                rating={episodeRating(
+                  media.progress,
+                  season.seasonNumber,
+                  episode.episode_number,
+                )}
+                onToggle={() =>
+                  onToggleEpisode(season.seasonNumber, episode.episode_number)
+                }
+                onRate={(rating) =>
+                  onRateEpisode(season.seasonNumber, episode.episode_number, rating)
+                }
+              />
+            ))}
+          </ul>
+        ) : (
+          <ul className="flex flex-wrap gap-1.5 p-3">
+            {Array.from({ length: season.episodeCount }, (_, index) => {
+              const episode = index + 1;
+              return (
+                <li key={episode}>
+                  <EpisodeToggle
+                    episode={episode}
+                    seasonName={season.name}
+                    watched={isEpisodeWatched(
+                      media.progress,
+                      season.seasonNumber,
+                      episode,
+                    )}
+                    onToggle={() => onToggleEpisode(season.seasonNumber, episode)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        ))}
+    </div>
+  );
+}
 
-            return (
-              <li key={episode}>
-                <button
-                  type="button"
-                  aria-pressed={watched}
-                  aria-label={`Episodio ${episode} de ${season.name}`}
-                  onClick={() => onToggleEpisode(season.seasonNumber, episode)}
-                  className={cn(
-                    'w-9 h-9 rounded-lg border text-xs font-medium transition-colors',
-                    watched
-                      ? 'bg-accent text-accent-contrast border-accent'
-                      : 'bg-bg-main border-border-card text-text-muted hover:text-text-main hover:border-text-subtle',
-                  )}
-                >
-                  {episode}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+/** Una de las dos puntas: tu mejor episodio o tu peor, con su nombre si llegó. */
+function HighlightTile({
+  label,
+  episode,
+  name,
+}: {
+  label: string;
+  episode: RatedEpisode;
+  name: string | undefined;
+}) {
+  return (
+    <div className="bg-bg-main border border-border-card rounded-control p-3 flex flex-col gap-1 min-w-0">
+      <span className="text-eyebrow text-text-subtle">{label}</span>
+      <span className="text-sm font-medium truncate">
+        {formatEpisode(episode.seasonNumber, episode.episode)}
+        {name && <span className="text-text-muted font-normal"> · {name}</span>}
+      </span>
+      <span className="flex items-center gap-1 text-sm tabular-nums">
+        {formatRating(episode.rating)}
+        <Star size={12} className="fill-accent text-accent" aria-hidden="true" />
+        <span className="sr-only">de 5 estrellas</span>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Lo que dicen tus puntajes por episodio: el mejor, el peor y el promedio de
+ * cada temporada.
+ *
+ * El promedio aparece solo si la reseña de la serie no trae puntajes por
+ * temporada: si los pusiste a mano, esos mandan, y dos números distintos para
+ * la misma temporada se contradirían. Los nombres salen de la temporada que
+ * TMDB ya haya mandado; sin conexión queda el "T2E5", que alcanza.
+ */
+function EpisodeHighlightsPanel({ media }: { media: SavedMedia }) {
+  const { best, worst, seasons } = episodeHighlights(media);
+  const bestSeason = useSeasonDetail(media.tmdbId, best?.seasonNumber ?? 0, best !== undefined);
+  const worstSeason = useSeasonDetail(
+    media.tmdbId,
+    worst?.seasonNumber ?? 0,
+    worst !== undefined,
+  );
+
+  const hasSeasonRatings = (media.history ?? []).some(
+    (entry) => entry.seasonRatings && Object.keys(entry.seasonRatings).length > 0,
+  );
+  const averages = hasSeasonRatings ? [] : seasons;
+  if (!best && averages.length === 0) return null;
+
+  const nameOf = (episode: RatedEpisode, detail: typeof bestSeason) =>
+    detail.season?.episodes.find((e) => e.episode_number === episode.episode)?.name;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {best && (
+        <div className="grid sm:grid-cols-2 gap-2">
+          <HighlightTile label="Tu mejor episodio" episode={best} name={nameOf(best, bestSeason)} />
+          {worst && <HighlightTile label="Tu peor" episode={worst} name={nameOf(worst, worstSeason)} />}
+        </div>
+      )}
+      {averages.length > 0 && (
+        <p className="text-sm text-text-muted">
+          Tu promedio por temporada:{' '}
+          {averages.map((season, index) => (
+            <span key={season.seasonNumber}>
+              {index > 0 && ' · '}
+              <span className="text-text-main">
+                T{season.seasonNumber} {formatRating(season.average)}
+              </span>
+              <Star
+                size={11}
+                className="inline fill-accent text-accent align-baseline ml-0.5"
+                aria-hidden="true"
+              />
+              <span className="sr-only">
+                {' '}
+                de 5 estrellas, con {season.count} episodios puntuados
+              </span>
+            </span>
+          ))}
+        </p>
       )}
     </div>
   );
@@ -112,9 +529,9 @@ function Season({
  * se acuerda de ir a cambiarlo a mano, y una lista *Por Ver* con series ya
  * empezadas deja de servir.
  *
- * La grilla es de números y no de títulos de episodio a propósito: los nombres
- * exigen una llamada a TMDB por temporada, y para marcar lo que viste alcanza
- * con el número.
+ * Cada temporada pide sus episodios recién al desplegarse: nombres, fechas e
+ * imágenes cuestan una llamada a TMDB por temporada, y casi siempre se mira
+ * una sola. Hasta que llegan —o si no llegan— queda la grilla de números.
  */
 export function SeriesProgress({
   media,
@@ -124,7 +541,9 @@ export function SeriesProgress({
   /** Temporadas de TMDB, por si el título se guardó antes de cachearlas. */
   seasons: SeasonInfo[];
 }) {
-  const { setProgress } = useMediaActions();
+  const { setProgress, applyEnrichment } = useMediaActions();
+  /** Temporadas cuya duración ya se anotó en esta apertura, para no repetir. */
+  const runtimesWritten = useRef(new Set<number>());
   const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   // El progreso se calcula sobre las temporadas que se estén mostrando, que
@@ -132,17 +551,31 @@ export function SeriesProgress({
   const mediaWithSeasons: SavedMedia = { ...media, seasons };
 
   const total = totalEpisodes(mediaWithSeasons);
-  const seen = watchedEpisodes(mediaWithSeasons);
+  const aired = airedEpisodes(mediaWithSeasons);
+  const seen = watchedAiredEpisodes(mediaWithSeasons);
   const percent = progressPercent(mediaWithSeasons);
   const next = nextEpisode(mediaWithSeasons);
-  const isComplete = isSeriesComplete(mediaWithSeasons);
-  const alreadyRated = (media.history?.length ?? 0) > 0;
+  // Estar al día no es haberla terminado: de una serie que sigue saliendo se
+  // puede haber visto todo lo emitido, pero no se la puede puntuar como
+  // terminada ni decir "la terminaste".
+  const caughtUp = isCaughtUp(mediaWithSeasons);
+  const isComplete =
+    hasWatchedAllAired(mediaWithSeasons) && !isStillAiring(mediaWithSeasons);
+  // Lo puntuado al abandonarla no cuenta: esa vuelta no la terminaste.
+  const alreadyRated = watchCount(media) > 0;
+  const upcomingNext = media.nextToAir;
 
   if (total === 0) return null;
 
   /** Estado que le corresponde al título después de un cambio de progreso. */
-  const statusFor = (watchedCount: number) => {
+  const statusFor = (watchedCount: number): MediaStatus | undefined => {
     if (watchedCount === 0) return media.status === 'viendo' ? 'por_ver' : undefined;
+    // Marcar un episodio más de una serie en pausa es retomarla. Una abandonada
+    // no se retoma sola: completar hasta dónde llegaste es corregir el dato,
+    // no volver a mirarla.
+    if (media.status === 'en_pausa' && watchedCount > watchedEpisodes(mediaWithSeasons)) {
+      return 'viendo';
+    }
     // Terminar la serie no la marca como completada por su cuenta: eso lo
     // decide la reseña, igual que en las películas.
     return media.status === 'por_ver' ? 'viendo' : undefined;
@@ -157,12 +590,42 @@ export function SeriesProgress({
     (season) => season.seasonNumber > 0 && season.episodeCount > 0,
   );
 
+  // Se abre sola la temporada donde quedó la persona, para no obligarla a
+  // buscar dónde retomar. Al día, la que está saliendo.
+  const boundary = airedBoundary(mediaWithSeasons);
+  const openSeason =
+    next?.seasonNumber ??
+    (caughtUp && boundary && Number.isFinite(boundary.episodeNumber)
+      ? boundary.seasonNumber
+      : countableSeasons[0]?.seasonNumber);
+
+  /**
+   * Anota cuánto dura una temporada, ahora que llegaron sus episodios.
+   *
+   * Es lo que usan las estadísticas para no estimar con el primer episodio.
+   * Solo sobre las temporadas guardadas: las que vienen de la ficha recién
+   * traída no son de la biblioteca todavía.
+   */
+  const handleRuntimeKnown = (seasonNumber: number, totalRuntime: number) => {
+    if (runtimesWritten.current.has(seasonNumber)) return;
+    const updated = media.seasons
+      ? withSeasonRuntime(media.seasons, seasonNumber, totalRuntime)
+      : null;
+    if (!updated) return;
+
+    runtimesWritten.current.add(seasonNumber);
+    applyEnrichment(media, { seasons: updated });
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-section">Tu progreso</h3>
         <span className="text-sm text-text-muted tabular-nums">
-          {seen} de {total} episodios
+          {seen} de {aired} episodios
+          {total > aired && (
+            <span className="text-text-subtle"> · {total - aired} por salir</span>
+          )}
         </span>
       </div>
 
@@ -185,6 +648,18 @@ export function SeriesProgress({
             <span className="text-status-completada font-medium">
               La terminaste.
             </span>
+          ) : caughtUp ? (
+            <>
+              <span className="text-status-viendo font-medium">Estás al día.</span>
+              {upcomingNext && (
+                <>
+                  {' '}
+                  El próximo,{' '}
+                  {formatEpisode(upcomingNext.seasonNumber, upcomingNext.episodeNumber)},
+                  sale el {formatDay(upcomingNext.airDate)}.
+                </>
+              )}
+            </>
           ) : next ? (
             <>
               Vas por{' '}
@@ -217,27 +692,35 @@ export function SeriesProgress({
         </p>
       )}
 
+      <EpisodeHighlightsPanel media={media} />
+
       <div className="flex flex-col gap-2">
         {countableSeasons.map((season) => (
           <Season
             key={season.seasonNumber}
             media={mediaWithSeasons}
             season={season}
-            // Se abre sola la temporada donde quedó la persona, para no
-            // obligarla a buscar dónde retomar.
-            defaultOpen={
-              next
-                ? season.seasonNumber === next.seasonNumber
-                : season.seasonNumber === countableSeasons[0]?.seasonNumber
-            }
+            aired={airedInSeason(mediaWithSeasons, season)}
+            defaultOpen={season.seasonNumber === openSeason}
             onToggleEpisode={(seasonNumber, episode) =>
               applyProgress(
                 toggleEpisode(media.progress, seasonNumber, episode),
               )
             }
+            onRateEpisode={(seasonNumber, episode, rating) => {
+              const progress = rateEpisode(media.progress, seasonNumber, episode, rating);
+              if (progress) void setProgress(media.tmdbId, progress);
+            }}
             onToggleSeason={(target) =>
-              applyProgress(toggleSeason(media.progress, target))
+              applyProgress(
+                toggleSeason(
+                  media.progress,
+                  target,
+                  airedInSeason(mediaWithSeasons, target),
+                ),
+              )
             }
+            onRuntimeKnown={handleRuntimeKnown}
           />
         ))}
       </div>

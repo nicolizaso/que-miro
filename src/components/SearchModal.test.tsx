@@ -52,8 +52,9 @@ vi.mock('@/lib/tmdb', () => ({
   searchMulti: (...args: unknown[]) => searchMulti(...(args as [])),
   getMediaDetail: async () => detail,
   getGenreNames: (ids: number[]) =>
-    ids.map((id) => (id === 10765 ? 'Sci-Fi & Fantasía' : '')).filter(Boolean),
+    ids.map((id) => (id === 10765 ? 'Sci-Fi y Fantasía' : '')).filter(Boolean),
   TMDB_IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',
+  TMDB_LOGO_URL: 'https://image.tmdb.org/t/p/w92',
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
 }));
 
@@ -69,7 +70,7 @@ function savedThrones(overrides: Partial<SavedMedia> = {}): SavedMedia {
     posterPath: '/poster.jpg',
     backdropPath: '/backdrop.jpg',
     releaseYear: '2011',
-    genres: ['Sci-Fi & Fantasía'],
+    genres: ['Sci-Fi y Fantasía'],
     status: 'viendo',
     updatedAt: '2024-01-01T00:00:00.000Z',
     ...overrides,
@@ -136,7 +137,9 @@ describe('SearchModal', () => {
       title: 'Juego de tronos',
       status: 'por_ver',
       releaseYear: '2011',
-      genres: ['Sci-Fi & Fantasía'],
+      // El nombre de la app, no el de TMDB: la ficha lo trae como "Sci-Fi &
+      // Fantasía" y se guarda traducido por id.
+      genres: ['Sci-Fi y Fantasía'],
     });
     expect(onClose).toHaveBeenCalled();
   });

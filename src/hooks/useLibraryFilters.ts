@@ -3,13 +3,21 @@ import { useSearchParams } from 'react-router-dom';
 import {
   DEFAULT_SORT,
   LibraryFilters,
+  LibraryStatus,
   SORT_OPTIONS,
   SortOption,
 } from '@/lib/library';
-import { MediaStatus, MediaType } from '@/types';
+import { MediaType } from '@/types';
 
-const VALID_STATUSES: MediaStatus[] = ['por_ver', 'viendo', 'completada'];
-const DEFAULT_STATUS: MediaStatus = 'por_ver';
+const VALID_STATUSES: LibraryStatus[] = [
+  'por_ver',
+  'viendo',
+  'completada',
+  'archivadas',
+  'en_pausa',
+  'abandonada',
+];
+const DEFAULT_STATUS: LibraryStatus = 'por_ver';
 
 /** Nombres de los parámetros en la URL, en español para que el link se lea. */
 const PARAMS = {
@@ -20,6 +28,8 @@ const PARAMS = {
   provider: 'plataforma',
   collection: 'lista',
   tag: 'tag',
+  onlyNew: 'nuevos',
+  availableNow: 'ya',
   sort: 'orden',
 } as const;
 
@@ -35,7 +45,7 @@ export function useLibraryFilters() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo<LibraryFilters>(() => {
-    const status = searchParams.get(PARAMS.status) as MediaStatus | null;
+    const status = searchParams.get(PARAMS.status) as LibraryStatus | null;
     const type = searchParams.get(PARAMS.type) as MediaType | null;
     const sort = searchParams.get(PARAMS.sort) as SortOption | null;
 
@@ -47,6 +57,8 @@ export function useLibraryFilters() {
       provider: searchParams.get(PARAMS.provider) || null,
       collection: searchParams.get(PARAMS.collection) || null,
       tag: searchParams.get(PARAMS.tag) || null,
+      onlyNew: searchParams.get(PARAMS.onlyNew) === '1',
+      availableNow: searchParams.get(PARAMS.availableNow) === '1',
       sort: SORT_OPTIONS.some((option) => option.value === sort)
         ? (sort as SortOption)
         : DEFAULT_SORT,
@@ -66,11 +78,12 @@ export function useLibraryFilters() {
             const isDefault =
               value === null ||
               value === '' ||
+              value === false ||
               (key === 'sort' && value === DEFAULT_SORT) ||
               (key === 'status' && value === DEFAULT_STATUS);
 
             if (isDefault) next.delete(param);
-            else next.set(param, String(value));
+            else next.set(param, value === true ? '1' : String(value));
           }
 
           return next;
@@ -89,6 +102,8 @@ export function useLibraryFilters() {
       provider: null,
       collection: null,
       tag: null,
+      onlyNew: false,
+      availableNow: false,
       sort: DEFAULT_SORT,
     });
   }, [setFilters]);
