@@ -1,5 +1,7 @@
 import { MediaType, SavedMedia } from '@/types';
 import { allWatches, formatDuration, genreDistribution, summarize, topRated } from '@/lib/stats';
+import { WatchlistItem, parseWatchlist, publicWatchlist } from '@/lib/together';
+import { stableJson } from '@/lib/autoPublish';
 
 /**
  * Instantánea pública de una biblioteca.
@@ -21,6 +23,17 @@ export interface PublicProfile {
    * cuenta como prendido.
    */
   autoUpdate: boolean;
+  /**
+   * "Incluir mi Por Ver", para "¿Qué miramos juntos?". Apagado por defecto:
+   * es más de lo que un perfil publicaba antes, y lo decide cada uno.
+   */
+  includeWatchlist: boolean;
+  /** "Incluir mis plataformas", para "En plataformas de los dos". También apagado. */
+  includeSubscriptions: boolean;
+  /** El *Por Ver*, si se eligió incluirlo. */
+  watchlist?: WatchlistItem[];
+  /** Los nombres de las plataformas que paga, si se eligió incluirlas. */
+  subscriptions?: string[];
   summary: {
     watches: number;
     titles: number;
@@ -95,12 +108,19 @@ export function buildPublicProfile({
   displayName,
   mediaList,
   autoUpdate = true,
+  includeWatchlist = false,
+  includeSubscriptions = false,
+  subscriptions = [],
 }: {
   slug: string;
   uid: string;
   displayName: string;
   mediaList: SavedMedia[];
   autoUpdate?: boolean;
+  includeWatchlist?: boolean;
+  includeSubscriptions?: boolean;
+  /** Los nombres de las plataformas que paga: se publican solo si se pidió. */
+  subscriptions?: string[];
 }): PublicProfile {
   const summary = summarize(mediaList);
 
@@ -110,6 +130,12 @@ export function buildPublicProfile({
     displayName,
     publishedAt: new Date().toISOString(),
     autoUpdate,
+    includeWatchlist,
+    includeSubscriptions,
+    // Solo lo que se eligió publicar, y sin claves vacías: Firestore no
+    // acepta `undefined`.
+    ...(includeWatchlist ? { watchlist: publicWatchlist(mediaList) } : {}),
+    ...(includeWatchlist && includeSubscriptions ? { subscriptions: subscriptions.slice(0, 30) } : {}),
     summary: {
       watches: summary.totalWatches,
       titles: summary.uniqueTitles,
@@ -149,6 +175,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Un campo opcional: presente con su valor, o ausente del todo. */
+function optional<K extends string, V>(key: K, value: V | undefined): { [P in K]?: V } {
+  return value === undefined ? {} : ({ [key]: value } as { [P in K]?: V });
+}
+
 /** El tipo, si es uno válido: `{}` si no, para que el campo quede ausente. */
 function mediaTypeOf(value: unknown): { mediaType?: MediaType } {
   return value === 'movie' || value === 'tv' ? { mediaType: value } : {};
@@ -181,6 +212,15 @@ export function parsePublicProfile(value: unknown): PublicProfile | null {
         ? value.publishedAt
         : new Date().toISOString(),
     autoUpdate: value.autoUpdate !== false,
+    includeWatchlist: value.includeWatchlist === true,
+    includeSubscriptions: value.includeSubscriptions === true,
+    ...optional('watchlist', parseWatchlist(value.watchlist)),
+    ...optional(
+      'subscriptions',
+      Array.isArray(value.subscriptions)
+        ? value.subscriptions.filter((name): name is string => typeof name === 'string' && name.trim() !== '').slice(0, 30)
+        : undefined,
+    ),
     summary: {
       watches: Number(summary.watches) || 0,
       titles: Number(summary.titles) || 0,
@@ -227,13 +267,21 @@ export function parsePublicProfile(value: unknown): PublicProfile | null {
  * actualizarlo. Dos instantáneas con el mismo contenido son la misma: volver
  * a escribirla solo cambiaría la fecha.
  */
-export function profileContent(profile: PublicProfile): Omit<PublicProfile, 'publishedAt' | 'autoUpdate'> {
-  const { publishedAt: _publishedAt, autoUpdate: _autoUpdate, ...content } = profile;
+export function profileContent(
+  profile: PublicProfile,
+): Omit<PublicProfile, 'publishedAt' | 'autoUpdate' | 'includeWatchlist' | 'includeSubscriptions'> {
+  const {
+    publishedAt: _publishedAt,
+    autoUpdate: _autoUpdate,
+    includeWatchlist: _includeWatchlist,
+    includeSubscriptions: _includeSubscriptions,
+    ...content
+  } = profile;
   return content;
 }
 
 export function sameProfileContent(a: PublicProfile, b: PublicProfile): boolean {
-  return JSON.stringify(profileContent(a)) === JSON.stringify(profileContent(b));
+  return stableJson(profileContent(a)) === stableJson(profileContent(b));
 }
 
 /**

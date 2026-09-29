@@ -10,6 +10,7 @@ import { ShareButton } from '@/components/ShareButton';
 import { SLUG_MAX, toSlug } from '@/lib/publicProfile';
 import { formatDuration, summarize } from '@/lib/stats';
 import { formatRelative, formatWatchDate } from '@/lib/dates';
+import { hasSubscriptions } from '@/lib/subscriptions';
 
 /**
  * Publicar la biblioteca propia en una dirección compartible.
@@ -22,9 +23,11 @@ export function PublicProfileSettings() {
   const { user, authState } = useAuth();
   const mediaList = useMediaStore((state) => state.mediaList);
   const { showToast } = useToast();
-  const { slug, published, isLoading, canPublish, publish, unpublish, setAutoUpdate } =
+  const { slug, published, isLoading, canPublish, publish, unpublish, setAutoUpdate, setSharing } =
     usePublishProfile();
   const autoUpdate = published?.autoUpdate ?? true;
+  const includeWatchlist = published?.includeWatchlist ?? false;
+  const paysSomething = useMediaStore((state) => hasSubscriptions(state.subscriptions));
 
   const [draft, setDraft] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -204,6 +207,41 @@ export function PublicProfileSettings() {
                     </span>
                   </span>
                 </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeWatchlist}
+                    onChange={(event) => setSharing({ includeWatchlist: event.target.checked })}
+                    className="mt-1 w-4 h-4 accent-accent shrink-0"
+                  />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium">Incluir mi Por Ver</span>
+                    <span className="text-xs text-text-subtle">
+                      Para que quien entre a tu perfil pueda cruzarlo con el
+                      suyo en "¿Qué miramos juntos?". De cada título se publica
+                      el nombre, el año, el póster, los géneros y la duración.
+                    </span>
+                  </span>
+                </label>
+
+                {includeWatchlist && paysSomething && (
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={published?.includeSubscriptions ?? false}
+                      onChange={(event) => setSharing({ includeSubscriptions: event.target.checked })}
+                      className="mt-1 w-4 h-4 accent-accent shrink-0"
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">Incluir mis plataformas</span>
+                      <span className="text-xs text-text-subtle">
+                        Para filtrar lo que pueden ver los dos sin pagar nada
+                        más. Se publican solo sus nombres.
+                      </span>
+                    </span>
+                  </label>
+                )}
 
                 <p className="text-xs text-text-subtle">
                   {published && (

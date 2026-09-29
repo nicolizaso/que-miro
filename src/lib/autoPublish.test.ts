@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createAutoPublisher } from './autoPublish';
+import { createAutoPublisher, stableJson } from './autoPublish';
 
 const DEBOUNCE = 30_000;
 const MIN_INTERVAL = 5 * 60_000;
@@ -95,5 +95,17 @@ describe('createAutoPublisher', () => {
     auto.cancel();
     vi.advanceTimersByTime(MIN_INTERVAL);
     expect(published).toEqual([]);
+  });
+});
+
+describe('stableJson', () => {
+  it('no depende del orden de las claves, ni adentro', () => {
+    expect(stableJson({ b: 1, a: { d: [2, { f: 1, e: 0 }], c: 3 } })).toBe(
+      stableJson({ a: { c: 3, d: [2, { e: 0, f: 1 }] }, b: 1 }),
+    );
+  });
+
+  it('el orden de las listas sí importa', () => {
+    expect(stableJson([1, 2])).not.toBe(stableJson([2, 1]));
   });
 });

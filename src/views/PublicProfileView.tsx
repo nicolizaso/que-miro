@@ -1,5 +1,6 @@
-import { Check, Film, Star, UserPlus, UserX } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Check, Film, HeartHandshake, Star, UserPlus, UserX } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { usePublicProfileBySlug } from '@/hooks/usePublicProfile';
 import { useFollowing } from '@/hooks/useFollowing';
 import { useToast } from '@/contexts/ToastContext';
@@ -50,6 +51,22 @@ function FollowButton({ profile }: { profile: PublicProfile }) {
 }
 
 /**
+ * La entrada a "¿Qué miramos juntos?": para quien tiene una biblioteca donde
+ * cruzarla, en el perfil de otra persona que comparte su Por Ver.
+ */
+function TogetherLink({ profile }: { profile: PublicProfile }) {
+  const { user, authState } = useAuth();
+  const hasLibrary = authState === 'authenticated' || authState === 'guest' || authState === 'demo';
+  if (!hasLibrary || !profile.watchlist || profile.uid === user?.uid) return null;
+  return (
+    <Link to={`/juntos/${profile.slug}`} className="btn btn-primary px-4 py-2 text-sm">
+      <HeartHandshake size={16} aria-hidden="true" />
+      ¿Qué miramos juntos?
+    </Link>
+  );
+}
+
+/**
  * Perfil público de otra persona, en modo lectura.
  *
  * Es la única vista que se ve sin sesión, así que trae su propio marco: sin
@@ -88,7 +105,10 @@ export function PublicProfileView() {
                   {formatRelative(profile.publishedAt)}
                 </time>
               </p>
-              <FollowButton profile={profile} />
+              <div className="flex flex-wrap gap-2">
+                <TogetherLink profile={profile} />
+                <FollowButton profile={profile} />
+              </div>
             </div>
           </section>
 

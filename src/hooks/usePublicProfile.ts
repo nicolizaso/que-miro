@@ -67,6 +67,19 @@ export function usePublicProfileBySlug(slug: string | undefined) {
   return { profile, isLoading, error };
 }
 
+/**
+ * Las opciones del perfil publicado, para volver a publicarlo igual. Las
+ * plataformas se leen al momento: son de la cuenta y pueden haber cambiado.
+ */
+function optionsOf(published: PublicProfile | null | undefined) {
+  return {
+    autoUpdate: published?.autoUpdate ?? true,
+    includeWatchlist: published?.includeWatchlist ?? false,
+    includeSubscriptions: published?.includeSubscriptions ?? false,
+    subscriptions: useMediaStore.getState().subscriptions.providers.map((provider) => provider.name),
+  };
+}
+
 /** El nombre con el que se publica: el de la cuenta, o el principio del mail. */
 function publicName(user: User): string {
   return user.displayName || user.email?.split('@')[0] || 'Alguien';
@@ -170,8 +183,8 @@ export function usePublishProfile() {
       uid: user.uid,
       displayName: publicName(user),
       mediaList,
-      // La opción viaja con el perfil: cambiar de dirección no la resetea.
-      autoUpdate: published?.autoUpdate ?? true,
+      // Las opciones viajan con el perfil: cambiar de dirección no las resetea.
+      ...optionsOf(published),
     });
 
     try {
@@ -222,7 +235,27 @@ export function usePublishProfile() {
     });
   };
 
-  return { slug, published, isLoading, canPublish, publish, unpublish, setAutoUpdate };
+  /**
+   * "Incluir mi Por Ver" e "Incluir mis plataformas". Se republica al toque
+   * y entero, no solo la opción: quien espera cruzar su Por Ver con el tuyo
+   * no tiene por qué esperar los minutos de la actualización sola.
+   */
+  const setSharing = (change: { includeWatchlist?: boolean; includeSubscriptions?: boolean }) => {
+    if (!canPublish || !user || !slug || !published) return;
+    const profile = buildPublicProfile({
+      slug,
+      uid: user.uid,
+      displayName: publicName(user),
+      mediaList: useMediaStore.getState().mediaList,
+      ...optionsOf(published),
+      ...change,
+    });
+    setDoc(profileDoc(slug), profile).catch((error: unknown) => {
+      console.error('[perfil público] No se pudo guardar la opción:', error);
+    });
+  };
+
+  return { slug, published, isLoading, canPublish, publish, unpublish, setAutoUpdate, setSharing };
 }
 
 /**
@@ -285,6 +318,7 @@ export function useAutoPublishProfile() {
   }, [isOnline]);
 
   const published = own?.profile ?? null;
+  const subscriptions = useMediaStore((state) => state.subscriptions);
   const candidate = useMemo(() => {
     if (!uid || !user || !published || !published.autoUpdate || syncedUid !== uid) return null;
     return buildPublicProfile({
@@ -292,8 +326,10 @@ export function useAutoPublishProfile() {
       uid,
       displayName: publicName(user),
       mediaList,
+      ...optionsOf(published),
     });
-  }, [uid, user, published, syncedUid, mediaList]);
+    // `subscriptions` entra por `optionsOf`, que lo lee del store.
+  }, [uid, user, published, syncedUid, mediaList, subscriptions]);
 
   useEffect(() => {
     if (!candidate) {

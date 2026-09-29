@@ -206,3 +206,40 @@ describe('lo nuevo del perfil', () => {
     expect(parsePublicProfile({ slug: 'nico', uid: 'user-1', autoUpdate: false })!.autoUpdate).toBe(false);
   });
 });
+
+describe('el Por Ver y las plataformas, a pedido', () => {
+  const mediaList = [
+    makeMedia({ tmdbId: 1, history: [watch(5, 'Un clásico.')] }),
+    makeMedia({ tmdbId: 2, title: 'Past Lives', status: 'por_ver', history: undefined, streaming: ['MUBI'] }),
+  ];
+  const build = (options: Partial<Parameters<typeof buildPublicProfile>[0]> = {}) =>
+    buildPublicProfile({ slug: 'nico', uid: 'user-1', displayName: 'Nico', mediaList, ...options });
+
+  it('por defecto no se publica ni el Por Ver ni las plataformas', () => {
+    const profile = build({ subscriptions: ['Netflix'] });
+    expect(profile.includeWatchlist).toBe(false);
+    expect(profile).not.toHaveProperty('watchlist');
+    expect(profile).not.toHaveProperty('subscriptions');
+  });
+
+  it('con "Incluir mi Por Ver", la lista mínima', () => {
+    const profile = build({ includeWatchlist: true });
+    expect(profile.watchlist?.map((item) => item.title)).toEqual(['Past Lives']);
+    expect(profile).not.toHaveProperty('subscriptions');
+  });
+
+  it('las plataformas, solo con las dos opciones', () => {
+    expect(build({ includeSubscriptions: true, subscriptions: ['Netflix'] })).not.toHaveProperty('subscriptions');
+    expect(build({ includeWatchlist: true, includeSubscriptions: true, subscriptions: ['Netflix'] }).subscriptions).toEqual([
+      'Netflix',
+    ]);
+  });
+
+  it('ida y vuelta por Firestore, igual', () => {
+    const original = build({ includeWatchlist: true, includeSubscriptions: true, subscriptions: ['Netflix'] });
+    const parsed = parsePublicProfile(JSON.parse(JSON.stringify(original)))!;
+    expect(parsed.watchlist).toEqual(original.watchlist);
+    expect(parsed.subscriptions).toEqual(['Netflix']);
+    expect(sameProfileContent(original, parsed)).toBe(true);
+  });
+});

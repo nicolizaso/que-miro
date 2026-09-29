@@ -162,7 +162,7 @@
     {
       "collection": "public_profiles",
       "path": "/public_profiles/{slug}",
-      "description": "Curated public snapshot of a library (never a window into saved_media). Public read; writes only by the uid the document declares, which cannot change. Republished automatically while autoUpdate is on",
+      "description": "Curated public snapshot of a library (never a window into saved_media). Public read; writes only by the uid the document declares, which cannot change. Republished automatically while autoUpdate is on. Optionally, the Por Ver list (includeWatchlist) and the names of the platforms paid for (includeSubscriptions), both off by default, for \"¿Qué miramos juntos?\"",
       "access": {
         "read": "true",
         "create": "request.auth != null && request.auth.uid == request.resource.data.uid",
@@ -176,6 +176,10 @@
           { "name": "displayName", "type": "string", "required": true },
           { "name": "publishedAt", "type": "timestamp", "required": true },
           { "name": "autoUpdate", "type": "boolean", "required": false },
+          { "name": "includeWatchlist", "type": "boolean", "required": false },
+          { "name": "includeSubscriptions", "type": "boolean", "required": false },
+          { "name": "watchlist", "type": "list", "required": false },
+          { "name": "subscriptions", "type": "list", "required": false },
           { "name": "summary", "type": "map", "required": true },
           { "name": "topGenres", "type": "list", "required": true },
           { "name": "favorites", "type": "list", "required": true },

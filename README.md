@@ -100,6 +100,11 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   tipo, género, plataforma, lista o ánimo.
 - **Modo duelo** — comparaciones de a dos que arman un ranking de tu lista, con
   puntaje tipo Elo.
+- **¿Qué miramos juntos?** — desde el perfil público de alguien que comparte
+  su *Por Ver*, cruzalo con el tuyo: primero lo que tienen los dos, después lo
+  que uno quiere ver y el otro no vio, sin nada que alguno ya terminó o
+  abandonó. Ruleta con los filtros del picker (y "En plataformas de los dos",
+  si comparte las suyas) o duelo de a dos que no toca tu ranking.
 - **Estadísticas** — horas mirando, distribución por género, actividad por mes y
   cómo puntuás, con su tabla accesible al lado de cada gráfico. Cada episodio
   guarda cuándo lo marcaste, así que una serie que miraste todo agosto suma en

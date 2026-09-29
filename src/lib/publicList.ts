@@ -1,5 +1,6 @@
 import { Collection, MediaType, SavedMedia } from '@/types';
 import { ShareCardData } from '@/lib/shareCard';
+import { stableJson } from '@/lib/autoPublish';
 
 /**
  * Una lista propia publicada con un link: `/l/{id}`.
@@ -148,7 +149,7 @@ export function parsePublicList(value: unknown): PublicList | null {
 /** Si dos instantáneas muestran lo mismo: sin mirar cuándo se publicaron ni la opción. */
 export function samePublicListContent(a: PublicList, b: PublicList): boolean {
   const content = ({ publishedAt: _p, autoUpdate: _a, ...rest }: PublicList) => rest;
-  return JSON.stringify(content(a)) === JSON.stringify(content(b));
+  return stableJson(content(a)) === stableJson(content(b));
 }
 
 /**

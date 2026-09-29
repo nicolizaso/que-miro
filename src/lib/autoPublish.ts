@@ -75,3 +75,16 @@ export function createAutoPublisher<T>(options: AutoPublisherOptions<T>): AutoPu
     },
   };
 }
+
+/**
+ * JSON con las claves ordenadas: dos instantáneas iguales dan el mismo texto
+ * aunque una se haya armado acá y la otra venga de Firestore, que no promete
+ * el orden de las claves.
+ */
+export function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, inner: unknown) =>
+    inner && typeof inner === 'object' && !Array.isArray(inner)
+      ? Object.fromEntries(Object.entries(inner as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : inner,
+  );
+}
