@@ -577,6 +577,69 @@ README).
 
 ---
 
+## QM-7 — Compartir
+
+*Que lo publicado se mantenga solo, y que sirva para algo más que mirarlo.*
+
+**Qué estaba mal**
+
+El perfil público era una foto que había que volver a sacar a mano: si nadie
+se acordaba de tocar "Actualizar", quedaba vieja. No se podía seguir a nadie,
+ni compartir una lista propia, ni cruzar lo que uno quiere ver con lo que
+quiere ver otra persona. Y había tres cosas que sobrevivían a borrar la
+cuenta: el perfil publicado, las listas propias (la subcolección no se
+borraba) y, con esta tanda, lo que se publicara de ellas.
+
+**Cómo quedó implementado**
+
+- **Perfil que se actualiza solo.** "Mantener actualizado" se guarda con el
+  perfil y está prendido por defecto, también para los publicados antes. Un
+  hook en el marco arma la instantánea, la compara con la publicada sin mirar
+  la fecha y, si cambió, la programa en `lib/autoPublish.ts`: 30 segundos de
+  debounce, un mínimo de 5 minutos entre publicaciones y, sin red, nada de
+  reintentos: lo último pendiente sale cuando vuelve la conexión. Ajustes y la
+  vista pública dicen "actualizado hace X".
+- **Seguir perfiles.** `profile/following` guarda a quién seguís con el uid
+  del dueño al momento de seguirlo: si el slug pasa a otra cuenta, no se
+  muestra nada del dueño nuevo. *Siguiendo* mezcla las reseñas por fecha y
+  deja guardar cada título en *Por Ver*. Abrir el feed cuesta una lectura por
+  perfil seguido (hasta cien) y como mucho una vez cada 15 minutos: entre
+  medio sale de una caché del dispositivo atada a la cuenta.
+- **Listas compartibles.** `public_lists/{id}` con lo mínimo de cada título,
+  publicada desde Mis listas y con la misma actualización sola. `/l/:id` la
+  sirve una función con su vista previa, y lo que compartía con `/u/:slug`
+  pasó a `api/_lib/og.ts`. Quien la abre guarda un título o la lista entera
+  como colección propia, con un nombre libre.
+- **¿Qué miramos juntos?** "Incluir mi Por Ver" y "Incluir mis plataformas"
+  son opciones del perfil, apagadas por defecto. `/juntos/:slug` cruza los
+  dos *Por Ver* —primero lo común, después lo que uno quiere ver y el otro no
+  vio— con la ruleta y el duelo del picker en modo de a dos.
+
+**Decisiones y hallazgos**
+
+- *`list` prohibido en las listas.* El pedido era copiar las reglas de los
+  perfiles, que permiten `read` entero. Se copió lo que importa —solo escribe
+  el uid que declara el documento, sin poder cambiarlo— pero una lista se
+  comparte por link: no hay por qué dejar que alguien las recorra todas.
+- *"Ya vio", de la otra persona, es lo que publicó.* El cruce descarta lo que
+  la otra persona reseñó o tiene entre sus favoritas, no su historial entero:
+  la opción se llama "Incluir mi Por Ver", y publicar además todo lo visto
+  sería más de lo que dice.
+- *El duelo de a dos no toca tu lista.* El del picker guarda el puntaje en
+  cada título; de a dos, el ranking es de esa noche y vive en la pantalla.
+- *Instantáneas comparadas sin depender del orden.* Firestore no promete el
+  orden de las claves: las comparaciones usan JSON con las claves ordenadas.
+- *De paso:* `api/u/[slug].ts` tenía la base `(default)` fija y ahora usa la
+  de la app, y valida el slug antes de pedir nada.
+
+**Resultado:** lo que se publica se mantiene al día sin pensar en eso, y
+publicar sirve para algo: seguir a alguien, guardarse su lista, elegir qué
+ver juntos. El servidor sigue sin leer bibliotecas: todo son instantáneas
+curadas que decide cada persona. **Hay que publicar las reglas de Firestore**
+(`public_lists` es nueva).
+
+---
+
 ## Resumen
 
 ```
@@ -591,4 +654,5 @@ Pre Previa         atribución a JustWatch y TMDB, castellano latino
 QM4 Series vivas   refresco, fichas de episodio, al día, continuar, calendario
 QM5 Historial fino fecha por episodio, en pausa y abandonada, puntajes, metas
 QM6 Plataformas    suscripciones, llegó a tu plataforma, avisos push, calendario .ics
+QM7 Compartir      perfil que se actualiza solo, seguir perfiles, listas, ver juntos
 ```
