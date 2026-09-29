@@ -1,5 +1,8 @@
 import { SavedMedia, SeasonInfo, SeriesProgress } from '@/types';
 
+/** Lo único de un título que hace falta para calcular su progreso. */
+type WithProgress = Pick<SavedMedia, 'seasons' | 'progress'>;
+
 /**
  * Temporadas que cuentan para el progreso.
  *
@@ -7,14 +10,14 @@ import { SavedMedia, SeasonInfo, SeriesProgress } from '@/types';
  * que casi nadie considera parte de la serie. Contarlas haría que terminar
  * *Breaking Bad* nunca llegue al 100%.
  */
-export function countableSeasons(media: SavedMedia): SeasonInfo[] {
+export function countableSeasons(media: WithProgress): SeasonInfo[] {
   return (media.seasons ?? []).filter(
     (season) => season.seasonNumber > 0 && season.episodeCount > 0,
   );
 }
 
 /** Total de episodios de la serie, sin contar los especiales. */
-export function totalEpisodes(media: SavedMedia): number {
+export function totalEpisodes(media: WithProgress): number {
   return countableSeasons(media).reduce(
     (total, season) => total + season.episodeCount,
     0,
@@ -22,7 +25,7 @@ export function totalEpisodes(media: SavedMedia): number {
 }
 
 /** Episodios vistos, sin contar los de temporadas que ya no existen. */
-export function watchedEpisodes(media: SavedMedia): number {
+export function watchedEpisodes(media: WithProgress): number {
   const watched = media.progress?.watched;
   if (!watched) return 0;
 
@@ -59,7 +62,7 @@ export function progressPercent(media: SavedMedia): number {
 }
 
 /** Si están marcados todos los episodios de todas las temporadas. */
-export function isSeriesComplete(media: SavedMedia): boolean {
+export function isSeriesComplete(media: WithProgress): boolean {
   const total = totalEpisodes(media);
   return total > 0 && watchedEpisodes(media) >= total;
 }
@@ -133,6 +136,34 @@ export function toggleSeason(
   if (isComplete) {
     delete watched[season.seasonNumber];
   } else {
+    watched[season.seasonNumber] = Array.from(
+      { length: season.episodeCount },
+      (_, index) => index + 1,
+    );
+  }
+
+  return { watched, lastWatchedAt: new Date().toISOString() };
+}
+
+/**
+ * El progreso de una serie con todos sus episodios vistos.
+ *
+ * Es lo que corresponde al marcarla como completada: decir que la terminaste
+ * y que la grilla siga en 0 de 7 no tiene sentido. Los especiales que ya
+ * estuvieran marcados se conservan, pero no se agregan: no cuentan para
+ * terminarla.
+ *
+ * `undefined` si no hay nada que marcar: no es una serie, todavía no sabemos
+ * sus temporadas o ya estaba entera.
+ */
+export function completeProgress(
+  media: WithProgress & Pick<SavedMedia, 'mediaType'>,
+): SeriesProgress | undefined {
+  if (media.mediaType !== 'tv') return undefined;
+  if (totalEpisodes(media) === 0 || isSeriesComplete(media)) return undefined;
+
+  const watched = { ...(media.progress?.watched ?? {}) };
+  for (const season of countableSeasons(media)) {
     watched[season.seasonNumber] = Array.from(
       { length: season.episodeCount },
       (_, index) => index + 1,

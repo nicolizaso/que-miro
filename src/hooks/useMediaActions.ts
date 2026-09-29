@@ -6,6 +6,7 @@ import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { getMediaDetail } from '@/lib/tmdb';
 import { enrichFromDetail } from '@/lib/enrich';
+import { completeProgress } from '@/lib/progress';
 import { SavedMedia, MediaStatus, SeriesProgress, WatchEntry } from '@/types';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
@@ -95,6 +96,16 @@ export function useMediaActions() {
   };
 
   /**
+   * Los episodios que hay que marcar si el título pasa a completada.
+   *
+   * Solo en el paso a completada: una serie que ya lo estaba puede tener
+   * episodios desmarcados a propósito —la está volviendo a ver— y sumarle una
+   * reseña más no debería pisarlos.
+   */
+  const progressOnComplete = (media: SavedMedia | undefined) =>
+    media && media.status !== 'completada' ? completeProgress(media) : undefined;
+
+  /**
    * Agrega un título y le completa los datos de su ficha.
    *
    * El título se guarda primero con lo que ya trae el resultado de búsqueda, y
@@ -103,7 +114,13 @@ export function useMediaActions() {
    * plataforma. Al revés —esperar la ficha antes de guardar— un TMDB caído
    * impediría agregar nada.
    */
-  const addMedia = async (media: Omit<SavedMedia, 'updatedAt'>) => {
+  const addMedia = async (draft: Omit<SavedMedia, 'updatedAt'>) => {
+    // Una serie que entra directo a Completadas entra con todo visto. Si
+    // todavía no trae sus temporadas, se marca cuando llegue la ficha.
+    const isCompleted = draft.status === 'completada';
+    const progress = isCompleted ? completeProgress(draft) : undefined;
+    const media = progress ? { ...draft, progress } : draft;
+
     if (!isAuth) {
       useMediaStore.getState().addMedia(media);
     } else {
@@ -113,7 +130,15 @@ export function useMediaActions() {
 
     try {
       const detail = await getMediaDetail(media.tmdbId, media.mediaType);
-      await write(media.tmdbId, enrichFromDetail(detail, region));
+      const enrichment = enrichFromDetail(detail, region);
+      const lateProgress =
+        isCompleted && !progress
+          ? completeProgress({ ...media, ...enrichment })
+          : undefined;
+      await write(media.tmdbId, {
+        ...enrichment,
+        ...(lateProgress ? { progress: lateProgress } : {}),
+      });
     } catch (error) {
       console.warn('[media] No pudimos completar la ficha del título:', error);
     }
@@ -126,7 +151,12 @@ export function useMediaActions() {
   };
 
   const updateStatus = async (tmdbId: number, status: MediaStatus) => {
-    await write(tmdbId, { status });
+    const current = useMediaStore
+      .getState()
+      .mediaList.find((media) => media.tmdbId === tmdbId);
+    const progress =
+      status === 'completada' ? progressOnComplete(current) : undefined;
+    await write(tmdbId, { status, ...(progress ? { progress } : {}) });
   };
 
   const patchMedia = async (tmdbId: number, patch: Partial<SavedMedia>) => {
@@ -141,13 +171,16 @@ export function useMediaActions() {
    * dos veces lo mismo con el mismo puntaje y sin comentario se perdería.
    */
   const addWatchEntry = async (media: SavedMedia, entry: WatchEntry) => {
+    const progress = progressOnComplete(media);
     if (!isAuth) {
       useMediaStore.getState().addWatchEntry(media.tmdbId, entry);
+      if (progress) useMediaStore.getState().setProgress(media.tmdbId, progress);
       return;
     }
     await write(media.tmdbId, {
       history: [entry, ...(media.history ?? [])],
       status: 'completada',
+      ...(progress ? { progress } : {}),
     });
   };
 

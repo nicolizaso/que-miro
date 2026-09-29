@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  completeProgress,
   formatEpisode,
   isEpisodeWatched,
   isSeriesComplete,
@@ -170,5 +171,31 @@ describe('helpers de lectura', () => {
 
   it('formatEpisode arma la etiqueta corta', () => {
     expect(formatEpisode(2, 5)).toBe('T2E5');
+  });
+});
+
+describe('completeProgress', () => {
+  it('marca todos los episodios de todas las temporadas', () => {
+    const progress = completeProgress(makeSeries({ 1: [2] }));
+    expect(progress?.watched).toEqual({ 1: [1, 2, 3], 2: [1, 2] });
+  });
+
+  it('conserva los especiales marcados sin agregar los que faltan', () => {
+    const conEspeciales = makeSeries({ 0: [3] }, [
+      { seasonNumber: 0, name: 'Especiales', episodeCount: 7 },
+      ...SEASONS,
+    ]);
+
+    const progress = completeProgress(conEspeciales);
+    expect(progress?.watched).toEqual({ 0: [3], 1: [1, 2, 3], 2: [1, 2] });
+  });
+
+  it('no hace nada si la serie ya estaba entera', () => {
+    expect(completeProgress(makeSeries({ 1: [1, 2, 3], 2: [1, 2] }))).toBeUndefined();
+  });
+
+  it('no hace nada sin temporadas conocidas ni en películas', () => {
+    expect(completeProgress(makeSeries({}, []))).toBeUndefined();
+    expect(completeProgress({ ...makeSeries(), mediaType: 'movie' })).toBeUndefined();
   });
 });
