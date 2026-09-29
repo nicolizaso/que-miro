@@ -8,6 +8,7 @@ import {
   getList,
   getMediaDetail,
   getPersonCredits,
+  getPersonPage,
   getProviders,
   getRecommendations,
   getSeason,
@@ -1142,5 +1143,85 @@ describe('encontrar lo que llega de otra app', () => {
     const movieUrl = new URL(String(fetchMock.mock.calls[1][0]));
     expect(movieUrl.pathname).toBe('/3/search/movie');
     expect(movieUrl.searchParams.get('primary_release_year')).toBe('2023');
+  });
+});
+
+describe('la página de una persona', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  it('datos y filmografía en una llamada, sin lo que no es obra', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 525,
+        name: 'Christopher Nolan',
+        profile_path: '/cn.jpg',
+        biography: 'Director británico.',
+        birthday: '1970-07-30',
+        deathday: null,
+        place_of_birth: 'Londres, Inglaterra',
+        known_for_department: 'Directing',
+        popularity: 30,
+        combined_credits: {
+          cast: [
+            { id: 1, media_type: 'movie', title: 'Cameo', release_date: '2010-01-01', character: 'Man on Street', vote_average: 6, vote_count: 10 },
+            { id: 2, media_type: 'tv', name: 'The Tonight Show', genre_ids: [10767], character: 'Self' },
+            { id: 3, media_type: 'movie', title: 'Making of', character: 'Himself', release_date: '2011-01-01' },
+          ],
+          crew: [
+            { id: 27205, media_type: 'movie', title: 'El origen', release_date: '2010-07-15', job: 'Director', department: 'Directing', poster_path: '/o.jpg', vote_average: 8.4, vote_count: 36000, overview: 'Largo.', credit_id: 'x' },
+            { id: 27205, media_type: 'movie', title: 'El origen', release_date: '2010-07-15', job: 'Writer', department: 'Writing' },
+            { id: 9, media_type: 'movie', title: 'La próxima', release_date: '', job: 'Director' },
+          ],
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+
+    const page = await getPersonPage(525, 'es-ES');
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe('/3/person/525');
+    expect(url.searchParams.get('append_to_response')).toBe('combined_credits');
+    expect(page.person).toEqual({
+      id: 525,
+      name: 'Christopher Nolan',
+      profile_path: '/cn.jpg',
+      biography: 'Director británico.',
+      birthday: '1970-07-30',
+      deathday: null,
+      place_of_birth: 'Londres, Inglaterra',
+      known_for_department: 'Directing',
+    });
+    expect(page.credits).toEqual([
+      { id: 1, media_type: 'movie', title: 'Cameo', date: '2010-01-01', poster_path: null, role: 'reparto', character: 'Man on Street', job: null, vote_average: 6, vote_count: 10 },
+      { id: 27205, media_type: 'movie', title: 'El origen', date: '2010-07-15', poster_path: '/o.jpg', role: 'direccion', character: null, job: 'Director', vote_average: 8.4, vote_count: 36000 },
+      { id: 9, media_type: 'movie', title: 'La próxima', date: null, poster_path: null, role: 'direccion', character: null, job: 'Director', vote_average: 0, vote_count: 0 },
+    ]);
+  });
+
+  it('sin biografía en latino, la de España', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      const language = new URL(url).searchParams.get('language');
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          language === 'es-MX'
+            ? { id: 1, name: 'Alguien', biography: '', combined_credits: { cast: [], crew: [] } }
+            : { id: 1, name: 'Alguien', biography: 'La de España.' },
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+
+    expect((await getPersonPage(1, 'es-MX')).person.biography).toBe('La de España.');
   });
 });

@@ -47,6 +47,12 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está
   disponible, según el país que elijas, con un enlace a la página que lleva
   directo a cada una.
+- **Página de persona** — desde el reparto de una ficha, las filas de Explorar
+  que hablan de alguien o lo que elegiste en "Contanos de vos", su página
+  (`/persona/…`): quién es, su filmografía sin repetidos —con filtro reparto /
+  dirección— y cada título marcado según tu biblioteca. Arriba, "Viste 7 de 23"
+  y las mejor puntuadas que te faltan, con un mínimo de votos para que no gane
+  algo con tres.
 - **Progreso de series** — marcá episodios de a uno o por temporada entera, con
   barra de progreso y un "vas por T2E5" para retomar donde dejaste. Cada
   temporada muestra sus episodios con nombre, fecha, duración e imagen; lo que
@@ -284,6 +290,7 @@ api/                  Funciones serverless (Vercel)
   tmdb/recommendations.ts  GET /api/tmdb/recommendations?type=&id=[&mode=similar]
   tmdb/discover.ts    GET /api/tmdb/discover?type=&genre=&from=&original=&provider=…
   tmdb/person.ts      GET /api/tmdb/person?id=&role=reparto|direccion
+  tmdb/person-page.ts GET /api/tmdb/person-page?id= (datos y filmografía, en una)
   tmdb/saga.ts        GET /api/tmdb/saga?id=
   tmdb/season.ts      GET /api/tmdb/season?id=&season= (episodios, recortados)
   tmdb/providers.ts   GET /api/tmdb/providers?type=&region= (plataformas del país)
@@ -311,9 +318,10 @@ src/
   lib/feed.ts         Barajado con semilla y reparto de títulos entre filas
   lib/importers/      Un parser por app (IMDb, Letterboxd, Trakt), el match con
                       TMDB y la mezcla con la biblioteca
+  lib/person.ts       La filmografía de una persona cruzada con tu biblioteca
   components/charts/  Piezas del panel de estadísticas
   views/              ListView, ExploreView, SmartPickerView, CalendarView, ProfileView,
-                      TasteProfileView, LoginView, NotFoundView
+                      TasteProfileView, PersonView, LoginView, NotFoundView
   store.ts            Biblioteca (Zustand + localStorage)
   preferences.ts      Tema, región y el token de avisos, solo de este dispositivo
   sw.ts               Service worker: precache, pósters offline y avisos push

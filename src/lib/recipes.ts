@@ -33,8 +33,11 @@ export interface FeedBlock {
   family: BlockFamily;
   title: string;
   subtitle?: string;
-  /** La cara de quien protagoniza la fila, cuando la fila habla de alguien. */
-  avatar?: { name: string; profilePath?: string | null };
+  /**
+   * Quien protagoniza la fila, cuando la fila habla de alguien: su cara al
+   * lado del título, y el id para llevar a su página.
+   */
+  avatar?: { id: number; name: string; profilePath?: string | null };
   /** Cuánto queremos que aparezca temprano. Las más personales pesan más. */
   weight: number;
   /**
@@ -209,6 +212,7 @@ export const RECIPES: Recipe[] = [
         title: `Otros trabajos de ${signal.person.name}`,
         subtitle: `Dirigió ${signal.titles[0].title}, que puntuaste ${formatRating(signal.bestRating)}.`,
         avatar: {
+          id: signal.person.id,
           name: signal.person.name,
           profilePath: signal.person.profilePath,
         },
@@ -233,6 +237,7 @@ export const RECIPES: Recipe[] = [
           title: `Si te gustó ${signal.person.name}`,
           subtitle: `Lo viste en ${signal.titles[0].title}.`,
           avatar: {
+            id: signal.person.id,
             name: signal.person.name,
             profilePath: signal.person.profilePath,
           },
@@ -254,6 +259,7 @@ export const RECIPES: Recipe[] = [
           title: `Tu cara me suena: ${signal.person.name}`,
           subtitle: `Está en ${signal.titles.length} de tus favoritas, arrancando por ${signal.titles[0].title}.`,
           avatar: {
+            id: signal.person.id,
             name: signal.person.name,
             profilePath: signal.person.profilePath,
           },
@@ -850,7 +856,7 @@ export const RECIPES: Recipe[] = [
         family: 'gente' as const,
         title: `Todo lo de ${person.name}`,
         subtitle: 'Está entre tus directores favoritos.',
-        avatar: { name: person.name, profilePath: person.profilePath },
+        avatar: { id: person.id, name: person.name, profilePath: person.profilePath },
         weight: 10,
         fetch: () => getPersonCredits(person.id, 'direccion'),
       })),
@@ -864,7 +870,7 @@ export const RECIPES: Recipe[] = [
         family: 'gente' as const,
         title: `Con ${person.name} en pantalla`,
         subtitle: 'Está entre tus actores favoritos.',
-        avatar: { name: person.name, profilePath: person.profilePath },
+        avatar: { id: person.id, name: person.name, profilePath: person.profilePath },
         weight: 10,
         fetch: () => getPersonCredits(person.id, 'reparto'),
       })),

@@ -185,6 +185,15 @@ describe('ExploreView', () => {
     expect(
       screen.getByRole('heading', { name: 'Si te gustó Zendaya' }),
     ).toBeInTheDocument();
+
+    // Las filas que hablan de alguien llevan a su página.
+    expect(
+      screen.getByRole('link', { name: 'Otros trabajos de Denis Villeneuve' }),
+    ).toHaveAttribute('href', '/persona/100');
+    expect(screen.getByRole('link', { name: 'Si te gustó Zendaya' })).toHaveAttribute(
+      'href',
+      '/persona/200',
+    );
   });
 
   it('no repite el mismo título en dos filas', async () => {

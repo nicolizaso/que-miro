@@ -488,3 +488,90 @@ test('importar el export de Letterboxd, revisando lo dudoso', async ({ page }) =
   await expect(page.getByRole('button', { name: /Ver detalle de Vidas pasadas/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Ver detalle de Oppenheimer/ })).toBeVisible();
 });
+
+test('del reparto de una ficha a la página de la persona, y de vuelta', async ({ page }) => {
+  // TMDB contesta la búsqueda, la ficha de Duna y la página de Javier Bardem.
+  const duna = {
+    id: 438631,
+    media_type: 'movie',
+    title: 'Duna',
+    poster_path: null,
+    backdrop_path: null,
+    release_date: '2021-09-15',
+    genre_ids: [878],
+    overview: '',
+  };
+  await page.route('**/api/tmdb/search**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [duna] }) }),
+  );
+  await page.route('**/api/tmdb/detail**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...duna,
+        genres: [{ id: 878, name: 'Ciencia ficción' }],
+        runtime: 155,
+        credits: { cast: [{ id: 3810, name: 'Javier Bardem', character: 'Stilgar', profile_path: null }] },
+      }),
+    }),
+  );
+  const credit = (id: number, title: string, date: string, vote_average: number, character: string) => ({
+    id,
+    media_type: 'movie',
+    title,
+    date,
+    poster_path: null,
+    role: 'reparto',
+    character,
+    job: null,
+    vote_average,
+    vote_count: 5000,
+  });
+  await page.route('**/api/tmdb/person-page**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        person: {
+          id: 3810,
+          name: 'Javier Bardem',
+          profile_path: null,
+          biography: 'Actor español.',
+          birthday: '1969-03-01',
+          deathday: null,
+          place_of_birth: 'Las Palmas de Gran Canaria, España',
+          known_for_department: 'Acting',
+        },
+        credits: [
+          credit(438631, 'Duna', '2021-09-15', 7.8, 'Stilgar'),
+          credit(6977, 'Sin lugar para los débiles', '2007-11-09', 7.9, 'Anton Chigurh'),
+          credit(1913, 'Mar adentro', '2004-09-03', 7.8, 'Ramón Sampedro'),
+        ],
+      }),
+    }),
+  );
+
+  // Desde el buscador, que vive en el marco y no en la página: tiene que
+  // cerrarse solo al irse a otra.
+  await page.keyboard.press('Control+k');
+  const search = page.getByRole('dialog', { name: 'Buscar títulos' });
+  await search.getByRole('searchbox', { name: 'Buscar películas o series' }).fill('duna');
+  await search.getByRole('button', { name: 'Ver detalle de Duna', exact: true }).click();
+  await page.getByRole('link', { name: 'Javier Bardem' }).click();
+
+  await expect(page).toHaveURL(/\/persona\/3810$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Javier Bardem' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  // Duna está en el Por Ver del demo: no cuenta como vista ni como "te falta".
+  await expect(page.getByText('Viste 0 de 3')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Te faltan estas 2 bien puntuadas' })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: /Filmografía/ }).getByRole('button', { name: /Duna/ }),
+  ).toContainText('Por ver');
+
+  // "Atrás" vuelve a la lista, sin ficha ni buscador encima.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});

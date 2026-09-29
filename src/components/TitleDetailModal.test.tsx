@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Collection, TMDbDetail } from '@/types';
 
 /** Sin sesión: la biblioteca es el store local, que es lo que miran los tests. */
@@ -230,5 +231,52 @@ describe('TitleDetailModal, las plataformas', () => {
     expect(whereToWatch).toHaveAttribute('href', link);
     expect(whereToWatch).toHaveAttribute('target', '_blank');
     expect(screen.getByText(/Datos de plataformas/)).toHaveTextContent('JustWatch');
+  });
+});
+
+describe('TitleDetailModal, el reparto', () => {
+  it('cada persona lleva a su página, y la ficha se cierra al irse', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    // El reparto va en una fila deslizable, que mide su ancho con un
+    // observador que jsdom no trae.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    getMediaDetail.mockImplementation(async () => ({
+      ...detail,
+      credits: { cast: [{ id: 525, name: 'Adam Scott', character: 'Mark S.', profile_path: null }] },
+    }));
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/explorar']}>
+          <ToastProvider>
+            <Routes>
+              <Route
+                path="/explorar"
+                element={<TitleDetailModal id={42} mediaType="tv" isOpen onClose={onClose} />}
+              />
+              <Route path="/persona/:id" element={<p>La página de la persona</p>} />
+            </Routes>
+          </ToastProvider>
+        </MemoryRouter>,
+      );
+
+      const link = await screen.findByRole('link', { name: 'Adam Scott' });
+      expect(link).toHaveAttribute('href', '/persona/525');
+
+      await user.click(link);
+      expect(onClose).toHaveBeenCalled();
+      expect(await screen.findByText('La página de la persona')).toBeInTheDocument();
+    } finally {
+      getMediaDetail.mockImplementation(async () => detail);
+      vi.unstubAllGlobals();
+    }
   });
 });

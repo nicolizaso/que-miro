@@ -225,8 +225,43 @@ export async function findTitles(
   return results.map(fromFindResult);
 }
 
+/** Un crédito de la página de persona, como lo manda el servidor. */
+export interface PersonPageCredit {
+  id: number;
+  media_type: MediaType;
+  title: string;
+  date: string | null;
+  poster_path: string | null;
+  role: 'reparto' | 'direccion';
+  character: string | null;
+  job: string | null;
+  vote_average: number;
+  vote_count: number;
+}
+
+export interface PersonPage {
+  person: {
+    id: number;
+    name: string;
+    profile_path: string | null;
+    biography: string;
+    birthday: string | null;
+    deathday: string | null;
+    place_of_birth: string | null;
+    known_for_department: string | null;
+  };
+  credits: PersonPageCredit[];
+}
+
 /**
- * Los episodios de una temporada: nombre, sinopsis, fecha, duración e imagen./**
+ * La página de una persona: sus datos y su filmografía.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function getPersonPage(id: number): Promise<PersonPage> {
+  return fetchApi<PersonPage>(withLanguage(`/api/tmdb/person-page?id=${id}`));
+}
+
+/**
  * Los episodios de una temporada: nombre, sinopsis, fecha, duración e imagen.
  * @throws {TMDbRequestError} si la consulta falla.
  */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   CalendarDays,
   Compass,
@@ -64,6 +64,14 @@ export function AppLayout() {
   usePushSnapshot();
   useCalendarFeedSync();
   useAutoPublishProfile();
+
+  // Desde el buscador se puede terminar en otra página —el reparto de una
+  // ficha abierta desde ahí lleva a la de esa persona—, y el buscador no
+  // tiene que quedar abierto encima de la página nueva.
+  const { pathname } = useLocation();
+  useEffect(() => {
+    setIsSearchOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

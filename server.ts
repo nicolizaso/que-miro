@@ -23,6 +23,7 @@ import {
   getList,
   getMediaDetail,
   getPersonCredits,
+  getPersonPage,
   getProviders,
   getRecommendations,
   getSaga,
@@ -201,6 +202,17 @@ async function startServer() {
       }
       res.set(cacheHeaders(FIND_TTL));
       return res.status(200).json({ results });
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/person-page', async (req, res) => {
+    try {
+      const result = await getPersonPage(parseId(req.query.id), parseLanguage(req.query.lang));
+      res.set(cacheHeaders(PERSON_TTL));
+      return res.status(200).json(result);
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);

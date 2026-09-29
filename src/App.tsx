@@ -20,6 +20,7 @@ import { PublicListView } from '@/views/PublicListView';
 import { TasteProfileView } from '@/views/TasteProfileView';
 import { FollowingView } from '@/views/FollowingView';
 import { TogetherView } from '@/views/TogetherView';
+import { PersonView } from '@/views/PersonView';
 import { SmartPickerView } from '@/views/SmartPickerView';
 
 /** Pantalla de carga mientras Firebase resuelve si hay sesión. */
@@ -69,6 +70,7 @@ function AppRoutes() {
         <Route path="picker" element={<SmartPickerView />} />
         <Route path="calendario" element={<CalendarView />} />
         <Route path="juntos/:slug" element={<TogetherView />} />
+        <Route path="persona/:id" element={<PersonView />} />
         <Route path="perfil" element={<ProfileView />}>
           <Route index element={<ProfileSummary />} />
           <Route path="gustos" element={<TasteProfileView />} />

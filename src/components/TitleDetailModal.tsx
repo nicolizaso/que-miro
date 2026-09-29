@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getMediaDetail,
   TMDB_IMAGE_BASE_URL,
@@ -560,23 +561,31 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                       header={<h3 className="text-lg font-bold">Reparto Principal</h3>}
                     >
                       {cast.map((c) => (
-                        <li
-                          key={c.id}
-                          className="rail-item flex flex-col gap-2 w-20 shrink-0"
-                        >
-                          <div className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0 shadow-card">
-                            {c.profile_path && (
-                              <img
-                                src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`}
-                                alt=""
-                                loading="lazy"
-                                className="w-full h-full object-cover"
-                              />
-                            )}
-                          </div>
-                          <span className="text-xs text-center font-medium leading-tight truncate">
-                            {c.name}
-                          </span>
+                        <li key={c.id} className="rail-item w-20 shrink-0">
+                          {/* Un enlace de verdad y no un botón: la página de la
+                              persona tiene su dirección, así que "atrás" vuelve
+                              adonde estabas y se puede abrir en otra pestaña.
+                              La ficha se cierra al salir: queda atrás, no
+                              encima de la página nueva. */}
+                          <Link
+                            to={`/persona/${c.id}`}
+                            onClick={onClose}
+                            className="group flex flex-col gap-2 rounded-control"
+                          >
+                            <span className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0 shadow-card ring-2 ring-transparent group-hover:ring-accent transition-[box-shadow]">
+                              {c.profile_path && (
+                                <img
+                                  src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`}
+                                  alt=""
+                                  loading="lazy"
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                            </span>
+                            <span className="text-xs text-center font-medium leading-tight truncate group-hover:text-accent">
+                              {c.name}
+                            </span>
+                          </Link>
                         </li>
                       ))}
                     </ScrollRail>

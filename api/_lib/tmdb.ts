@@ -1101,6 +1101,117 @@ export async function getPersonCredits(
   });
 }
 
+/** Géneros de TV que no son obra: talk shows, noticieros y reality. */
+const NOT_WORK_GENRES = new Set([10763, 10764, 10767]);
+
+/** Cuando alguien aparece haciendo de sí mismo: una entrevista, un documental. */
+const AS_THEMSELVES = /^(self|himself|herself|themselves|él mismo|ella misma|sí mismo)\b/i;
+
+/** Un crédito de la página de persona, con lo que se muestra y nada más. */
+export interface PersonPageCredit {
+  id: number;
+  media_type: MediaType;
+  title: string;
+  /** `YYYY-MM-DD`, o `null` si no tiene fecha (anunciado, en producción). */
+  date: string | null;
+  poster_path: string | null;
+  role: PersonRole;
+  /** El personaje (reparto) o el trabajo (dirección). */
+  character: string | null;
+  job: string | null;
+  vote_average: number;
+  vote_count: number;
+}
+
+export interface PersonPage {
+  person: {
+    id: number;
+    name: string;
+    profile_path: string | null;
+    biography: string;
+    birthday: string | null;
+    deathday: string | null;
+    place_of_birth: string | null;
+    known_for_department: string | null;
+  };
+  credits: PersonPageCredit[];
+}
+
+function toPageCredit(raw: Record<string, unknown>, role: PersonRole): PersonPageCredit | null {
+  const mediaType = raw.media_type === 'movie' || raw.media_type === 'tv' ? raw.media_type : null;
+  const id = Number(raw.id);
+  const title = String((mediaType === 'movie' ? raw.title : raw.name) ?? '').trim();
+  if (!mediaType || !Number.isInteger(id) || id <= 0 || !title) return null;
+  const genres = Array.isArray(raw.genre_ids) ? (raw.genre_ids as unknown[]) : [];
+  if (mediaType === 'tv' && genres.some((genre) => NOT_WORK_GENRES.has(Number(genre)))) return null;
+  const character = typeof raw.character === 'string' ? raw.character.trim() : '';
+  if (role === 'reparto' && AS_THEMSELVES.test(character)) return null;
+  const date = String((mediaType === 'movie' ? raw.release_date : raw.first_air_date) ?? '');
+  return {
+    id,
+    media_type: mediaType,
+    title,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null,
+    poster_path: typeof raw.poster_path === 'string' ? raw.poster_path : null,
+    role,
+    character: character || null,
+    job: typeof raw.job === 'string' ? raw.job : null,
+    vote_average: Number(raw.vote_average) || 0,
+    vote_count: Number(raw.vote_count) || 0,
+  };
+}
+
+/**
+ * Todo lo de la página de una persona en una sola llamada: sus datos y su
+ * filmografía (`append_to_response=combined_credits`).
+ *
+ * Se reenvía solo lo que la página muestra. De la filmografía queda afuera lo
+ * que no es obra —talk shows, noticieros, reality, las veces que aparece
+ * haciendo de sí misma—, que en quien es famosa son cientos de créditos y
+ * taparían los de verdad. De dirección, lo que dirigió o creó. Juntar los
+ * repetidos (quien dirigió y actuó en lo mismo) es cosa del cliente.
+ *
+ * El nombre no se traduce en TMDB; la biografía sí, y si en latino no hay,
+ * se completa con la de España.
+ */
+export async function getPersonPage(id: number, language: Language = DEFAULT_LANGUAGE): Promise<PersonPage> {
+  return withCache(`personPage:${id}:${language}`, PERSON_TTL, async () => {
+    const data = await fetchTMDB<Record<string, unknown> & {
+      combined_credits?: { cast?: Record<string, unknown>[]; crew?: Record<string, unknown>[] };
+    }>(`/person/${id}`, { append_to_response: 'combined_credits' }, language);
+
+    let biography = typeof data.biography === 'string' ? data.biography.trim() : '';
+    if (!biography && language !== DEFAULT_LANGUAGE) {
+      try {
+        const fallback = await fetchTMDB<{ biography?: string }>(`/person/${id}`, {}, DEFAULT_LANGUAGE);
+        biography = fallback.biography?.trim() ?? '';
+      } catch {
+        // Sin biografía se muestra la página igual: es lo de menos.
+      }
+    }
+
+    const cast = (data.combined_credits?.cast ?? []).map((raw) => toPageCredit(raw, 'reparto'));
+    const crew = (data.combined_credits?.crew ?? [])
+      .filter((raw) => raw.job === 'Director' || raw.job === 'Creator')
+      .map((raw) => toPageCredit(raw, 'direccion'));
+
+    const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
+    return {
+      person: {
+        id,
+        name: text(data.name) ?? '',
+        profile_path: text(data.profile_path),
+        biography,
+        birthday: text(data.birthday),
+        deathday: text(data.deathday),
+        place_of_birth: text(data.place_of_birth),
+        known_for_department: text(data.known_for_department),
+      },
+      credits: [...cast, ...crew].filter((credit): credit is PersonPageCredit => credit !== null),
+    };
+  });
+}
+
 /**
  * Las partes de una saga, de la primera a la última.
  *

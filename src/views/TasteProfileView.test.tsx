@@ -210,6 +210,11 @@ describe('Contanos de vos', () => {
     expect(saved().directors).toEqual([
       { id: 525, name: 'Christopher Nolan', profilePath: null },
     ]);
+    // Lo elegido lleva a la página de la persona.
+    expect(screen.getByRole('link', { name: 'Christopher Nolan' })).toHaveAttribute(
+      'href',
+      '/persona/525',
+    );
 
     await userEvent.click(
       screen.getByRole('button', { name: 'Sacar a Christopher Nolan' }),
