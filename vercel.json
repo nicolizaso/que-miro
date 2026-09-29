@@ -35,6 +35,15 @@
   "functions": {
     "api/u/[slug].ts": {
       "includeFiles": "dist/index.html"
+    },
+    "api/cron/notify.ts": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/notify",
+      "schedule": "0 13 * * *"
+    }
+  ]
 }

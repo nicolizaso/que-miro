@@ -54,5 +54,34 @@ service cloud.firestore {
       allow delete: if request.auth != null
         && request.auth.uid == resource.data.uid;
     }
+
+    /**
+     * Avisos de episodios: la instantánea que lee el cron diario
+     * (`api/cron/notify.ts`, con Firebase Admin, que no pasa por estas reglas).
+     *
+     * Fuera de `users/` por lo mismo que los perfiles públicos: el servidor no
+     * lee la biblioteca de nadie, solo esto. Pero no es pública: los tokens
+     * son de los dispositivos de la persona y la lista de series es suya, así
+     * que la lee y la escribe solo su dueño.
+     *
+     * Las claves están cerradas a propósito. Lo que se publica para el
+     * servidor es tokens, país, idioma y los ids de las series con aviso; si
+     * algún día se colara un estado o un puntaje, la escritura tiene que
+     * fallar acá y no terminar en un documento que lee el servidor.
+     */
+    match /push_subscriptions/{uid} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+
+      allow read, delete: if isOwner();
+
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly(['tokens', 'series', 'region', 'language', 'updatedAt'])
+        && request.resource.data.tokens is list
+        && request.resource.data.tokens.size() <= 10
+        && request.resource.data.series is list
+        && request.resource.data.series.size() <= 1000;
+    }
   }
 }

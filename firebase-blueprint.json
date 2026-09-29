@@ -50,6 +50,7 @@
           { "name": "newEpisodesSince", "type": "map", "required": false },
           { "name": "archive", "type": "map", "required": false },
           { "name": "availabilityNews", "type": "list", "required": false },
+          { "name": "notify", "type": "boolean", "required": false },
           { "name": "progress", "type": "map", "required": false },
           { "name": "history", "type": "list", "required": false },
           { "name": "collections", "type": "list", "required": false },
@@ -106,6 +107,24 @@
       "schema": {
         "fields": [
           { "name": "providers", "type": "list", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "push_subscriptions",
+      "path": "/push_subscriptions/{uid}",
+      "description": "Snapshot read by the daily episode-alerts cron: device tokens, region, language and only the ids of series with alerts on. Outside users/ so the server never reads the library; owner-only, closed keys",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == uid",
+        "write": "request.auth != null && request.auth.uid == uid && request.resource.data.keys().hasOnly(['tokens', 'series', 'region', 'language', 'updatedAt'])"
+      },
+      "schema": {
+        "fields": [
+          { "name": "tokens", "type": "list", "required": true },
+          { "name": "series", "type": "list", "required": true },
+          { "name": "region", "type": "string", "required": true },
+          { "name": "language", "type": "string", "required": true },
           { "name": "updatedAt", "type": "timestamp", "required": true }
         ]
       }

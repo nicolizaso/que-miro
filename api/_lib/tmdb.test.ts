@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   TmdbError,
   digitalReleases,
+  getAiring,
   getDiscover,
   getList,
   getMediaDetail,
@@ -1012,5 +1013,53 @@ describe('los estrenos digitales', () => {
 
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+  });
+});
+
+describe('lo que el cron de avisos pregunta de una serie', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  it('la ficha liviana, recortada a los episodios de alrededor de hoy', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 95396,
+        name: 'Severance',
+        overview: 'Largo.',
+        seasons: [{ season_number: 1 }, { season_number: 2 }],
+        next_episode_to_air: {
+          id: 1,
+          air_date: '2026-09-29',
+          season_number: 2,
+          episode_number: 3,
+          name: 'Quién está vivo',
+          overview: 'Spoilers.',
+          crew: [{ name: 'Alguien' }],
+        },
+        last_episode_to_air: null,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('TMDB_API_KEY', 'test-key');
+    clearCache();
+
+    const airing = await getAiring(95396, 'es-MX');
+    await getAiring(95396, 'es-MX');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe('/3/tv/95396');
+    expect(url.searchParams.get('append_to_response')).toBeNull();
+    expect(url.searchParams.get('language')).toBe('es-MX');
+    expect(airing).toEqual({
+      name: 'Severance',
+      next_episode_to_air: { air_date: '2026-09-29', season_number: 2, episode_number: 3, name: 'Quién está vivo' },
+      last_episode_to_air: null,
+    });
   });
 });

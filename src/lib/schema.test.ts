@@ -653,3 +653,17 @@ describe('las novedades de disponibilidad', () => {
     expect(series.digitalRelease).toBeUndefined();
   });
 });
+
+describe('el aviso de episodios nuevos', () => {
+  const show = { tmdbId: 95396, mediaType: 'tv', title: 'Severance', status: 'viendo' };
+
+  it('se conserva en una serie', () => {
+    expect(parseMedia({ ...show, notify: true })!.notify).toBe(true);
+  });
+
+  it('apagado, roto o en una película es lo mismo que no tenerlo', () => {
+    expect(parseMedia({ ...show, notify: false })!.notify).toBeUndefined();
+    expect(parseMedia({ ...show, notify: 'sí' })!.notify).toBeUndefined();
+    expect(parseMedia({ ...show, mediaType: 'movie', notify: true })!.notify).toBeUndefined();
+  });
+});

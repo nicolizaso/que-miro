@@ -196,6 +196,15 @@ async function startServer() {
     }
   });
 
+  // El cron de avisos, para poder dispararlo a mano en local con el mismo
+  // `Authorization: Bearer $CRON_SECRET` que manda Vercel. Se importa recién
+  // cuando se lo llama: Firebase Admin es pesado y el resto del server no lo
+  // necesita.
+  app.get('/api/cron/notify', async (req, res) => {
+    const { default: notify } = await import('./api/cron/notify.js');
+    return notify(req as never, res as never);
+  });
+
   const vite = await createViteServer({
     server: { middlewareMode: true },
     appType: 'spa',

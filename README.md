@@ -79,6 +79,11 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   tus géneros, tus actores, tus directores, tus productoras, tu década— que
   Explorar convierte en filas nuevas. Es lo que hace que la pestaña sea tuya
   desde el primer día, antes de tener una sola estrella puesta.
+- **Avisos de episodios** — prendé "Avisame de episodios nuevos" en la ficha
+  de una serie (o elegilas en Ajustes) y el día que sale un episodio te llega
+  una notificación que abre su ficha; si salen varias, un solo aviso que las
+  nombra. El servidor solo ve los ids de esas series, nunca tu biblioteca. En
+  iPhone y iPad funciona con la app instalada en la pantalla de inicio.
 - **Calendario** — lo que sale de las series que seguís y lo que tenés en *Por
   Ver* con fecha de estreno, agrupado en hoy, esta semana, las próximas y más
   adelante. Una temporada que se estrena entera se ve como tal, y las que
@@ -155,12 +160,18 @@ modo invitado.
 |---|---|---|
 | `TMDB_API_KEY` | Sí | Buscar títulos y traer sus fichas. Se pide [acá](https://www.themoviedb.org/settings/api). |
 | `VITE_FIREBASE_*` | No | Login y sincronización entre dispositivos. |
+| `VITE_FIREBASE_VAPID_KEY` | No | Avisos de episodios: la clave pública de *Certificados push web*. Sin ella la app no ofrece avisos. |
+| `FIREBASE_ADMIN_CLIENT_EMAIL` | Para avisos | Cuenta de servicio con la que el cron lee las suscripciones y manda los avisos. |
+| `FIREBASE_ADMIN_PRIVATE_KEY` | Para avisos | La clave privada de esa cuenta de servicio (con los `\n` tal cual vienen en el JSON). |
+| `FIREBASE_ADMIN_PROJECT_ID` | No | Solo si el proyecto del servidor no es el de `VITE_FIREBASE_PROJECT_ID`. |
+| `CRON_SECRET` | Para avisos | Un texto largo al azar. Vercel lo manda en cada corrida del cron, y sin él el cron no corre. |
 
 > **Sobre las claves:** `TMDB_API_KEY` no lleva prefijo `VITE_` a propósito — la
 > usa únicamente el servidor, así nunca termina en el bundle que se descarga el
 > navegador. Las `VITE_FIREBASE_*` sí son públicas por diseño: en Firebase la
 > seguridad real la dan las reglas de Firestore ([`firestore.rules`](firestore.rules))
-> y la lista de dominios autorizados en la consola.
+> y la lista de dominios autorizados en la consola. `FIREBASE_ADMIN_*` y
+> `CRON_SECRET`, en cambio, son secretos de servidor: nunca con prefijo `VITE_`.
 
 ### Configurar Firebase (opcional)
 
@@ -189,6 +200,35 @@ modo invitado.
 
 El modelo de datos está documentado en [`firebase-blueprint.json`](firebase-blueprint.json).
 
+### Configurar los avisos de episodios (opcional)
+
+Los avisos son tres piezas: el navegador se suscribe con Firebase Cloud
+Messaging, guarda en `push_subscriptions/{uid}` sus tokens y los ids de las
+series con aviso, y un cron diario en Vercel ([`api/cron/notify.ts`](api/cron/notify.ts))
+lee eso, le pregunta a TMDB qué sale hoy y manda los avisos. El cron no lee
+`saved_media`.
+
+1. En la consola de Firebase, **Configuración del proyecto → Cloud Messaging →
+   Certificados push web**, generá el par de claves y copiá la pública en
+   `VITE_FIREBASE_VAPID_KEY`.
+2. En **Cuentas de servicio**, generá una clave privada nueva. Del JSON que se
+   descarga, `client_email` va en `FIREBASE_ADMIN_CLIENT_EMAIL` y
+   `private_key` en `FIREBASE_ADMIN_PRIVATE_KEY`. Ese archivo no se commitea.
+3. Inventá un `CRON_SECRET` largo (`openssl rand -hex 32`) y cargalo en Vercel.
+4. Publicá las reglas: `push_subscriptions` tiene las suyas.
+
+El cron corre todos los días a las 13:00 UTC (`crons` en [`vercel.json`](vercel.json)).
+Para probarlo a mano, en local o contra el deploy:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/notify
+```
+
+En desarrollo no hay service worker, así que activar los avisos se prueba
+con el build (`npm run build && npm run preview`) o en el deploy. En iPhone y
+iPad las notificaciones web existen solo para la app instalada en la pantalla
+de inicio (iOS 16.4 o más nuevo): la app lo explica en vez de mostrar el botón.
+
 ---
 
 ## Scripts
@@ -211,6 +251,9 @@ El modelo de datos está documentado en [`firebase-blueprint.json`](firebase-blu
 api/                  Funciones serverless (Vercel)
   _lib/tmdb.ts        Cliente de TMDB — el único lugar con la API key
   _lib/cache.ts       Caché con TTL para lo que es igual para todos
+  _lib/notify.ts      A quién avisarle qué: la lógica pura del cron de avisos
+  _lib/firebaseAdmin.ts  Firebase Admin con credenciales por variables de entorno
+  cron/notify.ts      El cron diario de avisos de episodios (ver `vercel.json`)
   tmdb/search.ts      GET /api/tmdb/search?query=[&kind=person|company]
   tmdb/detail.ts      GET /api/tmdb/detail?type=&id=
   tmdb/trending.ts    GET /api/tmdb/trending (tendencias, populares, top)
@@ -219,6 +262,7 @@ api/                  Funciones serverless (Vercel)
   tmdb/person.ts      GET /api/tmdb/person?id=&role=reparto|direccion
   tmdb/saga.ts        GET /api/tmdb/saga?id=
   tmdb/season.ts      GET /api/tmdb/season?id=&season= (episodios, recortados)
+  tmdb/providers.ts   GET /api/tmdb/providers?type=&region= (plataformas del país)
                       (todos aceptan &lang=es-ES|es-MX; sin él, es-ES)
   u/[slug].ts         Sirve el perfil público con sus meta tags resueltos
 e2e/                  Tests de punta a punta (Playwright)
@@ -240,7 +284,8 @@ src/
   views/              ListView, ExploreView, SmartPickerView, CalendarView, ProfileView,
                       TasteProfileView, LoginView, NotFoundView
   store.ts            Biblioteca (Zustand + localStorage)
-  preferences.ts      Tema y región, solo de este dispositivo
+  preferences.ts      Tema, región y el token de avisos, solo de este dispositivo
+  sw.ts               Service worker: precache, pósters offline y avisos push
 server.ts             Server de desarrollo: Vite + las mismas rutas /api
 ```
 

@@ -254,6 +254,22 @@ export function useMediaActions() {
     writeSilently(media.tmdbId, { availabilityNews: markNewsSeen(media) });
   };
 
+  /**
+   * Prende o apaga el aviso de episodios nuevos de una serie.
+   *
+   * Sin tocar `updatedAt`, como descartar una novedad: es una preferencia
+   * sobre la serie, no algo que se hizo con ella, y no tiene por qué subirla
+   * en "Agregados hace poco". Pero con aviso si falla: esto sí lo pidió la
+   * persona. `usePushSnapshot` se encarga de que el servidor se entere.
+   */
+  const setNotify = (tmdbId: number, notify: boolean) => {
+    if (!isAuth) {
+      useMediaStore.getState().enrichMedia(tmdbId, { notify });
+      return;
+    }
+    fireAndForget(setFields(tmdbId, { notify }));
+  };
+
   const updateStatus = async (tmdbId: number, status: MediaStatus) => {
     const current = useMediaStore
       .getState()
@@ -429,6 +445,7 @@ export function useMediaActions() {
     refreshDetails,
     applyEnrichment,
     dismissAvailabilityNews,
+    setNotify,
     updateStatus,
     patchMedia,
     addWatchEntry,

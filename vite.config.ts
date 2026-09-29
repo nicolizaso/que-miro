@@ -34,26 +34,17 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
+      // El service worker se escribe a mano (src/sw.ts) desde que la app
+      // manda avisos: el generado no sabe atender `push` ni abrir la ficha al
+      // tocar la notificación. El plugin le inyecta igual la lista de archivos
+      // a precachear.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         // El bundle de Firebase pasa el límite por defecto de 2 MiB.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        // Los pósters de TMDB se cachean en runtime: la app queda usable
-        // offline mostrando las portadas ya vistas.
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/image\.tmdb\.org\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'tmdb-images',
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-              },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
       },
     }),
   ],

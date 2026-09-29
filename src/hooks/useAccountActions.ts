@@ -12,6 +12,8 @@ import { useMediaStore } from '@/store';
 import { picksPath } from '@/hooks/useTastePicks';
 import { goalsPath } from '@/hooks/useGoals';
 import { subscriptionsPath } from '@/hooks/useSubscriptions';
+import { pushPath } from '@/lib/push';
+import { releasePushDevice } from '@/lib/pushDevice';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -84,12 +86,18 @@ export function useAccountActions() {
       // Las metas y las suscripciones viven al lado y tienen el mismo problema.
       await deleteDoc(doc(db, goalsPath(user.uid)));
       await deleteDoc(doc(db, subscriptionsPath(user.uid)));
+      // La instantánea de avisos está fuera de `users/`: sin esto, el cron
+      // seguiría avisándole a una cuenta que ya no existe.
+      await deleteDoc(doc(db, pushPath(user.uid)));
     } catch (error) {
       console.error('[cuenta] No se pudieron borrar los datos:', error);
       throw new AccountDeletionError(
         'No pudimos borrar tus datos. Revisá tu conexión e intentá de nuevo.',
       );
     }
+
+    // El documento ya no está; esto anula la suscripción de este navegador.
+    await releasePushDevice();
 
     try {
       await deleteUser(auth.currentUser!);

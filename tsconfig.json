@@ -27,5 +27,9 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "types": ["vite/client"]
-  }
+  },
+  // El service worker corre en otro mundo —sin `window`, con `self` de
+  // worker— y se chequea aparte con tsconfig.sw.json: con la librería de
+  // WebWorker acá, sus tipos se mezclarían con los del resto de la app.
+  "exclude": ["node_modules", "dist", "src/sw.ts", "src/sw-env.d.ts"]
 }

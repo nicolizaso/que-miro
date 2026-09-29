@@ -22,6 +22,7 @@ import { ScrollRail } from '@/components/ui/ScrollRail';
 import { SeriesProgress } from '@/components/SeriesProgress';
 import { CollectionPicker } from '@/components/CollectionPicker';
 import { StatusActions } from '@/components/StatusActions';
+import { NotifyToggle } from '@/components/NotifyToggle';
 import { WatchHistory } from '@/components/WatchHistory';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { ShareButton } from '@/components/ShareButton';
@@ -436,6 +437,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                         </div>
                       )}
                       <StatusActions media={saved} />
+                      <NotifyToggle media={saved} />
                     </>
                   ) : (
                     <ul className="flex flex-wrap gap-2">

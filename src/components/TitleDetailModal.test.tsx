@@ -11,6 +11,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 vi.mock('@/lib/firebase', () => ({
   db: {},
   isFirebaseConfigured: false,
+  isPushConfigured: false,
   isMissingDatabaseError: () => false,
 }));
 

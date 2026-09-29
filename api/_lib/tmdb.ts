@@ -506,6 +506,44 @@ export async function getSeason(
   });
 }
 
+/**
+ * Una hora: el cron de avisos pide cada serie una sola vez por corrida, y esto
+ * cubre una segunda corrida el mismo rato —un reintento, una prueba a mano—
+ * sin repetirle las preguntas a TMDB.
+ */
+export const AIRING_TTL = 60 * 60;
+
+/** El episodio próximo o el último de una serie, con lo que el aviso nombra. */
+function trimAiringEpisode(value: unknown) {
+  if (typeof value !== 'object' || value === null) return null;
+  const raw = value as RawEpisode;
+  return {
+    air_date: typeof raw.air_date === 'string' ? raw.air_date : null,
+    season_number: raw.season_number,
+    episode_number: raw.episode_number,
+    name: typeof raw.name === 'string' ? raw.name : '',
+  };
+}
+
+/**
+ * Lo que el cron de avisos necesita de una serie: el nombre y los episodios
+ * de alrededor de hoy.
+ *
+ * Es la ficha sin `append_to_response`: el reparto, los videos y las
+ * plataformas no le sirven a un aviso, y se piden cientos de estas por
+ * corrida.
+ */
+export async function getAiring(id: number, language: Language = DEFAULT_LANGUAGE) {
+  return withCache(`airing:${id}:${language}`, AIRING_TTL, async () => {
+    const detail = await fetchTMDB<Record<string, unknown>>(`/tv/${id}`, {}, language);
+    return {
+      name: typeof detail.name === 'string' ? detail.name : '',
+      next_episode_to_air: trimAiringEpisode(detail.next_episode_to_air),
+      last_episode_to_air: trimAiringEpisode(detail.last_episode_to_air),
+    };
+  });
+}
+
 /** Valida el `mediaType` que llega por la request antes de pegarle a TMDB. */
 export function parseMediaType(value: unknown): MediaType {
   if (value === 'movie' || value === 'tv') return value;

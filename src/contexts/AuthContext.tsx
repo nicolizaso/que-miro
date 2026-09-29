@@ -18,6 +18,7 @@ import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
 import { enterDemoMode, exitDemoMode } from '@/lib/demo';
 import { useMediaStore } from '@/store';
 import { saveRescue } from '@/lib/rescue';
+import { releasePushDevice } from '@/lib/pushDevice';
 
 type AuthState =
   | 'loading'
@@ -132,6 +133,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = async () => {
       if (isFirebaseConfigured) {
+        // Antes de salir, que sin sesión las reglas ya no dejan tocar la
+        // cuenta: este dispositivo deja de recibir sus avisos.
+        await releasePushDevice();
         await signOut(auth);
       }
       localStorage.removeItem(GUEST_STORAGE_KEY);

@@ -290,6 +290,13 @@ export interface SavedMedia {
    */
   availabilityNews?: AvailabilityNews[];
 
+  /**
+   * "Avisame de episodios nuevos", prendido. Solo en series. Es lo único de la
+   * biblioteca que se publica para el servidor de avisos, y solo el id (ver
+   * `lib/push.ts`).
+   */
+  notify?: boolean;
+
   /** Episodios vistos. Solo en series. */
   progress?: SeriesProgress;
 

@@ -434,6 +434,7 @@ export function parseMedia(value: unknown): SavedMedia | null {
     digitalRelease:
       mediaType === 'movie' && isDayKey(value.digitalRelease) ? value.digitalRelease : undefined,
     availabilityNews: parseAvailabilityNews(value.availabilityNews),
+    notify: mediaType === 'tv' && value.notify === true ? true : undefined,
     // Uno desconocido cuenta como ausente: el título se refresca con el
     // idioma que corresponda, que es lo mismo que pasa con uno viejo.
     enrichedLanguage: parseLanguage(value.enrichedLanguage),
