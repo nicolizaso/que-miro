@@ -1,0 +1,473 @@
+# Qué Miro? — Prompts para las features nuevas
+
+Veinte features más un arreglo previo obligatorio (la atribución a JustWatch). Cada prompt está escrito para pegarlo en Claude Code parado en la raíz del repo.
+
+## Cómo usarlo
+
+1. **Copiá el bloque de Convenciones a un `CLAUDE.md` en la raíz del repo.** Claude Code lo lee solo al arrancar cada sesión, así los prompts pueden ir al grano sin repetir las reglas de la casa.
+2. **Un prompt por sesión y un PR por feature.** Todos piden un plan antes de tocar código: leelo, corregilo y recién ahí dale luz verde.
+3. **Respetá el orden de las tandas.** Varias features se apoyan en datos que guarda otra anterior; está marcado en "Depende de".
+4. **Al cerrar cada tanda, sumá su sección a `docs/roadmap.md`** con el mismo formato de QM-2 y QM-3: qué estaba mal, cómo quedó implementado y el resultado.
+
+## Orden
+
+El criterio es el mismo del roadmap original: agrupar por superficie de código, para pagar una sola vez el peaje de migrar datos, retestear la sincronización y revisar las reglas.
+
+| Tanda | Features | Por qué juntas |
+|---|---|---|
+| Previa | 0 · 19 | Arreglos chicos que tocan todas las respuestas de TMDB. Van primero porque cambian claves de caché y datos guardados. |
+| QM-4 · Series vivas | 1 · 6 · 3 · 8 · 2 | `enrich.ts`, `progress.ts`, `SeriesProgress` y el endpoint de temporadas. La 1 es la base de todas. |
+| QM-5 · Historial fino | 7 · 10 · 9 · 11 | Las que cambian `SavedMedia`. Juntas pasan una sola vez por schema, sync, backup y demo. |
+| QM-6 · Plataformas y avisos | 12 · 13 · 4 · 5 | Plataformas, y la primera vez que el servidor corre algo sin que nadie lo pida. |
+| QM-7 · Compartir | 15 · 16 · 17 · 18 | Instantáneas públicas y sus reglas de Firestore. |
+| QM-8 · Puertas de entrada | 14 · 20 | El importador va al final a propósito: importa directo al formato definitivo. |
+
+---
+
+## Convenciones (para `CLAUDE.md`)
+
+```md
+# Qué Miro? — convenciones del repo
+
+## Antes de codear
+- Leé los archivos que menciona el pedido y proponé un plan corto: archivos a tocar, cambios en los datos, tests. No escribas código hasta que lo apruebe.
+
+## Idioma y estilo
+- Identificadores en inglés. Comentarios, textos de UI y mensajes en español rioplatense, con voseo.
+- Los comentarios explican el porqué, no el qué, como los que ya hay en el repo.
+
+## Dónde va cada cosa
+- Lógica pura en `src/lib/*.ts`, con su `*.test.ts` al lado. Los componentes no calculan: llaman a `lib/`.
+- Las escrituras de la biblioteca pasan por `useMediaActions` (o el hook de acciones que corresponda). Sin conexión no se espera a Firestore: las escrituras se lanzan sin `await`.
+- Los datos de la cuenta (se sincronizan, van al backup y se borran con la cuenta) viven en `users/{uid}/...`, con el mismo `ownerUid`. Las preferencias de este dispositivo van en `src/preferences.ts`.
+
+## Datos
+- Todo lo que entra a la biblioteca pasa por `parseMedia` (`src/lib/schema.ts`): Firestore, localStorage y backups. No hay migraciones en otro lado.
+- Preferí campos opcionales y aditivos: puede haber una PWA vieja en otro dispositivo leyendo el mismo documento. Si un cambio no puede ser aditivo, subí `SCHEMA_VERSION`, migrá en `parseMedia` y explicá por qué.
+- Cada campo nuevo se refleja en `src/types.ts`, `parseMedia`, `firebase-blueprint.json`, el backup y el CSV si corresponde, y el demo (`src/lib/demo.ts`) queda coherente.
+
+## TMDB
+- Solo `api/_lib/tmdb.ts` habla con TMDB. Cada endpoint nuevo lleva lista blanca de parámetros, reenvía solo los campos que la app usa, usa `withCache` + `cacheHeaders` y se monta también en `server.ts`.
+- El servidor no sabe qué vio nadie. Si una feature necesita que el servidor lea datos de una persona, se publica una instantánea curada en su propia colección (el patrón de `public_profiles`), nunca una ventana a `saved_media`.
+- Donde se muestren plataformas, se atribuye a JustWatch.
+
+## Firestore
+- Los cambios de acceso van en `firestore.rules`, con un comentario del porqué. Recordame que hay que publicarlas.
+
+## UI
+- Tokens `--qm-*`, utilidades `text-display` / `text-section` / `text-eyebrow`, radios `--radius-control` / `--radius-surface`, clase `surface`. Todo tiene que andar en tema claro y oscuro con contraste AA (`contrast.test.ts`).
+- Modales con `ui/Dialog`. Respetar `prefers-reduced-motion`. Doble navegación: barra inferior hasta `md`, superior desde `md`.
+- Nada de filas vacías con una excusa adentro: si no hay datos para armar algo, no se muestra.
+
+## Cierre
+- `npm run lint` y `npm test` en verde. Si cambió un flujo cubierto por E2E, también `npm run test:e2e`.
+- Si la feature se ve, actualizá la lista de Features del README.
+```
+
+---
+
+## Previa
+
+### 0 · Atribución a JustWatch y a TMDB
+
+**Depende de:** nada. **Hacelo antes que todo:** TMDB avisa que revoca el acceso a la API si los datos de plataformas se usan sin atribuir a JustWatch.
+
+```text
+Tarea: atribuir los datos de plataformas a JustWatch y mostrar el aviso de TMDB dentro de la app.
+
+Contexto: todas las plataformas de la app (ficha del título, filtro por plataforma, picker, la fila de plataforma de Explorar) salen de `watch/providers` de TMDB, que se alimenta de JustWatch. TMDB exige atribuir esa fuente y avisa que revoca el acceso si no se hace. Hoy "JustWatch" no aparece en ningún lado del código. El aviso "Este producto usa la API de TMDB pero no está avalado ni certificado por TMDB" está en el README, pero no en la app, y TMDB pide que esté visible en la aplicación junto con su logo.
+
+Qué hacer:
+1. En `TitleDetailModal`, junto al bloque de plataformas, un crédito discreto: "Datos de plataformas: JustWatch".
+2. `pickProviders` (`src/lib/providers.ts`) descarta el campo `link` de la región elegida. Sumalo a `PickedProviders` y mostralo como "Ver dónde verlo": es la página de TMDB, que es la que tiene los enlaces directos a cada plataforma. No lo guardes en `SavedMedia`, solo hace falta con la ficha abierta.
+3. Una sección "Acerca de" en Ajustes (o donde encaje mejor, proponelo) con el logo de TMDB, el aviso y el crédito a JustWatch. Chequeá que el logo cumpla las pautas de TMDB (menos prominente que la marca propia).
+4. Sumá JustWatch a la sección Créditos del README.
+5. Test de `pickProviders` que cubra el `link`.
+```
+
+### 19 · Títulos en castellano latino
+
+**Depende de:** nada.
+
+```text
+Tarea: pedir los textos de TMDB en castellano latino según la región de la persona.
+
+Contexto: `TMDB_LANGUAGE` está fijo en `es-ES` en `api/_lib/tmdb.ts`, así que desde Argentina se ve "La jungla de cristal" en vez de "Duro de matar". La región ya existe en `src/preferences.ts`.
+
+Qué hacer:
+1. Un parámetro `lang` en todos los endpoints de `api/tmdb/*`, validado con lista blanca (`es-ES`, `es-MX`). Sin parámetro, `es-ES`, para no romper nada.
+2. Mapeo región → idioma en el cliente: ES → `es-ES`, el resto → `es-MX`. Función pura con test.
+3. Fallback: si en `es-MX` la sinopsis viene vacía, completala con `es-ES` en el servidor (una segunda llamada, solo en ese caso). Si te parece mejor usar `translations` por `append_to_response`, proponelo y justificalo.
+4. La clave de `withCache` tiene que incluir el idioma; si no, una respuesta en un idioma se sirve en el otro.
+5. Los títulos ya guardados tienen el nombre en es-ES. Guardá con qué idioma se enriqueció cada título (campo opcional) y que `isStale` lo tenga en cuenta, así se corrigen solos de a poco. Ojo: hoy `title` no forma parte de `MediaEnrichment`, así que el refresco no lo actualiza; resolvelo.
+6. Los nombres de personas y personajes no se traducen en TMDB: no gastes llamadas en eso.
+7. Montá lo mismo en `server.ts` y actualizá `api/_lib/tmdb.test.ts`.
+```
+
+---
+
+## QM-4 · Series vivas
+
+### 1 · Refresco de series por antigüedad
+
+**Depende de:** nada. **Es la base de 2, 3, 4, 5 y 13.**
+
+```text
+Tarea: que las series se enteren de lo que pasa después de guardarlas.
+
+Contexto: `isStale` (`src/lib/enrich.ts`) solo vence si cambió la región, así que una serie guardada no se vuelve a pedir nunca: no se entera de temporadas nuevas ni de si terminó. Ya hay un precedente de refresco en segundo plano: `usePeopleBackfill` completa títulos viejos de a seis por visita.
+
+Qué hacer:
+1. Sumar a `MediaEnrichment` (opcionales y aditivos): `seriesStatus` (el `status` de TMDB: Returning Series, Planned, In Production, Ended, Canceled, Pilot), `lastAired` y `nextToAir` (temporada, episodio, fecha y nombre, sacados de `last_episode_to_air` y `next_episode_to_air`) y `enrichedAt`.
+2. `isStale` vence también por antigüedad, según el caso: serie en emisión, pocos días; en producción o planeada, una semana; terminada o cancelada, meses; películas, un mes (por las plataformas). Constantes con nombre y un comentario del porqué de cada una.
+3. Un hook de refresco en segundo plano, con tope por visita y prioridad: Viendo, después series en emisión, después Por Ver. La elección de qué refrescar es una función pura en `lib/`.
+4. Refrescar actualiza `seasons` y `totalEpisodes` sin tocar `progress`: los episodios vistos se guardan por número de temporada, así que sobreviven.
+5. Evaluá usar `/tv/changes`, que lista los IDs que cambiaron en las últimas 24 h (se puede extender hasta 14 días). Es igual para todos, así que se cachea en el servidor, y el cliente lo cruza con su biblioteca sin que el servidor sepa qué tiene nadie. Antes de decidir, fijate cuántas páginas devuelve por día. Si lo usás, que sea un atajo encima de la regla por antigüedad, no un reemplazo.
+6. Tests de `isStale` con cada estado y de la función de prioridad.
+```
+
+### 6 · Fichas de episodio
+
+**Depende de:** nada. **Hacela antes que la 2, que usa este endpoint.**
+
+```text
+Tarea: fichas de episodio dentro de la grilla de progreso.
+
+Contexto: `SeriesProgress` muestra cada temporada como una grilla de números. `SeasonInfo` guarda solo número, nombre y cantidad de episodios.
+
+Qué hacer:
+1. Endpoint `GET /api/tmdb/season?id=&season=&lang=` → `getSeason` en `api/_lib/tmdb.ts`. Validar `id` y `season` (entero, de 0 a un tope razonable). Reenviar solo número, nombre, sinopsis, `air_date`, `runtime`, `still_path`, `vote_average` y `episode_type` (TMDB lo usa para distinguir finales de temporada). No reenviar `crew` ni `guest_stars`. Caché de algunas horas.
+2. Al desplegar una temporada, pedirla (lazy) y mostrar cada episodio con nombre, fecha, duración e imagen chica. Lo que todavía no salió aparece deshabilitado, con su fecha.
+3. Anti-spoiler: la sinopsis de un episodio no visto queda oculta detrás de "Mostrar sinopsis".
+4. Guardar en `SeasonInfo` la duración total de la temporada (opcional) cuando se conoce, y que `runtimeMinutes` en `stats.ts` la prefiera a "duración del primer episodio × total de episodios".
+5. Sin conexión, la grilla numérica de siempre tiene que seguir funcionando.
+6. Tests del recorte de campos del endpoint y del nuevo cálculo de duración.
+```
+
+### 3 · "Al día" y aviso de temporada nueva
+
+**Depende de:** 1.
+
+```text
+Tarea: distinguir "terminé la serie" de "estoy al día", y avisar cuando aparece una temporada o episodios nuevos.
+
+Contexto: `isSeriesComplete` y `progressPercent` (`src/lib/progress.ts`) comparan contra todas las temporadas guardadas. Una serie en emisión no se puede "terminar", y si TMDB ya cargó episodios futuros el porcentaje nunca llega a 100.
+
+Qué hacer:
+1. En `progress.ts`, funciones puras: `airedEpisodes` (los ya emitidos, usando `lastAired`), `isCaughtUp` (viste todo lo emitido y la serie sigue en emisión) y un porcentaje calculado contra lo emitido.
+2. "Al día" es un estado derivado, no un `MediaStatus` nuevo: se calcula, no se guarda.
+3. `completeProgress` en una serie en emisión marca solo lo emitido.
+4. Revisá qué hace hoy `SeriesProgress` cuando se marcan todos los episodios y adaptalo: estar al día no es haberla completado.
+5. Episodios nuevos: cuando el refresco trae episodios emitidos que no viste, en una serie en la que estabas al día o que habías completado, guardá `newEpisodesSince` (opcional) y mostrá un badge ("T3 nueva", "2 episodios nuevos") en `MediaCard` y en la ficha. No cambies el estado automáticamente: ofrecé moverla a Viendo con un botón.
+6. Filtro "Con episodios nuevos" en `useLibraryFilters`.
+7. Tests con series en emisión, terminadas, con episodios futuros ya cargados y con especiales (temporada 0).
+```
+
+### 8 · "Continuar viendo" en el inicio
+
+**Depende de:** nada, pero conviene después de la 3 para sumar las series con episodios nuevos.
+
+```text
+Tarea: una fila "Continuar viendo" en el inicio, con un botón para marcar el siguiente episodio sin abrir la ficha.
+
+Contexto: "vas por T2E5" vive dentro de `SeriesProgress`, en la ficha. `MediaCard` muestra el porcentaje pero no deja avanzar. `nextEpisode` y `toggleEpisode` ya existen en `progress.ts`, y hay un `ui/ScrollRail` para filas horizontales.
+
+Qué hacer:
+1. Función pura `continueWatching(list)` en `lib/`: series en Viendo que tienen un siguiente episodio (y, si ya existe la 3, las que tienen episodios nuevos), ordenadas por `progress.lastWatchedAt`, la más reciente primero.
+2. La fila va arriba de "Mis listas" en `ListView`, y no se muestra si está vacía.
+3. Cada tarjeta lleva póster, "T2E6" (y el nombre del episodio si ya existe la 6), barra de progreso y un botón "+1" con `aria-label` completo ("Marcar T2E6 de Severance como visto").
+4. El "+1" escribe con `useMediaActions.setProgress` y muestra un toast con "Deshacer".
+5. Si era el último episodio, ofrecé completar la serie y abrir la reseña (`ReviewDrawer`), igual que cuando se completa desde otro lado.
+6. Tests de `continueWatching` y un caso E2E en `e2e/biblioteca.spec.ts`: marcar el siguiente episodio desde el inicio.
+```
+
+### 2 · Calendario de próximos episodios
+
+**Depende de:** 1 y 6.
+
+```text
+Tarea: un calendario con lo que sale de las series que sigo.
+
+Contexto: con la feature 1 cada serie guarda `nextToAir`; con la 6 existe `/api/tmdb/season`, que trae la fecha de cada episodio.
+
+Qué hacer:
+1. Ruta `/calendario` con su entrada en las dos navegaciones de `AppLayout`. Si no entra otra pestaña en la barra inferior, proponé un acceso alternativo y explicá por qué.
+2. Qué entra: series en Viendo, completadas o al día que siguen en emisión, y Por Ver con estreno próximo. Las abandonadas no (si ya existe la 10).
+3. `nextToAir` da un solo episodio. Para las series con algo en los próximos 30 días, pedí la temporada y listá todos los episodios con fecha: así se ven bien las temporadas que se estrenan enteras de una vez.
+4. Agrupado en "Hoy", "Esta semana", "Próximas semanas" y "Más adelante". Las series en emisión sin `nextToAir` van en "Sin fecha confirmada".
+5. Las fechas de TMDB son días, no horas: mostralas como días, sin convertir zonas horarias.
+6. El armado (agrupar por semana, deduplicar, ordenar) va en `lib/`, con tests.
+```
+
+---
+
+## QM-5 · Historial fino
+
+### 7 · Fecha por episodio
+
+**Depende de:** nada. **Si hacés la 10 en la misma tanda, hacelas seguidas:** tocan los mismos archivos.
+
+```text
+Tarea: guardar cuándo vi cada episodio.
+
+Contexto: `SeriesProgress.watched` guarda qué episodios viste, pero no cuándo: solo hay un `lastWatchedAt` por serie. Por eso la actividad por mes de `stats.ts` se arma con el historial de títulos terminados, y una serie que miraste todo agosto no aparece hasta que la terminás.
+
+Qué hacer:
+1. Un campo aditivo en `SeriesProgress`, por ejemplo `watchedAt?: Record<string, string>` con clave "2x5" → fecha ISO. No cambies la forma de `watched`: puede haber una PWA vieja en otro dispositivo que la sigue leyendo como lista. Si preferís otra forma, justificala.
+2. `toggleEpisode`, `toggleSeason` y `completeProgress` registran la fecha al marcar y la borran al desmarcar. Marcar una temporada entera de golpe usa la misma fecha para todos los episodios; dejalo documentado.
+3. Lo que ya estaba marcado no tiene fecha y no hay que inventarla: `parseMedia` lo deja así y las estadísticas que dependen de fechas lo ignoran.
+4. En `stats.ts`, que la actividad por mes cuente episodios además de títulos, y que las horas por mes incluyan los episodios sueltos.
+5. Un mapa de calor de actividad (estilo contribuciones de GitHub) en el panel de estadísticas, con su tabla accesible al lado, como los otros gráficos.
+6. Tests en `progress.test.ts`, `stats.test.ts` y `schema.test.ts` (incluido un documento viejo sin `watchedAt`).
+```
+
+### 10 · Estados "En pausa" y "Abandonada"
+
+**Depende de:** nada.
+
+```text
+Tarea: sumar los estados "En pausa" y "Abandonada".
+
+Contexto: `MediaStatus` tiene `por_ver`, `viendo` y `completada`, y `parseMedia` valida contra `VALID_STATUSES`.
+
+Qué hacer:
+1. Sumar `en_pausa` y `abandonada`. Antes, revisá qué hace un cliente viejo (una PWA sin actualizar en otro dispositivo) con un status que no conoce: si lo reemplaza por un default y lo vuelve a escribir, se pierde el dato. Proponé cómo evitarlo.
+2. En la UI, no sumes dos pestañas más a la barra. Proponé dónde viven, por ejemplo un grupo "Archivadas" dentro de Mis listas con filtro por las dos.
+3. Abandonar pide confirmación y admite, opcionalmente, un motivo corto y un puntaje. La reseña sigue siendo posible.
+4. En `taste.ts`, lo abandonado es una señal negativa: no se usa como semilla de "porque viste" y le baja el peso a lo muy parecido. En `recipes.ts`, sale de "terminar" y de "pendiente".
+5. El picker y el duelo excluyen lo abandonado. En estadísticas: tasa de abandono y en qué episodio se suele dejar.
+6. Sugerencia, nunca acción automática: una serie en Viendo sin avance en 60 días muestra "¿La ponés en pausa?".
+7. El demo suma una abandonada y una en pausa. Tests de schema, taste, recipes y stats.
+```
+
+### 9 · Puntaje por episodio
+
+**Depende de:** 6, para mostrar los nombres de los episodios.
+
+```text
+Tarea: puntuar episodios sueltos.
+
+Contexto: `WatchEntry` ya tiene `seasonRatings`. Pero los episodios se puntúan mientras se mira, antes de que exista un `WatchEntry`, así que el puntaje tiene que vivir con el progreso.
+
+Qué hacer:
+1. Campo aditivo en `SeriesProgress`: `episodeRatings?: Record<string, number>` con clave "2x5", de 0,5 a 5.
+2. En la fila de cada episodio (la de la feature 6), estrellas compactas para puntuar, solo en episodios vistos.
+3. En la ficha: "Tu mejor episodio", "tu peor" y el promedio por temporada cuando no hay `seasonRatings` cargados.
+4. En el wrapped (`wrapped.ts`): el episodio mejor puntuado del año. Necesita la fecha de la 7; si no existe, usá el de la serie mejor puntuada.
+5. Tests en `progress` y `wrapped`.
+```
+
+### 11 · Metas y rachas
+
+**Depende de:** 7, para contar series por episodio. Sin la 7, las rachas solo cuentan títulos terminados.
+
+```text
+Tarea: metas anuales y rachas semanales.
+
+Contexto: los gustos declarados viven en `users/{uid}/profile/taste`, con reglas de dueño. Las metas son el mismo tipo de dato: de la cuenta, no del dispositivo.
+
+Qué hacer:
+1. Documento `users/{uid}/profile/goals` con meta anual de películas, de series y/o de horas. Confirmá que las reglas actuales de `profile/{docId}` ya lo cubren. Se sincroniza como el de gustos (gana el más nuevo), va en el backup y se borra con la cuenta.
+2. Racha semanal: semanas seguidas con al menos una película terminada o un episodio visto. Semanas ISO, en la zona horaria del dispositivo. Racha actual y mejor racha.
+3. En el perfil, al lado de las estadísticas: progreso de la meta contra el ritmo esperado ("vas 3 películas adelantado") y la racha.
+4. En el wrapped: si se cumplió la meta y la mejor racha del año.
+5. Tarjeta para compartir con `shareCard` cuando se cumple una meta.
+6. Todo el cálculo en `lib/goals.ts`, con tests: cambio de año, semanas que cruzan meses y biblioteca vacía.
+```
+
+---
+
+## QM-6 · Plataformas y avisos
+
+### 12 · Mis suscripciones
+
+**Depende de:** 0.
+
+```text
+Tarea: que la persona marque qué plataformas paga, y distinguir "incluido" de "alquiler o compra".
+
+Contexto: `pickProviders` junta `flatrate`, `rent` y `buy` en una sola lista de nombres, así que "está en Prime Video" puede ser incluido o alquiler. `providers` se usa en filtros, picker y Explorar. `api/_lib/tmdb.ts` ya pide internamente `/watch/providers/{tipo}` para resolver nombres en `/discover`.
+
+Qué hacer:
+1. Enriquecimiento: `providers` queda como está (para no romper filtros ni documentos viejos) y se suma `streaming?: string[]` con lo incluido en una suscripción (`flatrate`, más `free` y `ads` si vienen).
+2. Exponer la lista de plataformas de una región: `/api/tmdb/providers?type=&region=`, con logo y `display_priority`, cacheada un día.
+3. En Ajustes, elegir las suscripciones con sus logos. Es un dato de la cuenta (`users/{uid}/profile/subscriptions`), no del dispositivo: se paga una vez y vale en el celular y en la compu.
+4. Filtro "Lo que puedo ver ya" en la biblioteca y en el picker: títulos con alguna plataforma de `streaming` que esté entre las suscripciones.
+5. En Explorar, si hay suscripciones, la receta de plataforma las usa antes que las deducidas: lo declarado pesa más, como en QM-3.
+6. En la ficha, separar "Incluido en" de "Alquiler o compra".
+7. Atribución a JustWatch en todo lugar nuevo que muestre plataformas. Tests de `enrich` y del filtro.
+```
+
+### 13 · "Llegó a tu plataforma"
+
+**Depende de:** 1. Mejor con la 12.
+
+```text
+Tarea: avisar cuando algo de Por Ver llega a una plataforma o se estrena.
+
+Contexto: las plataformas se guardan una sola vez, al agregar el título. Con la feature 1, los títulos de Por Ver se refrescan en segundo plano.
+
+Qué hacer:
+1. Al refrescar un título de Por Ver, comparar las plataformas nuevas con las guardadas. Si aparece una nueva (o una de las suscripciones, si existe la 12), guardar `availabilityNews?: { provider: string; since: string }[]` (aditivo).
+2. Películas guardadas antes de salir: sumá `release_dates` al `append_to_response` del detalle y guardá la fecha de estreno digital (tipo 4) de la región, si existe. Cuando esa fecha pasa, es una novedad.
+3. Sección "Novedades" arriba de Por Ver (o una fila en el inicio, proponé cuál): "*Dune: Parte Dos* ya está en Max". Se descarta con un toque (`seenAt`) y la misma novedad no vuelve a aparecer.
+4. El servidor no se entera de nada: es el cliente cruzando lo que refrescó.
+5. Atribución a JustWatch. Tests de la comparación: plataforma nueva, la misma plataforma con otro nombre y una que se fue.
+```
+
+### 4 · Notificaciones push
+
+**Depende de:** 1 y 3. Con la 13, también se puede avisar de plataformas.
+
+```text
+Tarea: notificaciones push de episodios nuevos.
+
+Contexto: la app ya es PWA (`vite-plugin-pwa` en modo `generateSW`, en `vite.config.ts`) y usa Firebase. Faltan tres piezas: un service worker propio, tokens de Firebase Cloud Messaging y algo en el servidor que corra solo todos los días.
+
+Principio que no se rompe: el servidor no sabe qué vio nadie. El cron no lee `saved_media`.
+
+Qué hacer:
+1. Pasar `vite-plugin-pwa` a `injectManifest` con un `src/sw.ts` que conserve el precache y la caché de pósters de TMDB que hay hoy, y sume `push` y `notificationclick` (que abra la ficha de la serie).
+2. Firebase Messaging en el cliente. El permiso se pide solo después de un gesto (un botón "Avisame de episodios nuevos" en Ajustes o en la ficha), nunca al cargar la app.
+3. Instantánea en `push_subscriptions/{uid}`: tokens, región, idioma y solo los IDs de las series con aviso activado. Sin puntajes ni estados. Reglas: solo el dueño lee y escribe.
+4. `api/cron/notify.ts` más `crons` en `vercel.json`, protegido con `CRON_SECRET`. Lee las suscripciones con `firebase-admin` (dependencia nueva, credenciales por variables de entorno), agrupa por serie, pide cada serie una sola vez (con caché) y avisa a quien corresponda si hoy sale un episodio. Los tokens inválidos se borran.
+5. Revisá los límites de cron de mi plan de Vercel y decime si alcanza con una corrida diaria.
+6. En iOS, las push web solo funcionan con la PWA instalada en la pantalla de inicio: explicalo en la UI en lugar de mostrar un botón que no hace nada.
+7. La lógica de "a quién le aviso qué" es una función pura con tests. Documentá las variables de entorno nuevas en el README.
+```
+
+### 5 · Calendario .ics suscribible
+
+**Depende de:** 2, que ya arma la lista de próximos episodios.
+
+```text
+Tarea: una URL de calendario para suscribirse desde Google Calendar o Apple Calendar.
+
+Contexto: un calendario externo pide la URL cada tantas horas, sin sesión, y el servidor no puede leer la biblioteca. La solución es la misma que la del perfil público: una instantánea.
+
+Qué hacer:
+1. Colección `calendar_feeds/{token}`. El token es aleatorio y largo, no el slug del perfil (que es público y adivinable). Contiene solo los próximos episodios: serie, temporada, episodio, nombre y fecha. Reglas: `get` público, `list` prohibido (para que no se puedan enumerar), escritura solo del dueño y sin poder cambiar el `uid`.
+2. El cliente regenera la instantánea cuando cambia el calendario, con debounce, como hace `usePublishProfile`.
+3. `api/cal/[token].ts` lee el documento por la API REST de Firestore (igual que `api/u/[slug].ts`) y responde `text/calendar`. Rewrite `/cal/:token.ics` en `vercel.json`.
+4. Eventos de día completo (`DTSTART;VALUE=DATE`), `UID` estable por episodio para que los calendarios no dupliquen, y escape y plegado de líneas según RFC 5545.
+5. En Ajustes: activar, copiar la URL, abrir en Google Calendar y regenerar el token (eso revoca el link anterior).
+6. Tests del generador .ics: escape, líneas largas plegadas y UID estable.
+```
+
+---
+
+## QM-7 · Compartir
+
+### 15 · Perfil público que se actualiza solo
+
+**Depende de:** nada. **Es la base de 16 y 18.**
+
+```text
+Tarea: que el perfil público se mantenga actualizado sin republicarlo a mano.
+
+Contexto: el perfil público es una instantánea en `public_profiles/{slug}` que se republica a mano desde `PublicProfileSettings` (`usePublishProfile`). Si nadie se acuerda, queda vieja.
+
+Qué hacer:
+1. Opción "Mantener actualizado", activada por defecto para quien ya publicó alguna vez, guardada con el perfil.
+2. Republicar con debounce cuando cambia algo que el perfil muestra (reseñas, favoritas, resumen), con un mínimo de minutos entre publicaciones. Compará la instantánea nueva con la anterior y no escribas si son iguales.
+3. Sin conexión no se reintenta en loop: se publica cuando vuelve la red.
+4. Mostrar "Actualizado hace X" en Ajustes y en la vista pública (la fecha ya existe).
+5. Tests de la comparación y del debounce, con timers falsos.
+```
+
+### 16 · Seguir perfiles
+
+**Depende de:** 15. Sin auto-actualización, el feed se ve viejo.
+
+```text
+Tarea: seguir perfiles públicos y ver un feed con su actividad.
+
+Contexto: `public_profiles` se lee sin sesión e incluye reseñas con su fecha y favoritas. Seguir a alguien no necesita backend nuevo ni reglas nuevas.
+
+Qué hacer:
+1. `users/{uid}/profile/following`: lista de slugs con un tope (por ejemplo, 100). Va en el backup y se borra con la cuenta.
+2. Botón "Seguir" en `PublicProfileView` para quien tiene sesión.
+3. Vista de feed: lee las instantáneas de quienes seguís y mezcla sus reseñas por fecha ("Ana le puso 4,5 a *Past Lives*"). Desde cada ítem se puede guardar el título en Por Ver.
+4. Casos borde: un slug que ya no existe o que cambió de dueño, un perfil despublicado, seguirse a uno mismo.
+5. Calculá cuántas lecturas cuesta abrir el feed y cacheá en el cliente para no releer todo en cada visita.
+6. La mezcla y el orden van en `lib/`, con tests.
+```
+
+### 17 · Listas compartibles
+
+**Depende de:** nada.
+
+```text
+Tarea: publicar una lista propia con un link para compartir.
+
+Contexto: las colecciones son privadas (`users/{uid}/collections`) y la pertenencia vive en el título (`SavedMedia.collections`). El perfil público ya resolvió lo difícil: la instantánea curada, las reglas que impiden quedarse con el documento de otro y los meta tags del lado del servidor en `api/u/[slug].ts`.
+
+Qué hacer:
+1. `public_lists/{id}` con `uid`, nombre, descripción opcional, ítems mínimos (tmdbId, tipo, título, póster, año) y `publishedAt`. Reglas copiadas del patrón de `public_profiles`.
+2. Publicar, republicar y despublicar desde `CollectionsSettings`. Si ya existe la 15, el mismo criterio de auto-actualización.
+3. Ruta pública `/l/:id`, servida por una función que inyecta título, descripción e imagen OG. Extraé lo compartido con `api/u/[slug].ts` a un helper en vez de duplicarlo.
+4. Quien la abre con sesión puede guardar un título suelto o "Guardar toda la lista" como colección propia.
+5. Tarjeta para compartir con `shareCard`, sin pósters (por lo del canvas que ya está documentado).
+6. Tests del armado de la instantánea y de su parseo.
+```
+
+### 18 · "¿Qué miramos juntos?"
+
+**Depende de:** 15. Mejor con la 12.
+
+```text
+Tarea: cruzar mi Por Ver con el de otra persona y elegir algo para ver juntos.
+
+Contexto: la instantánea del perfil público no incluye Por Ver.
+
+Qué hacer:
+1. Opción en los ajustes del perfil público: "Incluir mi Por Ver", apagada por defecto. Si está activa, la instantánea suma una lista mínima de Por Ver.
+2. Ruta `/juntos/:slug`: los candidatos son primero lo que los dos tienen en Por Ver, después lo que uno tiene en Por Ver y el otro no vio. Se descarta lo que alguno ya completó o abandonó.
+3. Los filtros del picker (duración, tipo, género) sobre esos candidatos, y la ruleta de `PickerRoulette`. Si existe la 12, filtro "En plataformas de los dos"; eso implica publicar las suscripciones, así que también tiene que ser opcional.
+4. Modo duelo de a dos sobre la lista cruzada.
+5. Compartir el resultado con `shareCard`.
+6. El cruce va en `lib/`, con tests.
+```
+
+---
+
+## QM-8 · Puertas de entrada
+
+### 14 · Importar desde Letterboxd, IMDb y Trakt
+
+**Depende de:** conviene hacerla con el schema quieto (después de QM-5), para importar directo al formato definitivo.
+
+```text
+Tarea: importar la historia de otras apps.
+
+Contexto: `parseBackup` (`src/lib/backup.ts`) solo lee el JSON propio. `mergeLibraries` ya resuelve cómo mezclar con la biblioteca existente.
+
+Qué hacer:
+1. Un parser por fuente en `src/lib/importers/`. Cada uno devuelve registros intermedios: título, año, fechas, puntaje, estado e IDs externos. Confirmá las columnas contra exports reales y usalos como fixtures de los tests; no te guíes solo por lo que recordás de cada formato.
+   - IMDb: el CSV trae el ID `tt…`, que se resuelve exacto con `/find/{id}?external_source=imdb_id`. Puntaje de 1 a 10 → 0,5 a 5.
+   - Letterboxd: el ZIP trae CSVs (diario, puntajes, watchlist) con título y año. Match por búsqueda con año. El diario trae fechas y revisiones → varias entradas de `history`.
+   - Trakt: el JSON trae los IDs de TMDB, así que el match es directo. Puntaje de 1 a 10.
+2. Endpoint `/api/tmdb/find` con lista blanca (solo `imdb_id` por ahora) y búsqueda de película o serie con año (`primary_release_year` / `first_air_date_year`).
+3. Paso de revisión antes de guardar: cuántos entraron, cuáles son dudosos (más de un resultado posible) y cuáles no aparecieron, con un buscador para corregirlos a mano.
+4. Concurrencia acotada en las llamadas (TMDB tiene un techo cercano a 40 pedidos por segundo, y además pasan por nuestra función), con barra de progreso y botón para cancelar.
+5. Todo entra por `parseMedia` y `mergeLibraries`. El enriquecimiento completo queda a cargo del refresco en segundo plano de la feature 1.
+6. Tests por parser con fixtures, de la conversión de puntajes y de qué cuenta como dudoso.
+```
+
+### 20 · Página de persona
+
+**Depende de:** nada.
+
+```text
+Tarea: una página por persona, con su filmografía marcada según mi biblioteca.
+
+Contexto: la ficha muestra el reparto pero no lleva a ningún lado. Ya existe `/api/tmdb/person?id=&role=` (créditos por rol, para Explorar) y `SavedMedia.people` guarda el reparto de cada título.
+
+Qué hacer:
+1. Un endpoint nuevo (o una ampliación con lista blanca del actual) que traiga en una sola llamada los datos de la persona y sus `combined_credits`, con `append_to_response`. Reenviar solo lo que se usa: nombre, foto, biografía, fecha y lugar de nacimiento, departamento; y de cada crédito: id, tipo, título, año, póster, personaje o trabajo, `vote_average` y `vote_count`.
+2. Ruta `/persona/:id`, como enlace real para que "atrás" y "recargar" funcionen. Se llega desde el reparto de la ficha, desde las filas de Explorar de dirección y actuación, y desde "Contanos de vos".
+3. Filmografía deduplicada (quien dirigió y actuó en lo mismo aparece una vez), con filtro reparto / dirección y cada título marcado según la biblioteca: visto, viendo, por ver, abandonado.
+4. Resumen arriba: "Viste 7 de 23" y "Te faltan estas 3 bien puntuadas", usando el puntaje de TMDB con un mínimo de votos para que no gane algo con tres votos.
+5. Los nombres de personas no se traducen en TMDB, así que esos campos no necesitan idioma.
+6. Tests del armado de la filmografía y del resumen.
+```
