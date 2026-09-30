@@ -77,6 +77,8 @@ export default defineConfig({
     css: false,
     // Los specs de `e2e/` los corre Playwright, que trae su propio `test`:
     // si Vitest los levanta, falla al no encontrar el suyo.
-    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
+    // Los de `tests/rules/` necesitan el emulador de Firestore: los corre
+    // `npm run test:rules`.
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**', 'tests/rules/**'],
   },
 });

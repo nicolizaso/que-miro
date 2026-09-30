@@ -5,6 +5,7 @@ import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaStore } from '@/store';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useSocialStore } from '@/hooks/useSocial';
 import { AutoPublisher, createAutoPublisher } from '@/lib/autoPublish';
 import {
   MIN_PUBLISH_INTERVAL_MS,
@@ -80,8 +81,13 @@ function optionsOf(published: PublicProfile | null | undefined) {
   };
 }
 
-/** El nombre con el que se publica: el de la cuenta, o el principio del mail. */
+/**
+ * El nombre con el que se publica: el que elegiste en tu cuenta social, o el
+ * de la cuenta de Google, o el principio del mail.
+ */
 function publicName(user: User): string {
+  const social = useSocialStore.getState().account;
+  if (social && social.uid === user.uid) return social.displayName;
   return user.displayName || user.email?.split('@')[0] || 'Alguien';
 }
 
@@ -319,6 +325,8 @@ export function useAutoPublishProfile() {
 
   const published = own?.profile ?? null;
   const subscriptions = useMediaStore((state) => state.subscriptions);
+  // El nombre sale de la cuenta social: si lo cambiás, el perfil se republica.
+  const socialName = useSocialStore((state) => state.account?.displayName);
   const candidate = useMemo(() => {
     if (!uid || !user || !published || !published.autoUpdate || syncedUid !== uid) return null;
     return buildPublicProfile({
@@ -328,8 +336,9 @@ export function useAutoPublishProfile() {
       mediaList,
       ...optionsOf(published),
     });
-    // `subscriptions` entra por `optionsOf`, que lo lee del store.
-  }, [uid, user, published, syncedUid, mediaList, subscriptions]);
+    // `subscriptions` entra por `optionsOf`, que lo lee del store, y
+    // `socialName` por `publicName`.
+  }, [uid, user, published, syncedUid, mediaList, subscriptions, socialName]);
 
   useEffect(() => {
     if (!candidate) {

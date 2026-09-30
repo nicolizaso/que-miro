@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   RestFields,
+  accountMeta,
   fetchPublicDocument,
   readIndexHtml,
   restFields,
@@ -36,6 +37,21 @@ function readProfile(document: unknown): ProfileSummary | null {
   };
 }
 
+/** La tarjeta de la cuenta dueña de ese usuario, si existe. */
+async function readAccount(handle: string): Promise<{ displayName: string; isPrivate: boolean; bio: string } | null> {
+  const owner = restFields(await fetchPublicDocument(`handles/${handle}`));
+  const uid = owner ? restString(owner.uid) : '';
+  // Solo uids con la forma de Firebase: nada que sirva para pedir otro documento.
+  if (!/^[A-Za-z0-9]{1,128}$/.test(uid)) return null;
+  const fields = restFields(await fetchPublicDocument(`accounts/${uid}`));
+  if (!fields) return null;
+  return {
+    displayName: restString(fields.displayName) || handle,
+    isPrivate: fields.private?.booleanValue === true,
+    bio: restString(fields.bio),
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const slug = String(req.query.slug ?? '').trim();
 
@@ -53,6 +69,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ? readProfile(await fetchPublicDocument(`public_profiles/${slug}`))
     : null;
 
+  // Sin perfil publicado puede haber igual una cuenta con ese usuario: una
+  // privada. La vista previa la nombra, sin nada de su biblioteca.
+  const account = !profile && /^[a-z0-9-]{3,24}$/.test(slug) ? await readAccount(slug) : null;
+
   if (profile) {
     const title = `La biblioteca de ${profile.displayName} — Qué Miro?`;
     const description = profile.watches
@@ -63,6 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .replace('.', ',')}.`
       : 'Su biblioteca de películas y series en Qué Miro?';
     html = withPageMeta(html, { title, description });
+  } else if (account) {
+    html = withPageMeta(html, accountMeta(slug, account));
   }
 
   return sendPage(res, html);

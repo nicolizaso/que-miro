@@ -18,6 +18,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { cn } from '@/lib/utils';
 import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
 import { newsLabel, unseenNews } from '@/lib/availability';
+import { addedFromText } from '@/lib/social';
 
 export function MediaCard({
   media,
@@ -187,6 +188,10 @@ export function MediaCard({
                   </>
                 )}
               </span>
+
+              {media.addedFrom && media.status === 'por_ver' && (
+                <span className="text-[11px] text-text-muted truncate">{addedFromText(media.addedFrom)}</span>
+              )}
 
               {caughtUp && (
                 <span className="flex items-center gap-1 text-[11px] font-medium text-status-viendo">

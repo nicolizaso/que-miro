@@ -2,18 +2,17 @@ import { FollowedProfile, Following } from '@/types';
 import { PublicProfile } from '@/lib/publicProfile';
 
 /**
- * Seguir perfiles públicos y armar el feed con lo que reseñan.
+ * Seguir perfiles públicos por su dirección: cómo se seguía antes de que
+ * existieran las cuentas sociales (`lib/social.ts`).
  *
- * No hace falta backend nuevo ni reglas nuevas: `public_profiles` ya se lee
- * sin sesión, y lo que se guarda de la cuenta es solo la lista de a quién
- * seguís. El feed se arma en el cliente con las instantáneas de cada uno.
+ * Queda para lo que todavía no se pudo pasar a `follows`: alguien con perfil
+ * público que no creó su cuenta. Sus reseñas siguen llegando al feed
+ * (`lib/socialFeed.ts`), y cuando crea la cuenta se lo pasa solo. Y para el
+ * botón "Seguir" de esos perfiles.
  */
 
 /** Tope de perfiles seguidos: el feed se arma leyendo uno por uno. */
 export const MAX_FOLLOWING = 100;
-
-/** Cuántos ítems muestra el feed: es para ponerse al día, no un archivo. */
-export const MAX_FEED_ITEMS = 60;
 
 /**
  * Cada cuánto se vuelve a leer un perfil. Abrir el feed cuesta una lectura
@@ -117,70 +116,7 @@ export function followStatus(followed: FollowedProfile, profile: PublicProfile |
   return profile.uid === followed.uid ? 'ok' : 'new-owner';
 }
 
-export type Review = PublicProfile['reviews'][number];
-
-export interface FeedItem {
-  key: string;
-  slug: string;
-  /** El nombre de hoy, no el de cuando lo seguiste. */
-  name: string;
-  review: Review;
-}
-
-/**
- * El feed: las reseñas de todos, de la más nueva a la más vieja.
- *
- * Solo de los perfiles que siguen siendo de quien seguiste. Una reseña sin
- * fecha legible va al final: no se sabe dónde ponerla.
- */
-export function buildFollowingFeed(
-  following: Following,
-  profiles: Map<string, PublicProfile | null>,
-): FeedItem[] {
-  const items: FeedItem[] = [];
-  const seen = new Set<string>();
-
-  for (const followed of following.profiles) {
-    const profile = profiles.get(followed.slug) ?? null;
-    if (followStatus(followed, profile) !== 'ok' || !profile) continue;
-    for (const review of profile.reviews) {
-      const key = `${followed.slug}:${review.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      items.push({ key, slug: followed.slug, name: profile.displayName, review });
-    }
-  }
-
-  const time = (item: FeedItem) => {
-    const at = Date.parse(item.review.completedAt);
-    return Number.isNaN(at) ? -Infinity : at;
-  };
-  return items
-    .sort((a, b) => time(b) - time(a) || a.name.localeCompare(b.name, 'es'))
-    .slice(0, MAX_FEED_ITEMS);
-}
-
 /** "4,5", como se escribe acá. */
 export function ratingText(rating: number): string {
   return String(rating).replace('.', ',');
-}
-
-/** "Ana le puso 4,5 a *Past Lives*", en texto plano: para leerlo en voz alta. */
-export function feedHeadline(item: FeedItem): string {
-  return `${item.name} le puso ${ratingText(item.review.rating)} a ${item.review.title}`;
-}
-
-/** Los perfiles que hay que volver a leer: sin leer nunca, o leídos hace más de `ttl`. */
-export function staleSlugs(
-  following: Following,
-  fetchedAt: Record<string, string>,
-  now: number,
-  ttl = FEED_TTL_MS,
-): string[] {
-  return following.profiles
-    .map((profile) => profile.slug)
-    .filter((slug) => {
-      const at = Date.parse(fetchedAt[slug] ?? '');
-      return Number.isNaN(at) || now - at > ttl;
-    });
 }

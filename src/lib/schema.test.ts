@@ -667,3 +667,41 @@ describe('el aviso de episodios nuevos', () => {
     expect(parseMedia({ ...show, mediaType: 'movie', notify: true })!.notify).toBeUndefined();
   });
 });
+
+describe('parseMedia — lo social', () => {
+  it('lee cuándo entró, de quién vino y si está oculto', () => {
+    const media = parseMedia(
+      v1Media({
+        addedAt: '2026-09-01T10:00:00.000Z',
+        addedFrom: { uid: 'u-ana', name: 'Ana', via: 'recommendation' },
+        hiddenFromFollowers: true,
+      }),
+    )!;
+    expect(media.addedAt).toBe('2026-09-01T10:00:00.000Z');
+    expect(media.addedFrom).toEqual({ uid: 'u-ana', name: 'Ana', via: 'recommendation' });
+    expect(media.hiddenFromFollowers).toBe(true);
+  });
+
+  it('no inventa la fecha ni el origen cuando faltan o están rotos', () => {
+    const media = parseMedia(
+      v1Media({ addedAt: 'ayer', addedFrom: { name: 'Ana', via: 'feed' }, hiddenFromFollowers: 'sí' }),
+    )!;
+    expect(media.addedAt).toBeUndefined();
+    expect(media.addedFrom).toBeUndefined();
+    expect(media.hiddenFromFollowers).toBeUndefined();
+  });
+
+  it('acepta los nulos con que Firestore guarda lo ausente', () => {
+    const media = parseMedia(v1Media({ addedAt: null, addedFrom: null, hiddenFromFollowers: null }))!;
+    expect(media.addedAt).toBeUndefined();
+    expect(media.addedFrom).toBeUndefined();
+  });
+});
+
+describe('parseCollection — publishedAt', () => {
+  it('lo conserva si es una fecha, y lo descarta si no', () => {
+    const base = { id: 'c1', name: 'Terror', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+    expect(parseCollection({ ...base, publishedAt: '2026-02-01T00:00:00.000Z' })?.publishedAt).toBe('2026-02-01T00:00:00.000Z');
+    expect(parseCollection({ ...base, publishedAt: 'x' })).not.toHaveProperty('publishedAt');
+  });
+});

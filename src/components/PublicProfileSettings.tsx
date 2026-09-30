@@ -11,6 +11,7 @@ import { SLUG_MAX, toSlug } from '@/lib/publicProfile';
 import { formatDuration, summarize } from '@/lib/stats';
 import { formatRelative, formatWatchDate } from '@/lib/dates';
 import { hasSubscriptions } from '@/lib/subscriptions';
+import { useSocial } from '@/hooks/useSocial';
 
 /**
  * Publicar la biblioteca propia en una dirección compartible.
@@ -29,6 +30,11 @@ export function PublicProfileSettings() {
   const includeWatchlist = published?.includeWatchlist ?? false;
   const paysSomething = useMediaStore((state) => hasSubscriptions(state.subscriptions));
 
+  // Con cuenta social, la dirección es el usuario y si se publica lo decide
+  // la privacidad de la cuenta: acá quedan solo las opciones de la vidriera.
+  const { account } = useSocial();
+  const managed = Boolean(account);
+
   const [draft, setDraft] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirmingRemoval, setIsConfirmingRemoval] = useState(false);
@@ -36,6 +42,10 @@ export function PublicProfileSettings() {
   // La sugerencia sale del nombre de la cuenta, y solo mientras no haya nada
   // escrito: si la persona ya empezó a escribir, no se le pisa.
   useEffect(() => {
+    if (account) {
+      setDraft(account.handle);
+      return;
+    }
     if (slug) {
       setDraft(slug);
       return;
@@ -43,9 +53,24 @@ export function PublicProfileSettings() {
     setDraft((current) =>
       current || toSlug(user?.displayName || user?.email?.split('@')[0] || ''),
     );
-  }, [slug, user]);
+  }, [slug, user, account]);
 
   if (authState !== 'authenticated') return null;
+
+  if (account?.private) {
+    return (
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-section">Perfil público</h2>
+          <p className="text-sm text-text-muted">
+            Tu cuenta es privada, así que no hay perfil público: quien entra a
+            /u/{account.handle} sin que lo hayas aceptado ve tu nombre y tu
+            avatar, nada más. Para publicarlo, hacé pública tu cuenta.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   const summary = summarize(mediaList);
   const publicUrl =
@@ -109,6 +134,12 @@ export function PublicProfileSettings() {
           </p>
         ) : (
           <>
+            {managed ? (
+              <p className="text-sm text-text-muted">
+                Tu dirección es tu usuario. Para dejar de publicarlo, hacé
+                privada tu cuenta.
+              </p>
+            ) : (
             <div className="flex flex-col gap-2">
               <label htmlFor="slug" className="text-sm font-medium">
                 Tu dirección
@@ -128,6 +159,7 @@ export function PublicProfileSettings() {
                 Entre 3 y 24 caracteres: letras, números y guiones.
               </p>
             </div>
+            )}
 
             {slug ? (
               <>
@@ -156,7 +188,7 @@ export function PublicProfileSettings() {
                     url={publicUrl}
                     card={{
                       eyebrow: 'Mi biblioteca',
-                      headline: user?.displayName || 'Qué Miro?',
+                      headline: account?.displayName || user?.displayName || 'Qué Miro?',
                       subline: publicUrl.replace(/^https?:\/\//, ''),
                       stats: [
                         { value: String(summary.totalWatches), label: 'vistas' },
@@ -182,13 +214,15 @@ export function PublicProfileSettings() {
                     <span className="truncate">/u/{slug}</span>
                     <ExternalLink size={12} aria-hidden="true" className="shrink-0" />
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => setIsConfirmingRemoval(true)}
-                    className="text-text-muted hover:text-accent transition-colors shrink-0"
-                  >
-                    Despublicar
-                  </button>
+                  {!managed && (
+                    <button
+                      type="button"
+                      onClick={() => setIsConfirmingRemoval(true)}
+                      className="text-text-muted hover:text-accent transition-colors shrink-0"
+                    >
+                      Despublicar
+                    </button>
+                  )}
                 </div>
 
                 <label className="flex items-start gap-3 cursor-pointer">

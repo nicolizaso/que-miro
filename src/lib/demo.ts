@@ -6,6 +6,7 @@ import { emptyPicks, parsePicks } from '@/lib/picks';
 import { emptyGoals, parseGoals } from '@/lib/goals';
 import { emptySubscriptions, parseSubscriptions } from '@/lib/subscriptions';
 import { emptyFollowing, parseFollowing } from '@/lib/following';
+import { emptySocialSettings, parseSocialSettings } from '@/lib/social';
 import {
   EpisodeRef,
   Goals,
@@ -16,6 +17,7 @@ import {
   SavedMedia,
   SeriesProgress,
   SeriesStatus,
+  SocialSettings,
   TastePicks,
   WatchEntry,
 } from '@/types';
@@ -588,12 +590,14 @@ export function enterDemoMode(): void {
     goals,
     subscriptions,
     following,
+    socialSettings,
     ownerUid,
     setMediaList,
     setPicks,
     setGoals,
     setSubscriptions,
     setFollowing,
+    setSocialSettings,
     setOwnerUid,
   } = useMediaStore.getState();
 
@@ -601,7 +605,7 @@ export function enterDemoMode(): void {
     try {
       localStorage.setItem(
         SNAPSHOT_KEY,
-        JSON.stringify({ media: mediaList, picks, goals, subscriptions, following }),
+        JSON.stringify({ media: mediaList, picks, goals, subscriptions, following, socialSettings }),
       );
     } catch {
       // Sin storage disponible se pierde el respaldo, pero el demo funciona.
@@ -612,15 +616,16 @@ export function enterDemoMode(): void {
   setPicks(buildDemoPicks());
   setGoals(buildDemoGoals());
   setSubscriptions(buildDemoSubscriptions());
-  // Sin seguidos: el feed lee perfiles publicados en Firestore, que el demo
-  // no tiene.
+  // La lista vieja de perfiles seguidos, vacía: la gente que el demo sigue
+  // es la de `lib/demoSocial.ts`, que no pasa por Firestore.
   setFollowing(emptyFollowing());
+  setSocialSettings(emptySocialSettings());
   setOwnerUid(DEMO_OWNER_UID);
 }
 
 /** Sale del demo y restituye lo que había antes: biblioteca y respuestas. */
 export function exitDemoMode(): void {
-  const { setMediaList, setPicks, setGoals, setSubscriptions, setFollowing, setOwnerUid } =
+  const { setMediaList, setPicks, setGoals, setSubscriptions, setFollowing, setSocialSettings, setOwnerUid } =
     useMediaStore.getState();
 
   let media: SavedMedia[] = [];
@@ -628,6 +633,7 @@ export function exitDemoMode(): void {
   let goals: Goals = emptyGoals();
   let subscriptions: Subscriptions = emptySubscriptions();
   let following: Following = emptyFollowing();
+  let socialSettings: SocialSettings = emptySocialSettings();
 
   try {
     const snapshot = localStorage.getItem(SNAPSHOT_KEY);
@@ -645,6 +651,7 @@ export function exitDemoMode(): void {
           goals?: unknown;
           subscriptions?: unknown;
           following?: unknown;
+          socialSettings?: unknown;
         };
         media = Array.isArray(snapshotObject.media)
           ? (snapshotObject.media as SavedMedia[])
@@ -653,6 +660,7 @@ export function exitDemoMode(): void {
         goals = parseGoals(snapshotObject.goals);
         subscriptions = parseSubscriptions(snapshotObject.subscriptions);
         following = parseFollowing(snapshotObject.following);
+        socialSettings = parseSocialSettings(snapshotObject.socialSettings);
       }
     }
     localStorage.removeItem(SNAPSHOT_KEY);
@@ -665,5 +673,6 @@ export function exitDemoMode(): void {
   setGoals(goals);
   setSubscriptions(subscriptions);
   setFollowing(following);
+  setSocialSettings(socialSettings);
   setOwnerUid(null);
 }

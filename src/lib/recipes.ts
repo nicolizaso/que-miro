@@ -1,5 +1,6 @@
 import { SavedMedia, Subscriptions, TMDbResult, TastePicks } from '@/types';
 import { Taste, directedAbandoned, resemblesAbandoned } from '@/lib/taste';
+import { SocialSignals, SocialTitleSignal, namesText } from '@/lib/socialFeed';
 import {
   getDiscover,
   getGenreId,
@@ -24,6 +25,7 @@ export type BlockFamily =
   | 'epoca'
   | 'catalogo'
   | 'biblioteca'
+  | 'social'
   | 'general';
 
 /** Una fila del feed de Explorar, ya lista para pedir sus títulos. */
@@ -70,6 +72,11 @@ export interface RecipeContext {
    * fila de plataforma sale de las que aparecen en su biblioteca.
    */
   subscriptions?: Subscriptions;
+  /**
+   * Lo que están viendo y lo que les encantó a quienes seguís. Opcional: sin
+   * cuenta, o sin seguir a nadie, esas filas no existen.
+   */
+  social?: SocialSignals;
 }
 
 /** Una forma de armar filas. Si no hay señal, no devuelve ninguna. */
@@ -117,6 +124,37 @@ function fromSaved(media: SavedMedia): TMDbResult {
 /** Los títulos de la biblioteca, resueltos sin pedirle nada a nadie. */
 function localFetch(items: SavedMedia[]): () => Promise<TMDbResult[]> {
   return () => Promise.resolve(items.map(fromSaved));
+}
+
+/** Títulos que salen de la actividad de otros, resueltos sin pedir nada. */
+function socialFetch(signals: SocialTitleSignal[]): () => Promise<TMDbResult[]> {
+  return () =>
+    Promise.resolve(
+      signals.map(({ title }) => {
+        const date = title.releaseYear ? `${title.releaseYear}-01-01` : undefined;
+        return {
+          id: title.tmdbId,
+          media_type: title.mediaType,
+          title: title.mediaType === 'movie' ? title.title : undefined,
+          name: title.mediaType === 'tv' ? title.title : undefined,
+          poster_path: title.posterPath,
+          backdrop_path: null,
+          release_date: title.mediaType === 'movie' ? date : undefined,
+          first_air_date: title.mediaType === 'tv' ? date : undefined,
+          genre_ids: [],
+          overview: '',
+        };
+      }),
+    );
+}
+
+/** Quiénes, para el subtítulo: los nombres de los primeros títulos. */
+function whoText(signals: SocialTitleSignal[]): string {
+  const names: string[] = [];
+  for (const signal of signals) {
+    for (const name of signal.names) if (!names.includes(name)) names.push(name);
+  }
+  return namesText(names);
 }
 
 /** "película" o "serie", para que los títulos de las filas suenen bien. */
@@ -922,6 +960,46 @@ export const RECIPES: Recipe[] = [
               to: decade + 9,
               sort: 'rating',
             }),
+        },
+      ];
+    },
+  },
+
+  // -------------------------------------------------------------------------
+  // Las dos últimas leen `social`: lo que publica la gente que seguís. No es
+  // ni gusto deducido ni declarado, es de otros, y pesa como lo declarado:
+  // que alguien que elegiste seguir esté viendo algo es una señal fuerte.
+  // -------------------------------------------------------------------------
+  {
+    id: 'amigos-viendo',
+    build: ({ social }) => {
+      const watching = social?.watching ?? [];
+      if (watching.length < 3) return [];
+      return [
+        {
+          id: 'amigos-viendo',
+          family: 'social',
+          title: 'Lo que están viendo quienes seguís',
+          subtitle: `${whoText(watching)}, estas semanas.`,
+          weight: 8,
+          fetch: socialFetch(watching),
+        },
+      ];
+    },
+  },
+  {
+    id: 'amigos-encantados',
+    build: ({ social }) => {
+      const loved = social?.loved ?? [];
+      if (loved.length < 3) return [];
+      return [
+        {
+          id: 'amigos-encantados',
+          family: 'social',
+          title: 'Les encantó a quienes seguís',
+          subtitle: `Con 4,5 estrellas o más, de ${whoText(loved)}.`,
+          weight: 8,
+          fetch: socialFetch(loved),
         },
       ];
     },

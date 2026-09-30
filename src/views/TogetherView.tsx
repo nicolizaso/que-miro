@@ -3,6 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import { Film, HeartHandshake, Shuffle, Swords, Tv, UserX } from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { usePublicProfileBySlug } from '@/hooks/usePublicProfile';
+import { useSocial } from '@/hooks/useSocial';
+import { usePerson } from '@/hooks/usePerson';
+import { seenFromLibrary } from '@/lib/affinity';
 import { PickerRoulette } from '@/components/PickerRoulette';
 import { DuelMode } from '@/components/DuelMode';
 import { TitleDetailModal } from '@/components/TitleDetailModal';
@@ -71,7 +74,39 @@ function TogetherResult({
  */
 export function TogetherView() {
   const { slug } = useParams<{ slug: string }>();
-  const { profile, isLoading, error } = usePublicProfileBySlug(slug);
+  const { profile: publicProfile, isLoading: isLoadingProfile, error } = usePublicProfileBySlug(slug);
+  // Con cuenta social, lo de quien seguís sale de su actividad: no hace falta
+  // que publique su perfil ni que prenda "Incluir mi Por Ver".
+  const social = useSocial();
+  const person = usePerson(social.mode === 'off' ? undefined : slug);
+  const activity = person.activity && person.activity !== 'locked' ? person.activity : null;
+  const fromActivity = activity && person.account && activity.watchlist.length > 0 ? activity : null;
+  const account = person.account;
+  // Memorizado: la ruleta y el duelo se reinician si la lista de candidatos
+  // cambia de identidad, y esto se rearma en cada render.
+  const profile = useMemo(
+    () =>
+      fromActivity && account
+        ? {
+            slug: account.handle,
+            displayName: account.displayName,
+            watchlist: fromActivity.watchlist,
+            seen: seenFromLibrary(fromActivity.library),
+            subscriptions: publicProfile?.subscriptions,
+          }
+        : publicProfile
+          ? {
+              slug: publicProfile.slug,
+              displayName: publicProfile.displayName,
+              watchlist: publicProfile.watchlist,
+              seen: [...publicProfile.reviews, ...publicProfile.favorites],
+              subscriptions: publicProfile.subscriptions,
+            }
+          : null,
+    [fromActivity, account, publicProfile],
+  );
+  const isLoading =
+    isLoadingProfile || (social.mode !== 'off' && person.account === undefined && !person.error);
   const mediaList = useMediaStore((state) => state.mediaList);
   const subscriptions = useMediaStore((state) => state.subscriptions);
   const [mode, setMode] = useState<Mode>('azar');
@@ -82,7 +117,7 @@ export function TogetherView() {
       profile?.watchlist
         ? crossWatchlists(mediaList, {
             watchlist: profile.watchlist,
-            seen: [...profile.reviews, ...profile.favorites],
+            seen: profile.seen,
           })
         : [],
     [profile, mediaList],
@@ -114,7 +149,7 @@ export function TogetherView() {
             ? 'Puede ser un problema momentáneo. Probá de nuevo en un rato.'
             : !profile
               ? 'El link puede estar mal escrito, o esta persona dejó de compartir su biblioteca.'
-              : `Para cruzar sus listas, ${profile.displayName} tiene que activar "Incluir mi Por Ver" en los ajustes de su perfil público.`}
+              : `Para cruzar sus listas, ${profile.displayName} tiene que compartir su biblioteca con quienes lo siguen, o activar "Incluir mi Por Ver" en su perfil público.`}
         </p>
         <Link to="/" className="btn btn-secondary px-4 py-2.5 text-sm">
           Ir a Mis listas

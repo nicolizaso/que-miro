@@ -33,6 +33,8 @@ import {
 } from '@/lib/subscriptions';
 import { followingPath } from '@/hooks/useFollowing';
 import { followingToDocument, hasFollowing, parseFollowing } from '@/lib/following';
+import { socialSettingsPath } from '@/hooks/useSocialSettings';
+import { hasSocialSettings, parseSocialSettings, socialSettingsToDocument } from '@/lib/social';
 import { mergeLibraries } from '@/lib/backup';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -142,6 +144,7 @@ export function SyncManager() {
       goals: localGoals,
       subscriptions: localSubscriptions,
       following: localFollowing,
+      socialSettings: localSocialSettings,
       syncedUid,
       setSyncedUid,
     } = useMediaStore.getState();
@@ -161,6 +164,7 @@ export function SyncManager() {
     const localGoalsToUpload = isFirstSync ? localGoals : null;
     const localSubscriptionsToUpload = isFirstSync ? localSubscriptions : null;
     const localFollowingToUpload = isFirstSync ? localFollowing : null;
+    const localSocialToUpload = isFirstSync ? localSocialSettings : null;
 
     setOwnerUid(user.uid);
 
@@ -170,6 +174,7 @@ export function SyncManager() {
     const goalsRef = doc(db, goalsPath(user.uid));
     const subscriptionsRef = doc(db, subscriptionsPath(user.uid));
     const followingRef = doc(db, followingPath(user.uid));
+    const socialRef = doc(db, socialSettingsPath(user.uid));
     let migrated = false;
 
     const { setIssue } = useSyncStatus.getState();
@@ -471,9 +476,25 @@ export function SyncManager() {
       onListenError,
     ));
 
+    const unsubscribeSocial = listen((onListenError) => onSnapshot(
+      socialRef,
+      profileDocHandler({
+        ref: socialRef,
+        parse: parseSocialSettings,
+        hasContent: hasSocialSettings,
+        toDocument: socialSettingsToDocument,
+        localToUpload: localSocialToUpload,
+        getLocal: () => useMediaStore.getState().socialSettings,
+        setLocal: (settings) => useMediaStore.getState().setSocialSettings(settings),
+        what: 'lo que compartís',
+      }),
+      onListenError,
+    ));
+
     return () => {
       disposed = true;
       retryTimers.forEach(clearTimeout);
+      unsubscribeSocial();
       unsubscribeMedia();
       unsubscribeCollections();
       unsubscribePicks();

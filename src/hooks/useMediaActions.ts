@@ -169,7 +169,9 @@ export function useMediaActions() {
     // todavía no trae sus temporadas, se marca cuando llegue la ficha.
     const isCompleted = draft.status === 'completada';
     const progress = isCompleted ? completeProgress(draft) : undefined;
-    const media = progress ? { ...draft, progress } : draft;
+    // Cuándo entró: lo que fecha "agregó a Por Ver" para quienes te siguen.
+    const dated = { ...draft, addedAt: draft.addedAt ?? new Date().toISOString() };
+    const media = progress ? { ...dated, progress } : dated;
 
     if (!isAuth) {
       useMediaStore.getState().addMedia(media);

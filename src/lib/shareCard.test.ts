@@ -78,3 +78,17 @@ describe('buildCardSvg', () => {
     );
   });
 });
+
+describe('la tarjeta de reseña para historias', () => {
+  it('es vertical y lleva la cita y el puntaje', async () => {
+    const { reviewCard, cardSize, STORY_HEIGHT, STORY_WIDTH } = await import('./shareCard');
+    const card = reviewCard({ author: 'Ana', title: 'Past Lives', rating: 4.5, text: 'Me partió & me armó', own: false });
+    expect(cardSize(card)).toEqual({ width: STORY_WIDTH, height: STORY_HEIGHT });
+    const svg = buildCardSvg(card);
+    expect(svg).toContain(`height="${STORY_HEIGHT}"`);
+    expect(svg).toContain('LA RESEÑA DE ANA');
+    expect(svg).toContain('4,5 ★');
+    expect(svg).toContain('me armó');
+    expect(svg).toContain('&amp;');
+  });
+});

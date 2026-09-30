@@ -2,6 +2,59 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // --- Lo social: funciones compartidas ---------------------------------
+    //
+    // Los `get()` y `exists()` de acá no pasan por las reglas de lo que leen:
+    // por eso pueden mirar los bloqueos de otra persona o su cuenta sin que
+    // eso quede abierto a nadie.
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function accountOf(uid) {
+      return get(/databases/$(database)/documents/accounts/$(uid)).data;
+    }
+
+    function hasAccount(uid) {
+      return exists(/databases/$(database)/documents/accounts/$(uid));
+    }
+
+    function isPrivate(uid) {
+      return hasAccount(uid) && accountOf(uid).private == true;
+    }
+
+    /** `owner` bloqueó a `other`. */
+    function blocked(owner, other) {
+      return exists(/databases/$(database)/documents/users/$(owner)/blocks/$(other));
+    }
+
+    /** `follower` sigue a `followed` y, si la cuenta es privada, fue aceptado. */
+    function approvedFollower(follower, followed) {
+      let path = /databases/$(database)/documents/follows/$(follower + '_' + followed);
+      return exists(path) && get(path).data.status == 'accepted';
+    }
+
+    function isMutual(a, b) {
+      return approvedFollower(a, b) && approvedFollower(b, a);
+    }
+
+    /**
+     * Quién puede leer la actividad de `uid`: su dueño; y con sesión, si no
+     * te bloqueó, cualquiera si la cuenta es pública o sus seguidores
+     * aceptados si es privada. Sin sesión, nadie: lo que se ve sin sesión es
+     * el perfil público (`public_profiles`), que es otra instantánea.
+     */
+    function canReadActivity(uid) {
+      return signedIn() && (
+        request.auth.uid == uid || (
+          hasAccount(uid)
+          && !blocked(uid, request.auth.uid)
+          && (accountOf(uid).private == false || approvedFollower(request.auth.uid, uid))
+        )
+      );
+    }
+
     // Cada persona es dueña exclusiva de su rama del árbol: nadie lee ni
     // escribe fuera de `users/{su propio uid}`.
     match /users/{userId} {
@@ -29,6 +82,51 @@ service cloud.firestore {
       match /profile/{docId} {
         allow read, write: if isOwner();
       }
+
+      // A quién bloqueaste. Es tuyo y nadie más lo lee, pero las reglas de
+      // abajo lo consultan con `exists()` —que no pasa por estas reglas—
+      // para que quien bloqueaste no pueda seguirte, leer tu actividad ni
+      // mandarte nada.
+      match /blocks/{otherUid} {
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner()
+          && otherUid != userId
+          && request.resource.data.keys().hasOnly(['at']);
+      }
+
+      /**
+       * "Te lo recomiendo": lo único de `users/` que escribe otra persona.
+       *
+       * Solo alguien con quien se siguen mutuamente, y con el id armado con su
+       * uid: así una recomendación repetida del mismo título pisa la anterior
+       * en vez de apilarse, y nadie puede firmar por otro. Las claves están
+       * cerradas para que no se pueda colar nada más que el título y una nota
+       * corta. La lee y la borra quien la recibe; quien la mandó puede leer y
+       * borrar las suyas, que es lo que usa el borrado de su cuenta.
+       */
+      match /recommendations/{recommendationId} {
+        function validRecommendation() {
+          let data = request.resource.data;
+          return data.keys().hasOnly(['from', 'fromName', 'fromHandle', 'tmdbId', 'mediaType', 'title', 'posterPath', 'releaseYear', 'note', 'at'])
+            && data.from == request.auth.uid
+            && recommendationId == request.auth.uid + '_' + data.mediaType + string(data.tmdbId)
+            && data.mediaType in ['movie', 'tv']
+            && data.tmdbId is int && data.tmdbId > 0
+            && data.title is string && data.title.size() <= 200
+            && data.note is string && data.note.size() <= 280
+            && data.fromName is string && data.fromName.size() <= 60;
+        }
+
+        allow read: if isOwner()
+          || (request.auth != null && resource.data.from == request.auth.uid);
+        allow delete: if isOwner()
+          || (request.auth != null && resource.data.from == request.auth.uid);
+        allow create, update: if request.auth != null
+          && request.auth.uid != userId
+          && validRecommendation()
+          && isMutual(request.auth.uid, userId)
+          && !blocked(userId, request.auth.uid);
+      }
     }
 
     /**
@@ -46,12 +144,19 @@ service cloud.firestore {
     match /public_profiles/{slug} {
       allow read: if true;
 
+      // Una cuenta privada no publica perfil: lo que muestra `/u/…` en ese
+      // caso sale de `accounts` (nombre, avatar y "Cuenta privada"). Va en
+      // las reglas y no solo en la app porque una PWA vieja en otro
+      // dispositivo, con "Mantener actualizado" prendido, lo republicaría
+      // entero sin saber que la cuenta ahora es privada.
       allow create: if request.auth != null
-        && request.auth.uid == request.resource.data.uid;
+        && request.auth.uid == request.resource.data.uid
+        && !isPrivate(request.auth.uid);
 
       allow update: if request.auth != null
         && request.auth.uid == resource.data.uid
-        && request.resource.data.uid == resource.data.uid;
+        && request.resource.data.uid == resource.data.uid
+        && !isPrivate(request.auth.uid);
 
       allow delete: if request.auth != null
         && request.auth.uid == resource.data.uid;
@@ -154,6 +259,165 @@ service cloud.firestore {
         && request.resource.data.tokens.size() <= 10
         && request.resource.data.series is list
         && request.resource.data.series.size() <= 1000;
+    }
+
+    /**
+     * Nombres de usuario (`handles/{usuario}` → `{ uid }`).
+     *
+     * El id del documento *es* el usuario, y eso es lo que lo hace único:
+     * dos personas no pueden crear el mismo documento. Se lee de a uno
+     * —buscar a alguien es escribir su usuario exacto— y `list` está
+     * prohibido para que no sea un directorio que se recorre entero.
+     *
+     * Nadie puede tomar como usuario la dirección de un perfil público que
+     * es de otra cuenta: el usuario y la dirección de `/u/…` son lo mismo.
+     * Un usuario no se edita: cambiarlo es crear el nuevo y borrar el viejo,
+     * en el mismo lote que actualiza la cuenta.
+     */
+    match /handles/{handle} {
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && handle.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+        && handle.size() >= 3 && handle.size() <= 24
+        && (!exists(/databases/$(database)/documents/public_profiles/$(handle))
+          || get(/databases/$(database)/documents/public_profiles/$(handle)).data.uid == request.auth.uid);
+
+      allow update: if false;
+
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    /**
+     * La tarjeta de cada cuenta (`accounts/{uid}`): usuario, nombre, avatar,
+     * bio, top 4, si es privada y cuántos la siguen.
+     *
+     * Se lee sin sesión y de a una, también la de una cuenta privada: es lo
+     * que muestra "Cuenta privada" con nombre y foto, como en cualquier red.
+     * No hay nada de la biblioteca acá.
+     *
+     * El usuario que declara tiene que ser suyo —`getAfter`, porque se crea
+     * en el mismo lote—. Los números de seguidores los escribe el dueño,
+     * contados desde `follows`: nadie más puede listar esas relaciones para
+     * contarlas, y quien los inflara solo estaría mintiendo sobre sí mismo.
+     */
+    match /accounts/{uid} {
+      function validAccount() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['uid', 'handle', 'displayName', 'bio', 'avatarPath', 'top4', 'private', 'followers', 'following', 'createdAt', 'updatedAt'])
+          && data.uid == uid
+          && data.handle is string
+          && getAfter(/databases/$(database)/documents/handles/$(data.handle)).data.uid == uid
+          && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 60
+          && data.bio is string && data.bio.size() <= 160
+          && (data.avatarPath == null || (data.avatarPath is string && data.avatarPath.size() <= 100))
+          && data.top4 is list && data.top4.size() <= 4
+          && data.private is bool
+          && data.followers is int && data.followers >= 0
+          && data.following is int && data.following >= 0;
+      }
+
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if signedIn() && request.auth.uid == uid && validAccount();
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    /**
+     * Quién sigue a quién (`follows/{seguidor}_{seguido}`).
+     *
+     * El id lleva los dos uids para que haya una sola relación por par y
+     * para poder chequearla con `exists()` desde otras reglas. Solo lo crea
+     * el seguidor, y el estado no lo elige él: si la cuenta seguida es
+     * privada entra `pending`, si es pública `accepted`. Solo quien recibe
+     * la solicitud la acepta, y ninguna otra cosa cambia después. Cualquiera
+     * de los dos la borra: dejar de seguir, rechazar, quitar un seguidor.
+     *
+     * Las leen solo las dos personas: las listas de seguidores de otra
+     * persona no se ven, solo sus números (en `accounts`).
+     */
+    match /follows/{followId} {
+      function isParty() {
+        return signedIn()
+          && (resource.data.follower == request.auth.uid || resource.data.followed == request.auth.uid);
+      }
+
+      // `get` por el id, que funciona también cuando el documento no existe:
+      // "¿ya lo sigo?" es una pregunta que se hace antes de seguir.
+      allow get: if signedIn() && request.auth.uid in followId.split('_');
+      allow list: if isParty();
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['follower', 'followed', 'status', 'createdAt'])
+        && request.resource.data.follower == request.auth.uid
+        && request.resource.data.followed != request.auth.uid
+        && followId == request.auth.uid + '_' + request.resource.data.followed
+        && request.resource.data.createdAt is string
+        && hasAccount(request.auth.uid)
+        && hasAccount(request.resource.data.followed)
+        && !blocked(request.resource.data.followed, request.auth.uid)
+        && request.resource.data.status == (isPrivate(request.resource.data.followed) ? 'pending' : 'accepted');
+
+      allow update: if signedIn()
+        && resource.data.followed == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'accepted'
+        && request.resource.data.acceptedAt is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt']);
+
+      allow delete: if isParty();
+    }
+
+    /**
+     * La actividad que ven quienes te siguen (`activity/{uid}`).
+     *
+     * El mismo patrón que el perfil público: una instantánea curada que arma
+     * y republica la app de su dueño —los últimos eventos, "viendo ahora" y
+     * un resumen de la biblioteca—, nunca una ventana a `saved_media`. La
+     * diferencia es quién la lee (ver `canReadActivity`). Se lee de a una:
+     * el feed pide la de cada cuenta que seguís.
+     */
+    match /activity/{uid} {
+      function validActivity() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['uid', 'handle', 'displayName', 'avatarPath', 'updatedAt', 'events', 'watching', 'library', 'watchlist', 'lists', 'reactions'])
+          && data.uid == uid
+          && data.events is list && data.events.size() <= 60
+          && data.watching is list && data.watching.size() <= 12
+          && data.library is list && data.library.size() <= 3000
+          && data.watchlist is list && data.watchlist.size() <= 150
+          && data.lists is list && data.lists.size() <= 30
+          && data.reactions is map;
+      }
+
+      allow get: if canReadActivity(uid);
+      allow list: if false;
+      allow create, update: if signedIn() && request.auth.uid == uid && validActivity();
+      allow delete: if signedIn() && request.auth.uid == uid;
+
+      /**
+       * Reacciones a un evento (`{quienReacciona}_{idDelEvento}`): una por
+       * persona y evento, que se cambia o se saca. Reacciona quien puede leer
+       * esa actividad. Las lee el dueño —las cuenta y las publica en su
+       * instantánea— y cada uno las suyas.
+       */
+      match /reactions/{reactionId} {
+        allow read: if signedIn()
+          && (request.auth.uid == uid || resource.data.reactor == request.auth.uid);
+
+        allow create, update: if canReadActivity(uid)
+          && request.resource.data.keys().hasOnly(['reactor', 'reactorName', 'reactorHandle', 'eventId', 'emoji', 'at'])
+          && request.resource.data.reactor == request.auth.uid
+          && reactionId == request.auth.uid + '_' + request.resource.data.eventId
+          && request.resource.data.eventId is string && request.resource.data.eventId.size() <= 200
+          && request.resource.data.emoji in ['fire', 'love', 'laugh', 'cry', 'wow'];
+
+        allow delete: if signedIn()
+          && (request.auth.uid == uid || resource.data.reactor == request.auth.uid);
+      }
     }
   }
 }

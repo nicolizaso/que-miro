@@ -106,7 +106,7 @@ export function buildPublicProfile({
   slug,
   uid,
   displayName,
-  mediaList,
+  mediaList: allMedia,
   autoUpdate = true,
   includeWatchlist = false,
   includeSubscriptions = false,
@@ -122,6 +122,8 @@ export function buildPublicProfile({
   /** Los nombres de las plataformas que paga: se publican solo si se pidió. */
   subscriptions?: string[];
 }): PublicProfile {
+  // Lo que ocultaste de tus seguidores tampoco sale en la vidriera pública.
+  const mediaList = allMedia.filter((media) => !media.hiddenFromFollowers);
   const summary = summarize(mediaList);
 
   return {

@@ -10,6 +10,9 @@
 
 export const CARD_WIDTH = 1200;
 export const CARD_HEIGHT = 630;
+/** La vertical de las historias de Instagram y WhatsApp: 9:16. */
+export const STORY_WIDTH = 1080;
+export const STORY_HEIGHT = 1920;
 
 /** Escapa el texto que entra al SVG, que es XML y no HTML. */
 function escapeXml(value: string): string {
@@ -60,10 +63,87 @@ export interface ShareCardData {
   subline?: string;
   /** Hasta tres pares dato/etiqueta que van abajo. */
   stats?: { value: string; label: string }[];
+  /**
+   * `story`: vertical, para subir como historia. Es la de las reseñas, que
+   * además llevan la cita. Por defecto, la apaisada de siempre.
+   */
+  format?: 'wide' | 'story';
+  /** Un pedazo de la reseña, entre comillas. Solo en `story`. */
+  quote?: string;
+}
+
+/** Las medidas de la imagen según el formato. */
+export function cardSize(data: Pick<ShareCardData, 'format'>): { width: number; height: number } {
+  return data.format === 'story'
+    ? { width: STORY_WIDTH, height: STORY_HEIGHT }
+    : { width: CARD_WIDTH, height: CARD_HEIGHT };
+}
+
+/**
+ * La tarjeta vertical de una reseña: el título grande, el puntaje, la cita y
+ * quién la escribió. Igual que la apaisada, sin póster (ver arriba).
+ */
+function buildStorySvg(data: ShareCardData): string {
+  const headlineLines = wrapText(data.headline, 16, 4);
+  const headlineSize = headlineLines.length > 2 ? 96 : 120;
+  const headlineTop = 620;
+  const quoteLines = data.quote ? wrapText(`“${data.quote}”`, 30, 7) : [];
+  const quoteTop = headlineTop + headlineLines.length * headlineSize * 1.1 + 120;
+  const stats = (data.stats ?? []).slice(0, 2);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${STORY_WIDTH}" height="${STORY_HEIGHT}" viewBox="0 0 ${STORY_WIDTH} ${STORY_HEIGHT}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0d0e"/>
+      <stop offset="100%" stop-color="#1a1416"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="${STORY_WIDTH}" height="${STORY_HEIGHT}" fill="url(#bg)"/>
+  <rect x="0" y="0" width="${STORY_WIDTH}" height="14" fill="#e63946"/>
+
+  <text x="96" y="260" font-family="Georgia, serif" font-style="italic" font-weight="bold" font-size="52" fill="#f4f5f6">Qué Miro?</text>
+  <text x="96" y="400" font-family="Helvetica, Arial, sans-serif" font-size="36" letter-spacing="4" fill="#e63946">${escapeXml(
+    data.eyebrow.toUpperCase(),
+  )}</text>
+
+  <text x="96" y="${headlineTop}" font-family="Georgia, serif" font-style="italic" font-weight="bold" font-size="${headlineSize}" fill="#f4f5f6">
+    ${headlineLines
+      .map((line, index) => `<tspan x="96" dy="${index === 0 ? 0 : headlineSize * 1.1}">${escapeXml(line)}</tspan>`)
+      .join('\n    ')}
+  </text>
+
+  ${
+    quoteLines.length
+      ? `<text x="96" y="${quoteTop}" font-family="Georgia, serif" font-style="italic" font-size="52" fill="#d6d8db">
+    ${quoteLines
+      .map((line, index) => `<tspan x="96" dy="${index === 0 ? 0 : 72}">${escapeXml(line)}</tspan>`)
+      .join('\n    ')}
+  </text>`
+      : ''
+  }
+
+  ${stats
+    .map((stat, index) => {
+      const x = 96 + index * 460;
+      return `<text x="${x}" y="1700" font-family="Georgia, serif" font-style="italic" font-weight="bold" font-size="96" fill="#e63946">${escapeXml(
+        stat.value,
+      )}</text>
+  <text x="${x}" y="1760" font-family="Helvetica, Arial, sans-serif" font-size="36" fill="#a3a7ad">${escapeXml(stat.label)}</text>`;
+    })
+    .join('\n  ')}
+
+  ${
+    data.subline
+      ? `<text x="96" y="1840" font-family="Helvetica, Arial, sans-serif" font-size="36" fill="#a3a7ad">${escapeXml(data.subline)}</text>`
+      : ''
+  }
+</svg>`;
 }
 
 /** El SVG de la tarjeta, listo para mostrar o para convertir a imagen. */
 export function buildCardSvg(data: ShareCardData): string {
+  if (data.format === 'story') return buildStorySvg(data);
   const headlineLines = wrapText(data.headline, 26, 3);
   // El tamaño baja cuando el título es largo, así ocupa siempre un ancho
   // parecido y no se ve un renglón perdido en el medio.
@@ -125,7 +205,10 @@ export function buildCardSvg(data: ShareCardData): string {
  * Devuelve `null` si el navegador no puede hacerlo: la parte que comparte tiene
  * un plan B con texto, así que no vale la pena tirar una excepción por esto.
  */
-export async function svgToPngBlob(svg: string): Promise<Blob | null> {
+export async function svgToPngBlob(
+  svg: string,
+  { width, height } = { width: CARD_WIDTH, height: CARD_HEIGHT },
+): Promise<Blob | null> {
   try {
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
 
@@ -137,12 +220,12 @@ export async function svgToPngBlob(svg: string): Promise<Blob | null> {
     });
 
     const canvas = document.createElement('canvas');
-    canvas.width = CARD_WIDTH;
-    canvas.height = CARD_HEIGHT;
+    canvas.width = width;
+    canvas.height = height;
     const context = canvas.getContext('2d');
     if (!context) return null;
 
-    context.drawImage(image, 0, 0, CARD_WIDTH, CARD_HEIGHT);
+    context.drawImage(image, 0, 0, width, height);
     URL.revokeObjectURL(url);
 
     return await new Promise((resolve) =>
@@ -176,7 +259,7 @@ export async function share(payload: SharePayload): Promise<ShareOutcome> {
   if (typeof navigator !== 'undefined' && navigator.share) {
     try {
       if (card && navigator.canShare) {
-        const blob = await svgToPngBlob(buildCardSvg(card));
+        const blob = await svgToPngBlob(buildCardSvg(card), cardSize(card));
         if (blob) {
           const file = new File([blob], 'que-miro.png', { type: 'image/png' });
           if (navigator.canShare({ files: [file] })) {
@@ -201,4 +284,33 @@ export async function share(payload: SharePayload): Promise<ShareOutcome> {
   } catch {
     return 'error';
   }
+}
+
+/**
+ * La tarjeta de una reseña, vertical para historias: "Mi reseña de" o "La
+ * reseña de Ana", el título, las estrellas y la cita.
+ */
+export function reviewCard({
+  author,
+  title,
+  releaseYear,
+  rating,
+  text,
+  own,
+}: {
+  author: string;
+  title: string;
+  releaseYear?: string;
+  rating?: number;
+  text?: string;
+  own: boolean;
+}): ShareCardData {
+  return {
+    format: 'story',
+    eyebrow: own ? 'Mi reseña de' : `La reseña de ${author}`,
+    headline: title,
+    ...(text ? { quote: text } : {}),
+    ...(rating ? { stats: [{ value: `${String(rating).replace('.', ',')} ★`, label: 'de 5 estrellas' }] } : {}),
+    ...(releaseYear ? { subline: releaseYear } : {}),
+  };
 }

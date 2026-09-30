@@ -3,7 +3,10 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
+  query,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
@@ -18,6 +21,7 @@ import { publicListPath } from '@/lib/publicList';
 import { releasePushDevice } from '@/lib/pushDevice';
 import { deleteCalendarFeed } from '@/hooks/useCalendarFeed';
 import { deletePublicProfile } from '@/hooks/usePublicProfile';
+import { socialSettingsPath } from '@/hooks/useSocialSettings';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -73,6 +77,68 @@ export function useAccountActions() {
   };
 
   /**
+   * Borra todo lo social: lo que cuelga de `users/` (bloqueos,
+   * recomendaciones recibidas, la configuración) y lo que vive afuera
+   * —usuario, tarjeta, actividad con sus reacciones, las relaciones de
+   * seguir, las reacciones y recomendaciones que dejaste en otras cuentas—.
+   * Afuera de `users/` nada se borra solo.
+   */
+  const deleteSocial = async (uid: string) => {
+    const deleteAll = async (paths: string[]) => {
+      for (let i = 0; i < paths.length; i += BATCH_LIMIT) {
+        const batch = writeBatch(db);
+        for (const path of paths.slice(i, i + BATCH_LIMIT)) batch.delete(doc(db, path));
+        await batch.commit();
+      }
+    };
+
+    const [outgoing, incoming] = await Promise.all([
+      getDocs(query(collection(db, 'follows'), where('follower', '==', uid))),
+      getDocs(query(collection(db, 'follows'), where('followed', '==', uid))),
+    ]);
+    const followed = outgoing.docs.map((d) => String(d.data().followed));
+    const followers = incoming.docs.map((d) => String(d.data().follower));
+
+    // Lo que dejaste en otras cuentas: tus reacciones a quienes seguías y
+    // tus recomendaciones a quienes te seguían. Solo ahí pudiste dejarlas.
+    const elsewhere: string[] = [];
+    for (const other of followed) {
+      const mine = await getDocs(
+        query(collection(db, `activity/${other}/reactions`), where('reactor', '==', uid)),
+      ).catch(() => null);
+      mine?.docs.forEach((d) => elsewhere.push(d.ref.path));
+    }
+    for (const other of new Set([...followed, ...followers])) {
+      const sent = await getDocs(
+        query(collection(db, `users/${other}/recommendations`), where('from', '==', uid)),
+      ).catch(() => null);
+      sent?.docs.forEach((d) => elsewhere.push(d.ref.path));
+    }
+    await deleteAll(elsewhere);
+
+    const [reactions, recommendations, blocks] = await Promise.all([
+      getDocs(collection(db, `activity/${uid}/reactions`)),
+      getDocs(collection(db, `users/${uid}/recommendations`)),
+      getDocs(collection(db, `users/${uid}/blocks`)),
+    ]);
+    await deleteAll([
+      ...reactions.docs.map((d) => d.ref.path),
+      ...recommendations.docs.map((d) => d.ref.path),
+      ...blocks.docs.map((d) => d.ref.path),
+      ...outgoing.docs.map((d) => d.ref.path),
+      ...incoming.docs.map((d) => d.ref.path),
+      `activity/${uid}`,
+      socialSettingsPath(uid),
+    ]);
+
+    // Al final la tarjeta y el usuario: las reglas de lo de arriba miran la cuenta.
+    const account = await getDoc(doc(db, `accounts/${uid}`));
+    const handle: unknown = account.data()?.handle;
+    if (typeof handle === 'string' && handle) await deleteDoc(doc(db, `handles/${handle}`));
+    await deleteDoc(doc(db, `accounts/${uid}`));
+  };
+
+  /**
    * Vacía la biblioteca sin tocar la cuenta.
    *
    * @throws {AccountDeletionError} si Firestore rechaza el borrado.
@@ -108,6 +174,7 @@ export function useAccountActions() {
       // Primero el perfil público: el slug está en `users/{uid}`, que se borra
       // con la biblioteca.
       await deletePublicProfile(user.uid);
+      await deleteSocial(user.uid);
       await deleteRemoteCollections(user.uid);
       await deleteRemoteLibrary(user.uid);
       // Las respuestas de "Contanos de vos" están fuera de `saved_media`, y

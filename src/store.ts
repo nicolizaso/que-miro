@@ -7,6 +7,7 @@ import {
   Goals,
   SavedMedia,
   SeriesProgress,
+  SocialSettings,
   Subscriptions,
   TastePicks,
   WatchEntry,
@@ -22,6 +23,7 @@ import { emptyPicks, parsePicks } from './lib/picks';
 import { emptyGoals, parseGoals } from './lib/goals';
 import { emptySubscriptions, parseSubscriptions } from './lib/subscriptions';
 import { emptyFollowing, parseFollowing } from './lib/following';
+import { emptySocialSettings, parseSocialSettings } from './lib/social';
 
 interface MediaState {
   mediaList: SavedMedia[];
@@ -45,6 +47,11 @@ interface MediaState {
   subscriptions: Subscriptions;
   /** Los perfiles públicos que sigue. De la cuenta, como las metas. */
   following: Following;
+  /**
+   * Qué comparte con quienes lo siguen, a quién silenció y hasta dónde leyó
+   * las notificaciones. De la cuenta, como las metas.
+   */
+  socialSettings: SocialSettings;
   /**
    * UID del usuario dueño de los datos que hay en memoria/localStorage.
    * `null` significa "datos de invitado", todavía no asociados a ninguna cuenta.
@@ -87,6 +94,7 @@ interface MediaState {
   setGoals: (goals: Goals) => void;
   setSubscriptions: (subscriptions: Subscriptions) => void;
   setFollowing: (following: Following) => void;
+  setSocialSettings: (settings: SocialSettings) => void;
 
   setCollections: (collections: Collection[]) => void;
   addCollection: (collection: Collection) => void;
@@ -122,6 +130,7 @@ export const useMediaStore = create<MediaState>()(
       goals: emptyGoals(),
       subscriptions: emptySubscriptions(),
       following: emptyFollowing(),
+      socialSettings: emptySocialSettings(),
       ownerUid: null,
       syncedUid: null,
       setMediaList: (list) => set({ mediaList: list }),
@@ -129,6 +138,7 @@ export const useMediaStore = create<MediaState>()(
       setGoals: (goals) => set({ goals }),
       setSubscriptions: (subscriptions) => set({ subscriptions }),
       setFollowing: (following) => set({ following }),
+      setSocialSettings: (socialSettings) => set({ socialSettings }),
       setOwnerUid: (uid) => set({ ownerUid: uid }),
       setSyncedUid: (uid) => set({ syncedUid: uid }),
       reset: () =>
@@ -139,6 +149,7 @@ export const useMediaStore = create<MediaState>()(
           goals: emptyGoals(),
           subscriptions: emptySubscriptions(),
           following: emptyFollowing(),
+          socialSettings: emptySocialSettings(),
           ownerUid: null,
           syncedUid: null,
         }),
@@ -285,6 +296,7 @@ export const useMediaStore = create<MediaState>()(
           goals: parseGoals(state.goals),
           subscriptions: parseSubscriptions(state.subscriptions),
           following: parseFollowing(state.following),
+          socialSettings: parseSocialSettings(state.socialSettings),
         };
       },
       /**
@@ -313,6 +325,7 @@ export const useMediaStore = create<MediaState>()(
           goals: parseGoals(state?.goals),
           subscriptions: parseSubscriptions(state?.subscriptions),
           following: parseFollowing(state?.following),
+          socialSettings: parseSocialSettings(state?.socialSettings),
         } as MediaState;
       },
     },

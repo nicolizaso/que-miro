@@ -56,6 +56,9 @@
           { "name": "collections", "type": "list", "required": false },
           { "name": "duelScore", "type": "number", "required": false },
           { "name": "duelCount", "type": "number", "required": false },
+          { "name": "addedAt", "type": "timestamp", "required": false },
+          { "name": "addedFrom", "type": "map", "required": false },
+          { "name": "hiddenFromFollowers", "type": "boolean", "required": false },
           { "name": "review", "type": "map", "required": false }
         ]
       }
@@ -74,7 +77,8 @@
           { "name": "name", "type": "string", "required": true },
           { "name": "createdAt", "type": "timestamp", "required": true },
           { "name": "updatedAt", "type": "timestamp", "required": true },
-          { "name": "publicId", "type": "string", "required": false }
+          { "name": "publicId", "type": "string", "required": false },
+          { "name": "publishedAt", "type": "timestamp", "required": false }
         ]
       }
     },
@@ -147,7 +151,7 @@
     {
       "collection": "profile",
       "path": "/users/{userId}/profile/following",
-      "description": "Public profiles the user follows (slug, owner uid at follow time, name, since), capped at 100; synced newest-wins, in the backup and deleted with the account",
+      "description": "Legacy follows of public profiles by slug (before accounts existed). Migrated to follows/ once the followed person creates their account; entries left here keep feeding their public reviews. Synced newest-wins, in the backup and deleted with the account",
       "access": {
         "read": "request.auth != null && request.auth.uid == userId",
         "write": "request.auth != null && request.auth.uid == userId"
@@ -160,13 +164,69 @@
       }
     },
     {
+      "collection": "profile",
+      "path": "/users/{userId}/profile/social",
+      "description": "Social settings that are never published: what followers can see (sharing), paused activity, muted uids and when notifications were last read. Synced newest-wins, in the backup and deleted with the account",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "sharing", "type": "map", "required": true },
+          { "name": "paused", "type": "boolean", "required": true },
+          { "name": "muted", "type": "list", "required": true },
+          { "name": "inboxSeenAt", "type": "timestamp", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "blocks",
+      "path": "/users/{userId}/blocks/{otherUid}",
+      "description": "Who the user blocked. Owner-only; other rules check it with exists() so a blocked person cannot follow, read the activity or send recommendations",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId && otherUid != userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "at", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "recommendations",
+      "path": "/users/{userId}/recommendations/{fromUid}_{mediaType}{tmdbId}",
+      "description": "'Te lo recomiendo' from a mutual follower: the only thing under users/ written by someone else. Closed keys, id signed with the sender uid; read and deleted by the recipient (and by the sender, for account deletion)",
+      "access": {
+        "read": "isOwner() || resource.data.from == request.auth.uid",
+        "create": "request.auth.uid != userId && validRecommendation() && isMutual(request.auth.uid, userId) && !blocked(userId, request.auth.uid)",
+        "delete": "isOwner() || resource.data.from == request.auth.uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "from", "type": "string", "required": true },
+          { "name": "fromName", "type": "string", "required": true },
+          { "name": "fromHandle", "type": "string", "required": true },
+          { "name": "tmdbId", "type": "number", "required": true },
+          { "name": "mediaType", "type": "string", "required": true },
+          { "name": "title", "type": "string", "required": true },
+          { "name": "posterPath", "type": "string", "required": false },
+          { "name": "releaseYear", "type": "string", "required": false },
+          { "name": "note", "type": "string", "required": true },
+          { "name": "at", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
       "collection": "public_profiles",
       "path": "/public_profiles/{slug}",
-      "description": "Curated public snapshot of a library (never a window into saved_media). Public read; writes only by the uid the document declares, which cannot change. Republished automatically while autoUpdate is on. Optionally, the Por Ver list (includeWatchlist) and the names of the platforms paid for (includeSubscriptions), both off by default, for \"¿Qué miramos juntos?\"",
+      "description": "Curated public snapshot of a library (never a window into saved_media). Public read; writes only by the uid the document declares, which cannot change. Republished automatically while autoUpdate is on. Optionally, the Por Ver list (includeWatchlist) and the names of the platforms paid for (includeSubscriptions), both off by default, for \"¿Qué miramos juntos?\". The slug is the account handle once the person has one. A private account cannot write it (the rule checks accounts/{uid}.private), so an old PWA cannot republish it",
       "access": {
         "read": "true",
-        "create": "request.auth != null && request.auth.uid == request.resource.data.uid",
-        "update": "request.auth != null && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid",
+        "create": "request.auth != null && request.auth.uid == request.resource.data.uid && !isPrivate(request.auth.uid)",
+        "update": "request.auth != null && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid && !isPrivate(request.auth.uid)",
         "delete": "request.auth != null && request.auth.uid == resource.data.uid"
       },
       "schema": {
@@ -245,6 +305,115 @@
           { "name": "region", "type": "string", "required": true },
           { "name": "language", "type": "string", "required": true },
           { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "handles",
+      "path": "/handles/{handle}",
+      "description": "Unique usernames: the document id is the handle. Public get by exact handle, list forbidden (not a directory). Cannot take the public_profiles slug of another account. Never updated: renaming creates the new one and deletes the old one in the same batch as the account",
+      "access": {
+        "get": "true",
+        "list": "false",
+        "create": "request.auth.uid == request.resource.data.uid && handle matches ^[a-z0-9]+(-[a-z0-9]+)*$ (3-24) && the public_profiles slug is not someone else's",
+        "update": "false",
+        "delete": "resource.data.uid == request.auth.uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "createdAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "accounts",
+      "path": "/accounts/{uid}",
+      "description": "Public card of an account: handle, name, bio, avatar (a TMDB image path), top 4, private flag and follower counts (written by the owner, counted from follows). Public get even for private accounts ('Cuenta privada'), list forbidden. Nothing from the library",
+      "access": {
+        "get": "true",
+        "list": "false",
+        "write": "request.auth.uid == uid && closed keys && getAfter(handles/{handle}).uid == uid"
+      },
+      "schema": {
+        "fields": [
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "handle", "type": "string", "required": true },
+          { "name": "displayName", "type": "string", "required": true },
+          { "name": "bio", "type": "string", "required": true },
+          { "name": "avatarPath", "type": "string", "required": false },
+          { "name": "top4", "type": "list", "required": true },
+          { "name": "private", "type": "boolean", "required": true },
+          { "name": "followers", "type": "number", "required": true },
+          { "name": "following", "type": "number", "required": true },
+          { "name": "createdAt", "type": "timestamp", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "follows",
+      "path": "/follows/{followerUid}_{followedUid}",
+      "description": "Who follows whom. Created only by the follower; the rule decides the status (pending for a private account, accepted for a public one). Only the followed person accepts; either party deletes. Readable only by the two parties",
+      "access": {
+        "get": "request.auth.uid in followId.split('_')",
+        "list": "request.auth.uid in [resource.data.follower, resource.data.followed]",
+        "create": "follower == request.auth.uid && both have accounts && not blocked && status == (isPrivate(followed) ? 'pending' : 'accepted')",
+        "update": "followed == request.auth.uid && pending -> accepted, only status and acceptedAt",
+        "delete": "either party"
+      },
+      "schema": {
+        "fields": [
+          { "name": "follower", "type": "string", "required": true },
+          { "name": "followed", "type": "string", "required": true },
+          { "name": "status", "type": "string", "required": true },
+          { "name": "createdAt", "type": "timestamp", "required": true },
+          { "name": "acceptedAt", "type": "timestamp", "required": false }
+        ]
+      }
+    },
+    {
+      "collection": "activity",
+      "path": "/activity/{uid}",
+      "description": "Curated social snapshot republished by the owner's app (never a window into saved_media): last events, 'viendo ahora', a compact library index and Por Ver (if shared), published lists and reaction counts. Readable with a session by anyone if the account is public, or by accepted followers if private; never by someone the owner blocked",
+      "access": {
+        "get": "canReadActivity(uid)",
+        "list": "false",
+        "write": "request.auth.uid == uid && closed keys and size caps"
+      },
+      "schema": {
+        "fields": [
+          { "name": "uid", "type": "string", "required": true },
+          { "name": "handle", "type": "string", "required": true },
+          { "name": "displayName", "type": "string", "required": true },
+          { "name": "avatarPath", "type": "string", "required": false },
+          { "name": "updatedAt", "type": "timestamp", "required": true },
+          { "name": "events", "type": "list", "required": true },
+          { "name": "watching", "type": "list", "required": true },
+          { "name": "library", "type": "list", "required": true },
+          { "name": "watchlist", "type": "list", "required": true },
+          { "name": "lists", "type": "list", "required": true },
+          { "name": "reactions", "type": "map", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "reactions",
+      "path": "/activity/{uid}/reactions/{reactorUid}_{eventId}",
+      "description": "One reaction per person and event (fire, love, laugh, cry, wow). Written by whoever can read that activity, signed with their uid. Read by the owner (who folds counts into the snapshot) and by the reactor",
+      "access": {
+        "read": "request.auth.uid == uid || resource.data.reactor == request.auth.uid",
+        "write": "canReadActivity(uid) && reactor == request.auth.uid && closed keys",
+        "delete": "owner or reactor"
+      },
+      "schema": {
+        "fields": [
+          { "name": "reactor", "type": "string", "required": true },
+          { "name": "reactorName", "type": "string", "required": true },
+          { "name": "reactorHandle", "type": "string", "required": true },
+          { "name": "eventId", "type": "string", "required": true },
+          { "name": "emoji", "type": "string", "required": true },
+          { "name": "at", "type": "timestamp", "required": true }
         ]
       }
     }

@@ -117,7 +117,12 @@ export function useListSharing(collection: Collection) {
     fireAndForget(setDoc(doc(db, publicListPath(id)), list));
     if (!collection.publicId) {
       fireAndForget(
-        setDoc(doc(db, `users/${user.uid}/collections/${collection.id}`), { publicId: id }, { merge: true }),
+        // `publishedAt` fecha "publicó una lista" en la actividad social.
+        setDoc(
+          doc(db, `users/${user.uid}/collections/${collection.id}`),
+          { publicId: id, publishedAt: new Date().toISOString() },
+          { merge: true },
+        ),
       );
     }
   };
@@ -126,7 +131,7 @@ export function useListSharing(collection: Collection) {
     if (!canShare || !user || !collection.publicId) return;
     fireAndForget(deleteDoc(doc(db, publicListPath(collection.publicId))));
     fireAndForget(
-      setDoc(doc(db, `users/${user.uid}/collections/${collection.id}`), { publicId: null }, { merge: true }),
+      setDoc(doc(db, `users/${user.uid}/collections/${collection.id}`), { publicId: null, publishedAt: null }, { merge: true }),
     );
   };
 
