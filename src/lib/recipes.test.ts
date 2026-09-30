@@ -61,9 +61,9 @@ function blocksForPicks(picks: Partial<TastePicks>, region = 'AR') {
 }
 
 describe('el catálogo de recetas', () => {
-  it('tiene 34 recetas, cada una con su id', () => {
-    expect(RECIPES).toHaveLength(34);
-    expect(new Set(RECIPES.map((recipe) => recipe.id)).size).toBe(34);
+  it('tiene 36 recetas, cada una con su id', () => {
+    expect(RECIPES).toHaveLength(36);
+    expect(new Set(RECIPES.map((recipe) => recipe.id)).size).toBe(36);
   });
 
   it('con la biblioteca vacía y sin contestar nada deja solo las filas de todos', () => {
@@ -492,5 +492,36 @@ describe('la fila de plataformas con suscripciones', () => {
       subscriptions: { providers: [], updatedAt: '2026-01-01T00:00:00.000Z' },
     });
     expect(blocks.some((b) => b.id === 'plataforma-Netflix')).toBe(true);
+  });
+});
+
+describe('las filas de la gente que seguís', () => {
+  const signal = (tmdbId: number, names: string[]) => ({
+    title: { tmdbId, mediaType: 'movie' as const, title: `T${tmdbId}`, posterPath: null, releaseYear: '2024' },
+    names,
+  });
+
+  function socialBlocks(social: Parameters<typeof buildBlocks>[0]['social']) {
+    return buildBlocks({ taste: tasteProfile([], NOW), picks: emptyPicks(), region: 'AR', social }).filter(
+      (block) => block.family === 'social',
+    );
+  }
+
+  it('con menos de tres títulos no hay fila', () => {
+    expect(socialBlocks({ watching: [signal(1, ['Ana']), signal(2, ['Beto'])], loved: [] })).toEqual([]);
+    expect(socialBlocks(undefined)).toEqual([]);
+  });
+
+  it('arma "lo que están viendo" y "les encantó" nombrando a quiénes, sin pedirle nada a TMDB', async () => {
+    const blocks = socialBlocks({
+      watching: [signal(1, ['Ana']), signal(2, ['Beto']), signal(3, ['Caro', 'Ana'])],
+      loved: [signal(4, ['Ana']), signal(5, ['Ana']), signal(6, ['Ana'])],
+    });
+    expect(blocks.map((block) => block.id)).toEqual(['amigos-viendo', 'amigos-encantados']);
+    expect(blocks[0].subtitle).toBe('Ana, Beto y 1 más, estas semanas.');
+    expect(blocks[1].subtitle).toBe('Con 4,5 estrellas o más, de Ana.');
+    const results = await blocks[0].fetch();
+    expect(results.map((result) => result.id)).toEqual([1, 2, 3]);
+    expect(results[0]).toMatchObject({ media_type: 'movie', title: 'T1', release_date: '2024-01-01' });
   });
 });
