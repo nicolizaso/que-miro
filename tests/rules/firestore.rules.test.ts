@@ -143,6 +143,23 @@ describe('handles y accounts', () => {
     await assertFails(getDocs(collection(anon(), 'handles')));
   });
 
+  it('cambiar el usuario: el nuevo, la cuenta y liberar el viejo, en un lote', async () => {
+    await seedAccount('ana', 'ana');
+    const db = as('ana');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'handles/ana-cine'), { uid: 'ana', createdAt: NOW });
+    batch.set(doc(db, 'accounts/ana'), account('ana', 'ana-cine'));
+    batch.delete(doc(db, 'handles/ana'));
+    await assertSucceeds(batch.commit());
+    // El viejo quedó libre para cualquiera.
+    await assertSucceeds(setDoc(doc(as('beto'), 'handles/ana'), { uid: 'beto', createdAt: NOW }));
+  });
+
+  it('nadie libera el usuario de otro', async () => {
+    await seedAccount('ana', 'ana');
+    await assertFails(deleteDoc(doc(as('beto'), 'handles/ana')));
+  });
+
   it('nadie edita la cuenta de otro', async () => {
     await seedAccount('ana', 'ana');
     await assertFails(setDoc(doc(as('beto'), 'accounts/ana'), account('ana', 'ana')));

@@ -81,7 +81,8 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   contaste: otros trabajos del director que puntuaste alto, más de esa actriz
   que aparece en dos de tus favoritas, lo que se parece a tu película favorita,
   el catálogo de tu productora, el género que venís mirando, la parte de la
-  saga que te falta, la serie que dejaste a medias. Son 34 recetas distintas,
+  saga que te falta, la serie que dejaste a medias, lo que están viendo quienes
+  seguís. Son 36 recetas distintas,
   barajadas en cada visita y cargadas de a tandas mientras scrolleás. Desde la
   ficha lo guardás en *Por Ver* o en *Completadas* de un clic, o directo en una
   de tus listas; si lo completaste, la reseña se abre sola.
@@ -123,14 +124,42 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   cumplís una, hay tarjeta para compartir.
 - **Tu año en Qué Miro?** — resumen anual listo para compartir, con tu
   episodio del año, las metas que cumpliste y tu mejor racha.
-- **Perfil público** — publicá tus estadísticas y reseñas en `/u/tu-nombre`, con
-  su vista previa resuelta del lado del servidor. Se mantiene al día solo:
-  unos minutos después de que cambia una reseña o un puntaje, se republica, y
-  dice hace cuánto se actualizó.
-- **Seguir perfiles** — desde el perfil público de alguien, "Seguir"; en tu
-  perfil, *Siguiendo* junta las reseñas de todos por fecha ("Ana le puso 4,5 a
-  *Past Lives*"), y cada título se guarda en *Por Ver* de un toque. Se arma en
-  tu dispositivo con lo que cada uno publicó: el servidor no se entera.
+- **Tu cuenta social** — elegí tu usuario (es también la dirección de tu
+  perfil, `/u/tu-usuario`), un avatar sacado de un póster, una bio y tu top 4.
+  La cuenta arranca pública; si la hacés privada, cada persona te pide
+  seguirte y la aceptás, y quien no aceptaste ve tu nombre y tu avatar, nada
+  más.
+- **Seguir y el feed** — seguí a alguien y en *Social* aparece lo que hace:
+  qué terminó y qué le puso, qué empezó, cuántos episodios vio, qué sumó a
+  *Por Ver*, qué abandonó (sin el motivo), qué meta cumplió, qué lista
+  publicó. Arriba, *Viendo ahora*, como las historias; filtros de reseñas y
+  de amigos (los que se siguen mutuamente); reacciones; y cada título se
+  guarda en *Por Ver* de un toque, con "Lo sacaste del feed de Ana". La reseña
+  de algo que tenés pendiente sale tapada, por los spoilers.
+- **Encontrar gente** — por usuario exacto (no hay un directorio para
+  recorrer) o con tu link de invitación, listo para WhatsApp. Sugerencias de
+  quién te sigue, te recomendó algo o reaccionó a lo tuyo.
+- **Notificaciones** — quién te sigue, quién te pide seguirte (aceptás o
+  rechazás ahí mismo), quién aceptó tu solicitud, quién reaccionó y quién te
+  recomendó algo, con el número de las que no viste en el ícono de *Social*.
+- **Entre amigos** — con quien se siguen mutuamente: "Te lo recomiendo" con
+  una nota, que le llega a sus notificaciones; "¿Qué miramos juntos?" con su
+  *Por Ver*, sin que tenga que publicar nada; y en su perfil, *En común*:
+  cuánto se parecen sus gustos, lo que les encantó a los dos y en qué no
+  coinciden.
+- **Lo vieron tus amigos** — en la ficha de cada título, quién de los que
+  seguís lo vio, qué le puso, si lo tiene en *Por Ver* o lo está viendo.
+- **Vos elegís qué se ve** — en Ajustes, qué comparte tu actividad (lo
+  terminado, los episodios, *Por Ver*, lo abandonado, las metas, las listas,
+  *Viendo ahora*, tu biblioteca resumida), pausarla entera, y desde la ficha
+  ocultar un título puntual. Silenciar, quitar seguidores y bloquear. El
+  servidor no ve tu biblioteca: tus seguidores leen una copia curada que tu
+  app publica sola.
+- **Perfil público** — si tu cuenta es pública, tus estadísticas y reseñas se
+  ven en `/u/tu-usuario` también sin sesión, con su vista previa resuelta del
+  lado del servidor. Se mantiene al día solo: unos minutos después de que
+  cambia una reseña o un puntaje, se republica. Las reseñas se pueden
+  compartir como historia, en vertical.
 - **Offline de verdad** — sin conexión seguís usando la app, y los cambios se
   sincronizan solos cuando vuelve la red.
 - **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.
@@ -270,6 +299,7 @@ de inicio (iOS 16.4 o más nuevo): la app lo explica en vez de mostrar el botón
 | `npm run preview` | Sirve el build ya generado. |
 | `npm test` | Corre la suite de tests unitarios. |
 | `npm run test:e2e` | Corre los tests de punta a punta (Playwright). |
+| `npm run test:rules` | Prueba las reglas de Firestore contra el emulador (necesita Java). |
 | `npm run test:watch` | Tests en modo watch. |
 | `npm run lint` | Chequeo de tipos con TypeScript. |
 
@@ -304,6 +334,7 @@ api/                  Funciones serverless (Vercel)
   cal/[token].ts      GET /cal/{token}.ics: el calendario suscribible
   _lib/ics.ts         El generador .ics (RFC 5545): escape, plegado, UID estable
 e2e/                  Tests de punta a punta (Playwright)
+tests/rules/          Las reglas de Firestore contra el emulador
 src/
   components/         MediaCard, SearchModal, TitleDetailModal, ReviewDrawer, SyncManager
     ui/Dialog.tsx     Modal accesible: foco atrapado, Escape, scroll trabado
@@ -316,14 +347,21 @@ src/
                       duelo, backup, filtros de la biblioteca, datos del demo
   lib/taste.ts        Qué sabe la app de tu gusto, sacado de tu biblioteca
   lib/picks.ts        Qué contaste de vos, y sus topes por pregunta
-  lib/recipes.ts      Las 34 formas de armar una fila de Explorar
+  lib/recipes.ts      Las 36 formas de armar una fila de Explorar
+  lib/social.ts       Usuarios, cuentas, quién sigue a quién, reacciones y recomendaciones
+  lib/activity.ts     La actividad que ven tus seguidores, deducida de la biblioteca
+  lib/socialFeed.ts   El feed, "Lo vieron tus amigos", spoilers y señales para Explorar
+  lib/inbox.ts        Las notificaciones y las sugerencias de a quién seguir
+  lib/affinity.ts     "En común": cuánto se parecen dos gustos
+  components/social/  Las piezas de lo social: tarjeta del feed, reacciones, editor de perfil
   lib/feed.ts         Barajado con semilla y reparto de títulos entre filas
   lib/importers/      Un parser por app (IMDb, Letterboxd, Trakt), el match con
                       TMDB y la mezcla con la biblioteca
   lib/person.ts       La filmografía de una persona cruzada con tu biblioteca
   components/charts/  Piezas del panel de estadísticas
   views/              ListView, ExploreView, SmartPickerView, CalendarView, ProfileView,
-                      TasteProfileView, PersonView, LoginView, NotFoundView
+                      TasteProfileView, PersonView, SocialView, UserProfileView,
+                      LoginView, NotFoundView
   store.ts            Biblioteca (Zustand + localStorage)
   preferences.ts      Tema, región y el token de avisos, solo de este dispositivo
   sw.ts               Service worker: precache, pósters offline y avisos push
@@ -402,6 +440,18 @@ la cuenta; si eran de *otra* cuenta, se descartan antes de sincronizar. Sin eso,
 la biblioteca de quien usó el dispositivo antes se le filtraría al siguiente. El
 modo demo se apoya en la misma regla: sus datos llevan un `ownerUid` ficticio,
 así que nunca terminan mezclados con los de una cuenta real.
+
+**Lo social también es una copia.** Seguir a alguien no abre su biblioteca: su
+app publica en `activity/{uid}` una instantánea curada —los últimos eventos,
+lo que está viendo, un resumen de lo puntuado— con lo que eligió compartir, y
+las reglas de Firestore deciden quién la lee: cualquiera con sesión si la cuenta
+es pública, solo los seguidores aceptados si es privada, nadie a quien haya
+bloqueado. Los eventos no se guardan cuando pasan: se deducen cada vez de la
+biblioteca, así que borrar una reseña la saca del feed sola. El feed lo arma tu
+dispositivo leyendo una instantánea por persona, con caché de 15 minutos, y las
+notificaciones salen de lo que ya existe (relaciones, reacciones,
+recomendaciones): nadie escribe en tu cuenta salvo una recomendación de un
+mutuo, con claves cerradas.
 
 El plan de las próximas etapas está en [`docs/roadmap.md`](docs/roadmap.md).
 

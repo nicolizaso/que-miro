@@ -729,6 +729,89 @@ colecciones ni reglas de Firestore nuevas en esta tanda.
 
 ---
 
+## QM-9 — Social
+
+*Seguir a otros como en cualquier red, y que lo que miran sirva para decidir qué mirar.*
+
+**Qué estaba mal**
+
+"Seguir" era de un solo lado y sobre perfiles públicos: solo se veían las
+reseñas escritas, había que publicar el perfil para que alguien te
+siguiera, y no había nada entre dos personas —ni saber que alguien te
+sigue, ni recomendarle algo, ni una cuenta que no fuera pública—.
+
+**Cómo quedó implementado**
+
+- **Cuentas.** `handles/{usuario}` hace único el usuario (el id del
+  documento *es* el usuario, sin `list`) y `accounts/{uid}` es la tarjeta:
+  nombre, bio, avatar (una imagen de TMDB), top 4, privada o no y los
+  números de seguidores. El usuario es la dirección del perfil público: nadie
+  puede tomar la de otro, y la de cada uno se hereda.
+- **Seguir.** `follows/{seguidor}_{seguido}`, una por par. La crea el
+  seguidor, pero el estado lo imponen las reglas: `pending` si la cuenta es
+  privada, `accepted` si es pública. Solo quien recibe acepta; cualquiera de
+  los dos borra. La leen solo las dos partes.
+- **La actividad.** `activity/{uid}` es una instantánea como el perfil
+  público, armada por `lib/activity.ts` a partir de la biblioteca —terminó,
+  empezó, episodios por día, sumó a *Por Ver*, abandonó, metas, listas—, con
+  "viendo ahora", el resumen de lo puntuado y el *Por Ver*. Se republica sola
+  (30 s de debounce, 2 min de mínimo) y la lee quien permiten las reglas.
+- **El feed** (`/social`) lo arma el dispositivo: una lectura por cuenta
+  seguida, con caché de 15 minutos. Las reseñas de quienes seguías por su
+  perfil público siguen llegando hasta que crean la cuenta, y ahí se pasan
+  solas a `follows`.
+- **Notificaciones** sin colección propia: salen de `follows`, de las
+  reacciones y de las recomendaciones.
+- **Entre mutuos:** recomendaciones (`users/{uid}/recommendations`, lo único
+  de `users/` que escribe otro), "¿Qué miramos juntos?" con la actividad y
+  "En común" (`lib/affinity.ts`).
+- **La ficha** suma "Lo vieron tus amigos", "Recomendar" y "No compartir
+  este título"; Explorar, dos recetas con lo que ve y le encantó a quien
+  seguís; la tarjeta, "Te lo recomendó Ana".
+- **Privacidad:** qué se comparte, por tipo; pausar; ocultar un título;
+  silenciar, quitar seguidores y bloquear (`users/{uid}/blocks`, que las
+  reglas consultan con `exists()`).
+
+**Decisiones y hallazgos**
+
+- *Nada se publica hasta elegir usuario.* La cuenta arranca pública, como se
+  pidió, pero a quien ya usaba la app no se le abre la biblioteca sin
+  avisar: el onboarding es el que decide, con "Pública" marcado.
+- *Los números de seguidores los escribe el dueño.* Las listas de
+  seguidores de otro no se ven, y Firestore no cuenta sin poder listar.
+  Inflarlos pide adulterar la propia app y solo miente sobre uno mismo; el
+  arreglo de verdad es una función de servidor.
+- *Una PWA vieja no filtra una cuenta privada.* La regla de
+  `public_profiles` rechaza escribir si la cuenta dice privada: "Mantener
+  actualizado" en otro dispositivo sin actualizar la republicaría entera.
+- *Reacciones contadas por el dueño.* Quién reaccionó se publica en la
+  instantánea del dueño, que las escucha: así el feed no paga una lectura
+  más por persona. La tuya se ve al toque aunque la de la otra persona
+  tarde en republicarse.
+- *Sin "lo siguen tus amigos".* Con las listas de seguidores cerradas no hay
+  de dónde sacarlo: las sugerencias salen de lo tuyo (quién te sigue, te
+  recomendó o reaccionó).
+- *Las metas de horas no son eventos.* Saber en qué momento se llegó pide
+  reconstruir cada minuto del año; las de películas y series se fechan con
+  el título que las completó.
+- *Terminar una serie no es "vio 40 episodios".* Los episodios que marca
+  completar la serie caen en el mismo instante y se descuentan.
+- *Tests de las reglas.* `npm run test:rules` las prueba contra el emulador
+  de Firestore (Java), con su job en CI: es lo único que hace cumplir todo
+  esto.
+- *En el teléfono,* Social va en el header como el calendario; para que
+  entre, el tema pasó a Ajustes y el nombre del logo se esconde debajo de
+  400 px.
+
+**Resultado:** se sigue, se acepta y se bloquea como en cualquier red, el
+feed muestra lo que la gente mira y no solo lo que reseña, y entre amigos se
+recomiendan cosas y eligen qué ver juntos. El servidor sigue sin leer
+bibliotecas. **Hay que publicar las reglas de Firestore**: `handles`,
+`accounts`, `follows`, `activity` (con sus reacciones), `users/{uid}/blocks`
+y `users/{uid}/recommendations` son nuevas, y cambia `public_profiles`.
+
+---
+
 ## Resumen
 
 ```
@@ -745,4 +828,5 @@ QM5 Historial fino fecha por episodio, en pausa y abandonada, puntajes, metas
 QM6 Plataformas    suscripciones, llegó a tu plataforma, avisos push, calendario .ics
 QM7 Compartir      perfil que se actualiza solo, seguir perfiles, listas, ver juntos
 QM8 Puertas        importar de Letterboxd, IMDb y Trakt, página de persona
+QM9 Social         cuentas, seguir con solicitud, feed de actividad, amigos, privacidad
 ```
