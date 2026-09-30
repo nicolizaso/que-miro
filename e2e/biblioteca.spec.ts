@@ -575,3 +575,15 @@ test('del reparto de una ficha a la página de la persona, y de vuelta', async (
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+test.describe('en un celular', () => {
+  // Con pantalla táctil Chromium responde `pointer: coarse`, igual que un iPhone.
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test('los campos no tienen letra chica que dispare el zoom de iOS', async ({ page }) => {
+    const search = page.getByLabel('Buscar en esta lista');
+    await expect(search).toBeVisible();
+    const fontSize = await search.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(fontSize).toBeGreaterThanOrEqual(16);
+  });
+});
