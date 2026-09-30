@@ -280,6 +280,20 @@
   }
 }
 
+/* Safari en iPhone hace zoom sobre cualquier campo con letra de menos de 16px
+   apenas lo tocás, y no vuelve solo. Va fuera de `@layer` a propósito: así le
+   gana a los `text-sm` de utilidad de cada campo sin tener que tocarlos uno por
+   uno. Solo en pantallas táctiles, para que en la compu no cambie el diseño.
+   No se usa `maximum-scale=1` en el viewport porque en Android eso también
+   bloquea el zoom con dos dedos. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
