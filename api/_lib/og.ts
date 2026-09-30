@@ -119,3 +119,13 @@ export function restString(value: RestValue | undefined): string {
 export function restNumber(value: RestValue | undefined): number {
   return Number(value?.integerValue ?? value?.doubleValue ?? 0) || 0;
 }
+
+/** Lo que la vista previa muestra de una cuenta sin perfil publicado. */
+export function accountMeta(handle: string, account: { displayName: string; isPrivate: boolean; bio: string }) {
+  return {
+    title: `${account.displayName} (@${handle}) — Qué Miro?`,
+    description: account.isPrivate
+      ? 'Cuenta privada en Qué Miro?.'
+      : account.bio || 'Su biblioteca de películas y series en Qué Miro?',
+  };
+}

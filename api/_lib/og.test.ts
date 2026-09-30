@@ -59,3 +59,14 @@ describe('las páginas públicas', () => {
     expect(firestoreDocumentUrl('public_lists/abc')).toBeNull();
   });
 });
+
+describe('accountMeta', () => {
+  it('una cuenta privada se nombra, sin nada de su biblioteca', async () => {
+    const { accountMeta } = await import('./og');
+    expect(accountMeta('ana', { displayName: 'Ana', isPrivate: true, bio: 'Terror' })).toEqual({
+      title: 'Ana (@ana) — Qué Miro?',
+      description: 'Cuenta privada en Qué Miro?.',
+    });
+    expect(accountMeta('ana', { displayName: 'Ana', isPrivate: false, bio: 'Terror' }).description).toBe('Terror');
+  });
+});

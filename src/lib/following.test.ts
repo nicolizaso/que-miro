@@ -3,13 +3,10 @@ import { Following } from '@/types';
 import { PublicProfile, buildPublicProfile } from '@/lib/publicProfile';
 import {
   MAX_FOLLOWING,
-  buildFollowingFeed,
   emptyFollowing,
-  feedHeadline,
   follow,
   followStatus,
   parseFollowing,
-  staleSlugs,
   unfollow,
 } from './following';
 
@@ -96,53 +93,3 @@ describe('los casos borde', () => {
   });
 });
 
-describe('buildFollowingFeed', () => {
-  const profiles = new Map<string, PublicProfile | null>([
-    ['ana', profile('ana', 'uid-ana', 'Ana', [
-      { title: 'Past Lives', completedAt: '2026-09-20T00:00:00.000Z' },
-      { title: 'Aftersun', completedAt: '2026-08-01T00:00:00.000Z', rating: 5 },
-    ])],
-    ['beto', profile('beto', 'uid-beto', 'Beto', [{ title: 'Dune', completedAt: '2026-09-25T00:00:00.000Z', rating: 3 }])],
-    ['caro', profile('caro', 'uid-otra', 'Otra', [{ title: 'No debería verse' }])],
-    ['dani', null],
-  ]);
-
-  it('mezcla las reseñas de todos, de la más nueva a la más vieja', () => {
-    const feed = buildFollowingFeed(
-      following(['ana', 'uid-ana', 'Ana'], ['beto', 'uid-beto', 'Beto'], ['caro', 'uid-caro', 'Caro'], ['dani', 'uid-dani', 'Dani']),
-      profiles,
-    );
-    expect(feed.map((item) => `${item.name}: ${item.review.title}`)).toEqual([
-      'Beto: Dune',
-      'Ana: Past Lives',
-      'Ana: Aftersun',
-    ]);
-  });
-
-  it('usa el nombre de hoy, y arma la frase con coma decimal', () => {
-    const renamed = new Map(profiles).set('ana', profile('ana', 'uid-ana', 'Ana María', [{ rating: 4.5 }]));
-    const [item] = buildFollowingFeed(following(['ana', 'uid-ana', 'Ana']), renamed);
-    expect(feedHeadline(item)).toBe('Ana María le puso 4,5 a Past Lives');
-  });
-
-  it('una reseña sin fecha legible va al final', () => {
-    const odd = new Map<string, PublicProfile | null>([
-      ['ana', profile('ana', 'uid-ana', 'Ana', [{ title: 'Sin fecha', completedAt: '' }, { title: 'Con fecha' }])],
-    ]);
-    expect(buildFollowingFeed(following(['ana', 'uid-ana', 'Ana']), odd).map((item) => item.review.title)).toEqual([
-      'Con fecha',
-      'Sin fecha',
-    ]);
-  });
-});
-
-describe('staleSlugs', () => {
-  it('lo que nunca se leyó o se leyó hace rato', () => {
-    const list = following(['ana', 'u1', 'Ana'], ['beto', 'u2', 'Beto'], ['caro', 'u3', 'Caro']);
-    const fetchedAt = {
-      ana: new Date(NOW.getTime() - 5 * 60_000).toISOString(),
-      beto: new Date(NOW.getTime() - 60 * 60_000).toISOString(),
-    };
-    expect(staleSlugs(list, fetchedAt, NOW.getTime())).toEqual(['beto', 'caro']);
-  });
-});

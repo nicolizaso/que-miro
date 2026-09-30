@@ -4,6 +4,7 @@ import {
   Follow,
   MyFollows,
   accountToDocument,
+  addedFromText,
   emptySocialSettings,
   followButtonLabel,
   followCounts,
@@ -204,5 +205,12 @@ describe('invitaciones', () => {
     expect(url).toBe('https://quemiro.app/u/ana?invitado=1');
     const text = inviteText({ displayName: 'Ana' }, url);
     expect(whatsappUrl(text)).toBe(`https://wa.me/?text=${encodeURIComponent(text)}`);
+  });
+});
+
+describe('de dónde vino un título', () => {
+  it('lo dice en palabras', () => {
+    expect(addedFromText({ uid: 'a', name: 'Ana', via: 'recommendation' })).toBe('Te lo recomendó Ana');
+    expect(addedFromText({ uid: 'a', name: 'Ana', via: 'feed' })).toBe('Lo sacaste del feed de Ana');
   });
 });

@@ -8,6 +8,7 @@ import {
   Search,
   Shuffle,
   User,
+  Users,
 } from 'lucide-react';
 import { SearchModal } from '@/components/SearchModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -22,6 +23,10 @@ import { usePushSnapshot } from '@/hooks/usePushSnapshot';
 import { useCalendarFeedSync } from '@/hooks/useCalendarFeed';
 import { useAutoPublishProfile } from '@/hooks/usePublicProfile';
 import { ListAutoPublishers } from '@/hooks/usePublicList';
+import { useSocialSync } from '@/hooks/useSocial';
+import { useActivityPublisher } from '@/hooks/useActivityPublisher';
+import { useInbox } from '@/hooks/useInbox';
+import { buildDemoSocial } from '@/lib/demoSocial';
 import { cn } from '@/lib/utils';
 
 // El Picker va al medio a propósito: es el botón destacado de la barra
@@ -44,7 +49,23 @@ const NAV_ITEMS = [
  */
 const DESKTOP_ONLY_ITEMS = [
   { to: '/calendario', label: 'Calendario', Icon: CalendarDays, end: false },
+  { to: '/social', label: 'Social', Icon: Users, end: false },
 ] as const;
+
+/** El número de notificaciones sin ver, al lado de la entrada a Social. */
+function UnreadBadge({ count, className }: { count: number; className?: string }) {
+  if (count === 0) return null;
+  return (
+    <span
+      className={cn(
+        'min-w-4 h-4 px-1 rounded-full bg-accent text-accent-contrast text-[10px] font-bold flex items-center justify-center',
+        className,
+      )}
+    >
+      {count > 9 ? '9+' : count}
+    </span>
+  );
+}
 
 /**
  * Marco común de la app: header, navegación y el modal de búsqueda global.
@@ -64,6 +85,9 @@ export function AppLayout() {
   usePushSnapshot();
   useCalendarFeedSync();
   useAutoPublishProfile();
+  useSocialSync(buildDemoSocial);
+  useActivityPublisher();
+  const { unread } = useInbox();
 
   // Desde el buscador se puede terminar en otra página —el reparto de una
   // ficha abierta desde ahí lleva a la de esa persona—, y el buscador no
@@ -107,7 +131,8 @@ export function AppLayout() {
             <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
               <Film size={20} className="text-accent-contrast" aria-hidden="true" />
             </div>
-            <span className="font-serif italic font-bold text-xl tracking-tight">
+            {/* Debajo de 400 px el nombre no entra con los íconos: queda el logo. */}
+            <span className="font-serif italic font-bold text-xl tracking-tight hidden min-[400px]:inline">
               Qué Miro?
             </span>
           </div>
@@ -133,6 +158,12 @@ export function AppLayout() {
                     }
                   >
                     {label}
+                    {to === '/social' && (
+                      <>
+                        <UnreadBadge count={unread} className="ml-1.5" />
+                        {unread > 0 && <span className="sr-only">, {unread} notificaciones sin ver</span>}
+                      </>
+                    )}
                   </NavLink>
                 </li>
               ))}
@@ -176,7 +207,26 @@ export function AppLayout() {
               <CalendarDays size={21} aria-hidden="true" />
             </NavLink>
 
-            <ThemeToggle />
+            {/* Social en el teléfono: como el calendario, en el header y no en
+                la barra de abajo, que tiene tres a propósito. */}
+            <NavLink
+              to="/social"
+              aria-label={unread > 0 ? `Social, ${unread} notificaciones sin ver` : 'Social'}
+              title="Social"
+              className={({ isActive }) =>
+                cn(
+                  'relative btn-icon w-10 h-10 md:hidden rounded-full hover:bg-border-card',
+                  isActive ? 'text-accent' : 'text-text-main',
+                )
+              }
+            >
+              <Users size={21} aria-hidden="true" />
+              <UnreadBadge count={unread} className="absolute top-1 right-1" />
+            </NavLink>
+
+            {/* En el teléfono no entra junto a Social: el tema se cambia en
+                Ajustes, y el header queda con lo que se usa todos los días. */}
+            <ThemeToggle className="hidden sm:flex" />
 
             {authState !== 'authenticated' && (
               <span className="hidden sm:flex items-center justify-center bg-border-card rounded-full px-3 py-1 text-xs font-medium text-text-muted">

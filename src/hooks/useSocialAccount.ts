@@ -120,12 +120,14 @@ export function useSocialAccount() {
    * el viejo, todo en un lote. El perfil público se muda a la dirección
    * nueva; los links viejos dejan de andar, como en cualquier red.
    */
-  const changeHandle = async (handle: string) => {
+  const changeHandle = async (handle: string, patch: Partial<Omit<ProfileDraft, 'handle'>> = {}) => {
     const { mode, uid, account } = useSocialStore.getState();
     if (!uid || !account || handle === account.handle) return;
     const problem = handleProblem(handle);
     if (problem) throw new SocialAccountError(problem);
-    const next: Account = { ...account, handle, updatedAt: new Date().toISOString() };
+    // El resto de los cambios viaja en el mismo lote: escribirlos después
+    // podría salir con el usuario viejo, que para entonces ya no es suyo.
+    const next: Account = { ...account, ...patch, handle, updatedAt: new Date().toISOString() };
     if (mode === 'demo') {
       patchDemo({ account: next });
       return;

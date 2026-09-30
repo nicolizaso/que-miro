@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMediaStore } from '@/store';
 import { usePreferences } from '@/preferences';
+import { useSocialFeed } from '@/hooks/useSocialFeed';
+import { SocialSignals } from '@/lib/socialFeed';
 import { tasteProfile } from '@/lib/taste';
 import { hasPicks, pickedTitleIds } from '@/lib/picks';
 import { FeedBlock, buildBlocks } from '@/lib/recipes';
@@ -55,6 +57,18 @@ export function useExploreFeed(): ExploreFeed {
   const [library, setLibrary] = useState(mediaList);
   const [picks, setPicksSnapshot] = useState(storedPicks);
   const [subscriptions, setSubscriptionsSnapshot] = useState(storedSubscriptions);
+  const { signals } = useSocialFeed();
+  const [social, setSocialSnapshot] = useState<SocialSignals>(signals);
+  const signalsRef = useRef(signals);
+  signalsRef.current = signals;
+
+  // Lo de la gente que seguís también se congela: llega de la caché o de una
+  // lectura a los pocos segundos de entrar, y entra una vez; después, recién
+  // al barajar.
+  useEffect(() => {
+    const isEmpty = (value: SocialSignals) => value.watching.length + value.loved.length === 0;
+    if (isEmpty(social) && !isEmpty(signals)) setSocialSnapshot(signals);
+  }, [signals, social]);
 
   useEffect(() => {
     if (library.length === 0 && mediaList.length > 0) setLibrary(mediaList);
@@ -80,8 +94,8 @@ export function useExploreFeed(): ExploreFeed {
   const taste = useMemo(() => tasteProfile(library), [library]);
 
   const blocks = useMemo(
-    () => orderBlocks(buildBlocks({ taste, picks, region, subscriptions }), seed),
-    [taste, picks, region, subscriptions, seed],
+    () => orderBlocks(buildBlocks({ taste, picks, region, subscriptions, social }), seed),
+    [taste, picks, region, subscriptions, social, seed],
   );
 
   // Un registro nuevo por cada orden nuevo: si no, las filas rearmadas
@@ -104,6 +118,7 @@ export function useExploreFeed(): ExploreFeed {
     setLibrary(useMediaStore.getState().mediaList);
     setPicksSnapshot(useMediaStore.getState().picks);
     setSubscriptionsSnapshot(useMediaStore.getState().subscriptions);
+    setSocialSnapshot(signalsRef.current);
   }, []);
 
   const visible = blocks.slice(0, pages * PAGE_SIZE);

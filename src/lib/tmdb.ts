@@ -22,6 +22,8 @@ export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 export const TMDB_IMAGE_ORIGINAL_URL = 'https://image.tmdb.org/t/p/original';
 /** Las imágenes de episodio van chicas: con 300 px de ancho sobra. */
 export const TMDB_STILL_URL = 'https://image.tmdb.org/t/p/w300';
+/** Avatares: un póster recortado en un círculo de 40 a 96 px. */
+export const TMDB_AVATAR_URL = 'https://image.tmdb.org/t/p/w185';
 /** Logos de plataformas: se muestran a 48 px, y el de 500 pesaba diez veces más. */
 export const TMDB_LOGO_URL = 'https://image.tmdb.org/t/p/w92';
 

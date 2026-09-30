@@ -18,7 +18,8 @@ import {
 import { PublicProfileView } from '@/views/PublicProfileView';
 import { PublicListView } from '@/views/PublicListView';
 import { TasteProfileView } from '@/views/TasteProfileView';
-import { FollowingView } from '@/views/FollowingView';
+import { SocialFeedTab, SocialInboxTab, SocialSearchTab, SocialView } from '@/views/SocialView';
+import { UserProfileView } from '@/views/UserProfileView';
 import { TogetherView } from '@/views/TogetherView';
 import { PersonView } from '@/views/PersonView';
 import { SmartPickerView } from '@/views/SmartPickerView';
@@ -62,7 +63,10 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
-      <Route path="/u/:slug" element={<PublicProfileView />} />
+      {/* Sin cuenta no hay nada social que hacer en un perfil: el invitado ve
+          la vidriera, como quien llega sin sesión. Con cuenta (o en el demo),
+          el perfil es parte de la app. */}
+      {authState === 'guest' && <Route path="/u/:slug" element={<PublicProfileView />} />}
       <Route path="/l/:id" element={<PublicListView />} />
       <Route element={<AppLayout />}>
         <Route index element={<ListView />} />
@@ -70,11 +74,18 @@ function AppRoutes() {
         <Route path="picker" element={<SmartPickerView />} />
         <Route path="calendario" element={<CalendarView />} />
         <Route path="juntos/:slug" element={<TogetherView />} />
+        {authState !== 'guest' && <Route path="u/:slug" element={<UserProfileView />} />}
+        <Route path="social" element={<SocialView />}>
+          <Route index element={<SocialFeedTab />} />
+          <Route path="notificaciones" element={<SocialInboxTab />} />
+          <Route path="buscar" element={<SocialSearchTab />} />
+        </Route>
         <Route path="persona/:id" element={<PersonView />} />
         <Route path="perfil" element={<ProfileView />}>
           <Route index element={<ProfileSummary />} />
           <Route path="gustos" element={<TasteProfileView />} />
-          <Route path="siguiendo" element={<FollowingView />} />
+          {/* Siguiendo pasó a ser el feed social: los links viejos siguen andando. */}
+          <Route path="siguiendo" element={<Navigate to="/social" replace />} />
           <Route path="ajustes" element={<ProfileSettings />} />
         </Route>
         <Route path="*" element={<NotFoundView />} />

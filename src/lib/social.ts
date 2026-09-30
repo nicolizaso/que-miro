@@ -1,4 +1,4 @@
-import { PickedTitle, SocialSettings, SocialSharing } from '@/types';
+import { AddedFrom, PickedTitle, SocialSettings, SocialSharing } from '@/types';
 import { SLUG_MAX, SLUG_MIN, isValidSlug, toSlug } from '@/lib/publicProfile';
 
 /**
@@ -488,6 +488,11 @@ export function recommendationToDocument(rec: Omit<Recommendation, 'id'>): Recor
     note: rec.note.trim().slice(0, NOTE_MAX),
     at: rec.at,
   };
+}
+
+/** "Te lo recomendó Ana", "Lo sacaste del feed de Ana": de dónde vino. */
+export function addedFromText(from: AddedFrom): string {
+  return from.via === 'recommendation' ? `Te lo recomendó ${from.name}` : `Lo sacaste del feed de ${from.name}`;
 }
 
 // --- Invitaciones ---------------------------------------------------------------

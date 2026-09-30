@@ -8,6 +8,7 @@ import { CollectionsSettings } from '@/components/CollectionsSettings';
 import { StatsDashboard } from '@/components/StatsDashboard';
 import { GoalsPanel } from '@/components/GoalsPanel';
 import { PublicProfileSettings } from '@/components/PublicProfileSettings';
+import { SocialAccountSettings } from '@/components/social/SocialAccountSettings';
 import { SubscriptionsSettings } from '@/components/SubscriptionsSettings';
 import { NotificationsSettings } from '@/components/NotificationsSettings';
 import { CalendarFeedSettings } from '@/components/CalendarFeedSettings';
@@ -119,7 +120,6 @@ function AppSettings() {
 const PROFILE_TABS = [
   { to: '.', label: 'Resumen', end: true },
   { to: 'gustos', label: 'Contanos de vos', end: false },
-  { to: 'siguiendo', label: 'Siguiendo', end: false },
   { to: 'ajustes', label: 'Ajustes', end: false },
 ] as const;
 
@@ -134,10 +134,8 @@ const PROFILE_TABS = [
  * esperado.
  */
 export function ProfileView() {
-  // "Siguiendo" aparece cuando hay a quién: sin nadie, sería una pestaña para
-  // explicar que está vacía. Se empieza a seguir desde un perfil público.
-  const followsSomeone = useMediaStore((state) => state.following.profiles.length > 0);
-  const tabs = PROFILE_TABS.filter((tab) => tab.to !== 'siguiendo' || followsSomeone);
+  // "Siguiendo" ya no vive acá: es el feed de la sección Social.
+  const tabs = PROFILE_TABS;
 
   // Si la pestaña activa quedó fuera de la barra —se entró directo a
   // Ajustes desde un teléfono—, se la trae a la vista.
@@ -289,6 +287,10 @@ export function ProfileSettings() {
       <NotificationsSettings />
 
       <CalendarFeedSettings />
+
+      {/* La cuenta social antes que el perfil público: la privacidad de la
+          cuenta decide si hay perfil público. */}
+      <SocialAccountSettings />
 
       <PublicProfileSettings />
 

@@ -25,6 +25,7 @@ import { CollectionPicker } from '@/components/CollectionPicker';
 import { StatusActions } from '@/components/StatusActions';
 import { NotifyToggle } from '@/components/NotifyToggle';
 import { WatchHistory } from '@/components/WatchHistory';
+import { SocialOnTitle } from '@/components/social/SocialOnTitle';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { ShareButton } from '@/components/ShareButton';
 import { JustWatchCredit } from '@/components/Attribution';
@@ -476,6 +477,20 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
               )}
 
               {saved && <WatchHistory media={saved} />}
+
+              {title && (
+                <SocialOnTitle
+                  title={{
+                    tmdbId: id,
+                    mediaType,
+                    title,
+                    posterPath: saved?.posterPath ?? detail?.poster_path ?? null,
+                    releaseYear:
+                      saved?.releaseYear ?? (detail?.release_date || detail?.first_air_date || '').split('-')[0],
+                  }}
+                  saved={saved}
+                />
+              )}
 
               {(saved || detail) && (
                 <CollectionPicker
