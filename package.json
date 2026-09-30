@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:rules": "npx -y firebase-tools@14.27.0 emulators:exec --only firestore --project demo-que-miro \"vitest run --config vitest.rules.config.ts\"",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -31,6 +32,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.1.14",
     "@testing-library/jest-dom": "^6.6.3",

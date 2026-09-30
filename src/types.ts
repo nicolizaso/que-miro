@@ -315,6 +315,33 @@ export interface SavedMedia {
    */
   duelScore?: number;
   duelCount?: number;
+
+  /**
+   * Cuándo entró a la biblioteca. Es lo que fecha "agregó a *Por Ver*" en la
+   * actividad que ven quienes te siguen.
+   *
+   * `updatedAt` no sirve para eso: se mueve con cada cambio. Lo guardado
+   * antes de que existiera no lo tiene y no se inventa: esos títulos no
+   * generan el evento, y está bien, porque serían cientos de golpe.
+   */
+  addedAt?: string; // ISO
+  /**
+   * De dónde lo sacaste, si fue de alguien: "Te lo recomendó Ana". Solo lo
+   * anotan el feed y las recomendaciones; lo buscado a mano no lo lleva.
+   */
+  addedFrom?: AddedFrom;
+  /**
+   * "No compartir este título": no aparece en la actividad ni en lo que ven
+   * tus seguidores de tu biblioteca. Tampoco en el perfil público.
+   */
+  hiddenFromFollowers?: boolean;
+}
+
+/** Quién te pasó un título: alguien que seguís, desde el feed o recomendándolo. */
+export interface AddedFrom {
+  uid: string;
+  name: string;
+  via: 'feed' | 'recommendation';
 }
 
 /** Una lista propia, más allá de los tres estados fijos. */
@@ -328,6 +355,12 @@ export interface Collection {
    * va en el link. Aditivo; sin publicar, ausente.
    */
   publicId?: string;
+  /**
+   * Cuándo se publicó por primera vez: fecha "publicó una lista" en la
+   * actividad. `updatedAt` se mueve con cada cambio de nombre. Aditivo: las
+   * publicadas antes no lo tienen y no generan el evento.
+   */
+  publishedAt?: string; // ISO
 }
 
 export interface TMDbResult {
@@ -564,6 +597,49 @@ export interface FollowedProfile {
  */
 export interface Following {
   profiles: FollowedProfile[];
+  updatedAt: string; // ISO
+}
+
+/**
+ * Qué ven de vos quienes te siguen. Todo prendido por defecto: es lo que
+ * elegiste al hacer la cuenta pública o al aceptar a alguien. Cada cosa se
+ * apaga por separado, y un título puntual se oculta desde su ficha.
+ */
+export interface SocialSharing {
+  /** Lo que terminaste, con su puntaje y su reseña. */
+  completed: boolean;
+  /** Los episodios que marcás y las series que empezás. */
+  progress: boolean;
+  /** Lo que sumás a *Por Ver*. */
+  added: boolean;
+  /** Lo que abandonás. El motivo no se comparte nunca. */
+  abandoned: boolean;
+  /** Las metas que cumplís. */
+  goals: boolean;
+  /** Las listas que publicás. */
+  lists: boolean;
+  /** "Viendo ahora", arriba del feed de los demás. */
+  watching: boolean;
+  /**
+   * Tu biblioteca resumida —qué puntuaste y tu *Por Ver*—: lo que hace
+   * posibles "Lo vieron tus amigos", "En común" y "¿Qué miramos juntos?".
+   */
+  library: boolean;
+}
+
+/**
+ * Lo social de la cuenta que no se publica, en `users/{uid}/profile/social`:
+ * qué compartís, a quién silenciaste y hasta dónde leíste las notificaciones.
+ * De la cuenta como las metas: se sincroniza, va al backup y se borra con ella.
+ */
+export interface SocialSettings {
+  sharing: SocialSharing;
+  /** "Pausar mi actividad": no se publica nada nuevo hasta que se despause. */
+  paused: boolean;
+  /** Uids silenciados: los seguís, pero no aparecen en tu feed. */
+  muted: string[];
+  /** Hasta cuándo viste las notificaciones: lo posterior cuenta como nuevo. */
+  inboxSeenAt: string; // ISO
   updatedAt: string; // ISO
 }
 

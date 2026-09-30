@@ -1,4 +1,5 @@
 import {
+  AddedFrom,
   ArchiveInfo,
   ArchivedStatus,
   AvailabilityNews,
@@ -318,6 +319,16 @@ function parseAvailabilityNews(value: unknown): AvailabilityNews[] | undefined {
   return news.length > 0 ? news : undefined;
 }
 
+/** Quién te pasó el título. Sin uid no se sabe quién, y se descarta entero. */
+function parseAddedFrom(value: unknown): AddedFrom | undefined {
+  if (!isRecord(value)) return undefined;
+  const uid = typeof value.uid === 'string' ? value.uid.trim() : '';
+  const name = typeof value.name === 'string' ? value.name.trim().slice(0, 60) : '';
+  const via = value.via === 'feed' || value.via === 'recommendation' ? value.via : null;
+  if (!uid || !via) return undefined;
+  return { uid, name: name || 'Alguien', via };
+}
+
 /** El motivo de abandono, recortado al tope. Vacío cuenta como ausente. */
 function parseReason(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -460,6 +471,12 @@ export function parseMedia(value: unknown): SavedMedia | null {
 
     duelScore: parseFiniteNumber(value.duelScore),
     duelCount: parseFiniteNumber(value.duelCount),
+
+    // Una fecha rota no es "ahora": inventarla sumaría un "agregó a Por Ver"
+    // que nadie hizo hoy.
+    addedAt: parseIso(value.addedAt),
+    addedFrom: parseAddedFrom(value.addedFrom),
+    hiddenFromFollowers: value.hiddenFromFollowers === true ? true : undefined,
   };
 }
 
@@ -572,6 +589,7 @@ export function parseCollection(value: unknown) {
     ...(typeof value.publicId === 'string' && /^[A-Za-z0-9_-]{12,32}$/.test(value.publicId)
       ? { publicId: value.publicId }
       : {}),
+    ...(parseIso(value.publishedAt) ? { publishedAt: parseIso(value.publishedAt) } : {}),
   };
 }
 
