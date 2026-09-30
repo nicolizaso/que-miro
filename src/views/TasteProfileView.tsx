@@ -11,7 +11,10 @@ import {
   X,
 } from 'lucide-react';
 import { PickerSearch } from '@/components/taste/PickerSearch';
+import { RestrictionsSection } from '@/components/taste/RestrictionsSection';
+import { ToggleChip } from '@/components/taste/ToggleChip';
 import { useTastePicks } from '@/hooks/useTastePicks';
+import { useMediaStore } from '@/store';
 import {
   MAX_GENRES,
   MAX_PEOPLE,
@@ -107,37 +110,6 @@ function Question({
 
       {children}
     </li>
-  );
-}
-
-/** Un botón que se prende y se apaga: un género, una década. */
-function ToggleChip({
-  label,
-  selected,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  selected: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled && !selected}
-      aria-pressed={selected}
-      className={cn(
-        'px-3 py-1.5 rounded-full border text-sm transition-colors',
-        'disabled:opacity-40 disabled:cursor-not-allowed',
-        selected
-          ? 'bg-accent text-accent-contrast border-accent font-medium'
-          : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
-      )}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -364,6 +336,7 @@ function toPickedTitle(result: TMDbResult, mediaType: MediaType): PickedTitle {
  */
 export function TasteProfileView() {
   const { picks, savePicks } = useTastePicks();
+  const excludedGenres = useMediaStore((state) => state.restrictions.excludedGenres);
   const answered = answeredCount(picks);
 
   const toggleGenre = (name: string) => {
@@ -483,7 +456,11 @@ export function TasteProfileView() {
         <Question
           index={3}
           title="Tus géneros"
-          hint={`Hasta ${MAX_GENRES}. Los que ponés cuando no sabés qué mirar.`}
+          hint={
+            excludedGenres.length > 0
+              ? `Hasta ${MAX_GENRES}. Los que marcaste como que no te interesan aparecen apagados.`
+              : `Hasta ${MAX_GENRES}. Los que ponés cuando no sabés qué mirar.`
+          }
           answered={picks.genres.length > 0}
         >
           <ul className="flex flex-wrap gap-2">
@@ -492,7 +469,9 @@ export function TasteProfileView() {
                 <ToggleChip
                   label={genre}
                   selected={picks.genres.includes(genre)}
-                  disabled={picks.genres.length >= MAX_GENRES}
+                  disabled={
+                    picks.genres.length >= MAX_GENRES || excludedGenres.includes(genre)
+                  }
                   onClick={() => toggleGenre(genre)}
                 />
               </li>
@@ -631,6 +610,8 @@ export function TasteProfileView() {
           </ul>
         </Question>
       </ol>
+
+      <RestrictionsSection favoriteGenres={picks.genres} />
 
       <p className="text-sm text-text-subtle">
         Tus respuestas viajan con tu biblioteca: se sincronizan entre

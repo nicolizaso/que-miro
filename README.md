@@ -90,6 +90,10 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   tus géneros, tus actores, tus directores, tus productoras, tu década— que
   Explorar convierte en filas nuevas. Es lo que hace que la pestaña sea tuya
   desde el primer día, antes de tener una sola estrella puesta.
+- **Lo que no te interesa** — en la misma pantalla, un año mínimo ("nada
+  anterior a 1990", para películas, series o las dos) y los géneros que no
+  querés ver —terror, reality, talk shows—. Ninguna fila de Explorar te los
+  ofrece; tu biblioteca no se toca.
 - **Avisos de episodios** — prendé "Avisame de episodios nuevos" en la ficha
   de una serie (o elegilas en Ajustes) y el día que sale un episodio te llega
   una notificación que abre su ficha; si salen varias, un solo aviso que las
@@ -341,12 +345,14 @@ src/
   contexts/           AuthContext (sesión), ToastContext (avisos)
   hooks/              useMediaActions (escrituras), useCollectionActions (listas),
                       useAccountActions (borrado), useLibraryFilters (filtros
-                      en la URL), useTastePicks (el cuestionario)
+                      en la URL), useTastePicks (el cuestionario),
+                      useRestrictions (lo que no te interesa)
   lib/                Cliente HTTP del front, init de Firebase, tema, schema y
                       migraciones, progreso de series, estadísticas, picker,
                       duelo, backup, filtros de la biblioteca, datos del demo
   lib/taste.ts        Qué sabe la app de tu gusto, sacado de tu biblioteca
   lib/picks.ts        Qué contaste de vos, y sus topes por pregunta
+  lib/restrictions.ts Lo que no te interesa, y cómo recorta Explorar
   lib/recipes.ts      Las 36 formas de armar una fila de Explorar
   lib/social.ts       Usuarios, cuentas, quién sigue a quién, reacciones y recomendaciones
   lib/activity.ts     La actividad que ven tus seguidores, deducida de la biblioteca
@@ -408,6 +414,13 @@ alguien dice de sí mismo no hay que interpretarlo. Deducir tarda —hasta que n
 hay una docena de títulos puntuados no alcanza para una fila— y hay cosas que
 nunca va a saber, como cuál es *la* película, esa que se vio antes de instalar
 la app y que nunca se va a anotar en *Por Ver*.
+
+**Lo que no te interesa recorta, no suma.** `restrictions.ts` se aplica en dos
+lugares: las filas de `/discover` se piden ya filtradas —si no, vuelven flacas
+y se caen— y las que se contradicen con lo que marcaste ni se arman; el resto
+(parecidos, tendencias, filmografías) se filtra título por título cuando cada
+fila reclama los suyos en `feed.ts`. Las filas que muestran tu propia
+biblioteca quedan afuera del filtro.
 
 **Explorar se congela al entrar y se baraja al volver.** El orden sale de una
 semilla que se estrena en cada visita, así que la pestaña no se ve dos veces

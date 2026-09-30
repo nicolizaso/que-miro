@@ -5,6 +5,7 @@ import { useSocialFeed } from '@/hooks/useSocialFeed';
 import { SocialSignals } from '@/lib/socialFeed';
 import { tasteProfile } from '@/lib/taste';
 import { hasPicks, pickedTitleIds } from '@/lib/picks';
+import { passesRestrictions } from '@/lib/restrictions';
 import { FeedBlock, buildBlocks } from '@/lib/recipes';
 import {
   PAGE_SIZE,
@@ -50,6 +51,7 @@ export function useExploreFeed(): ExploreFeed {
   const mediaList = useMediaStore((state) => state.mediaList);
   const storedPicks = useMediaStore((state) => state.picks);
   const storedSubscriptions = useMediaStore((state) => state.subscriptions);
+  const storedRestrictions = useMediaStore((state) => state.restrictions);
   const region = usePreferences((state) => state.region);
 
   const [seed, setSeed] = useState(randomSeed);
@@ -57,6 +59,7 @@ export function useExploreFeed(): ExploreFeed {
   const [library, setLibrary] = useState(mediaList);
   const [picks, setPicksSnapshot] = useState(storedPicks);
   const [subscriptions, setSubscriptionsSnapshot] = useState(storedSubscriptions);
+  const [restrictions, setRestrictionsSnapshot] = useState(storedRestrictions);
   const { signals } = useSocialFeed();
   const [social, setSocialSnapshot] = useState<SocialSignals>(signals);
   const signalsRef = useRef(signals);
@@ -91,11 +94,22 @@ export function useExploreFeed(): ExploreFeed {
     }
   }, [storedSubscriptions, subscriptions.updatedAt]);
 
+  // Y lo que no te interesa: se toca en el perfil y al volver ya cuenta.
+  useEffect(() => {
+    if (Date.parse(storedRestrictions.updatedAt) > Date.parse(restrictions.updatedAt)) {
+      setRestrictionsSnapshot(storedRestrictions);
+    }
+  }, [storedRestrictions, restrictions.updatedAt]);
+
   const taste = useMemo(() => tasteProfile(library), [library]);
 
   const blocks = useMemo(
-    () => orderBlocks(buildBlocks({ taste, picks, region, subscriptions, social }), seed),
-    [taste, picks, region, subscriptions, social, seed],
+    () =>
+      orderBlocks(
+        buildBlocks({ taste, picks, region, subscriptions, social, restrictions }),
+        seed,
+      ),
+    [taste, picks, region, subscriptions, social, restrictions, seed],
   );
 
   // Un registro nuevo por cada orden nuevo: si no, las filas rearmadas
@@ -105,9 +119,13 @@ export function useExploreFeed(): ExploreFeed {
   // biblioteca: recomendarle su propia película favorita es el único resultado
   // que con seguridad ya vio.
   const registry = useMemo(
-    () => createRegistry(new Set([...taste.savedIds, ...pickedTitleIds(picks)])),
+    () =>
+      createRegistry(
+        new Set([...taste.savedIds, ...pickedTitleIds(picks)]),
+        (result) => passesRestrictions(result, restrictions),
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [taste, picks, seed, region],
+    [taste, picks, restrictions, seed, region],
   );
 
   const loadMore = useCallback(() => setPages((current) => current + 1), []);
@@ -118,6 +136,7 @@ export function useExploreFeed(): ExploreFeed {
     setLibrary(useMediaStore.getState().mediaList);
     setPicksSnapshot(useMediaStore.getState().picks);
     setSubscriptionsSnapshot(useMediaStore.getState().subscriptions);
+    setRestrictionsSnapshot(useMediaStore.getState().restrictions);
     setSocialSnapshot(signalsRef.current);
   }, []);
 

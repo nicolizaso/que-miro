@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { RECIPES, buildBlocks } from './recipes';
 import { tasteProfile } from './taste';
 import { emptyPicks } from './picks';
-import { Person, SavedMedia, TastePicks } from '@/types';
+import { Person, Restrictions, SavedMedia, TastePicks } from '@/types';
 
 vi.mock('@/lib/tmdb', async () => {
   const actual = await vi.importActual<typeof import('@/lib/tmdb')>('@/lib/tmdb');
@@ -525,3 +525,69 @@ describe('las filas de la gente que seguís', () => {
     expect(results[0]).toMatchObject({ media_type: 'movie', title: 'T1', release_date: '2024-01-01' });
   });
 });
+
+describe('lo que no te interesa', () => {
+  function blocksWith(picks: Partial<TastePicks>, restrictions: Partial<Restrictions>) {
+    return buildBlocks({
+      taste: tasteProfile([], NOW),
+      picks: { ...emptyPicks(), ...picks },
+      region: 'AR',
+      restrictions: { excludedGenres: [], updatedAt: NOW.toISOString(), ...restrictions },
+    });
+  }
+
+  it('las filas de /discover se piden con el piso y los géneros excluidos adentro', () => {
+    vi.mocked(getDiscover).mockClear();
+    const blocks = blocksWith(
+      { genres: ['Drama'] },
+      { minYear: { year: 1990, scope: 'movie' }, excludedGenres: ['Terror'] },
+    );
+
+    const row = blocks.find((block) => block.id.startsWith('genero-elegido-18'));
+    row?.fetch();
+    expect(getDiscover).toHaveBeenCalledWith(
+      expect.objectContaining({ genres: [18], from: 1990, withoutGenres: [27] }),
+    );
+  });
+
+  it('no arma la fila de una década anterior al piso', () => {
+    const blocks = blocksWith({ decade: 1980 }, { minYear: { year: 1990, scope: 'both' } });
+    expect(blocks.some((block) => block.id.startsWith('decada-elegida'))).toBe(false);
+  });
+
+  it('pero sí la de una década que el piso solo recorta', () => {
+    vi.mocked(getDiscover).mockClear();
+    const blocks = blocksWith({ decade: 1990 }, { minYear: { year: 1995, scope: 'movie' } });
+
+    const row = blocks.find((block) => block.id === 'decada-elegida-1990');
+    row?.fetch();
+    expect(getDiscover).toHaveBeenCalledWith(expect.objectContaining({ from: 1995, to: 1999 }));
+  });
+
+  it('no arma filas de un género excluido, aunque también sea favorito', () => {
+    const blocks = blocksWith({ genres: ['Terror'] }, { excludedGenres: ['Terror'] });
+    expect(blocks.some((block) => block.id.startsWith('genero-elegido-27'))).toBe(false);
+  });
+
+  it('las filas que no salen de /discover se arman igual: se filtran al reclamar', () => {
+    const picks = {
+      movie: {
+        tmdbId: 105,
+        mediaType: 'movie' as const,
+        title: 'Volver al futuro',
+        posterPath: null,
+        releaseYear: '1985',
+      },
+    };
+    const without = blocksWith(picks, {}).map((block) => block.id);
+    const withFloor = blocksWith(picks, { minYear: { year: 1990, scope: 'both' } }).map(
+      (block) => block.id,
+    );
+
+    expect(withFloor.filter((id) => id.includes('105'))).toEqual(
+      without.filter((id) => id.includes('105')),
+    );
+    expect(without.some((id) => id.includes('105'))).toBe(true);
+  });
+});
+

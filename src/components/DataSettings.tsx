@@ -20,6 +20,7 @@ import { clearRescue, readRescue } from '@/lib/rescue';
 import { useTastePicks } from '@/hooks/useTastePicks';
 import { useGoals } from '@/hooks/useGoals';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
+import { useRestrictions } from '@/hooks/useRestrictions';
 import { useFollowing } from '@/hooks/useFollowing';
 import { useSocialSettings } from '@/hooks/useSocialSettings';
 import { loadPerson, useSocial, useSocialStore } from '@/hooks/useSocial';
@@ -53,6 +54,7 @@ export function DataSettings() {
   const { picks, savePicks } = useTastePicks();
   const { goals, replaceGoals } = useGoals();
   const { subscriptions, replaceSubscriptions } = useSubscriptions();
+  const { restrictions, replaceRestrictions } = useRestrictions();
   const { following, replaceFollowing } = useFollowing();
   const { settings: socialSettings, replaceSettings } = useSocialSettings();
   const { follows, account: socialAccount } = useSocial();
@@ -79,10 +81,16 @@ export function DataSettings() {
     downloadFile(
       backupFilename('json'),
       JSON.stringify(
-        buildBackup(mediaList, collections, picks, goals, subscriptions, following, {
-          settings: socialSettings,
-          followed: followedAccountsFor(follows),
-        }),
+        buildBackup(
+          mediaList,
+          collections,
+          picks,
+          goals,
+          subscriptions,
+          following,
+          { settings: socialSettings, followed: followedAccountsFor(follows) },
+          restrictions,
+        ),
         null,
         2,
       ),
@@ -105,6 +113,7 @@ export function DataSettings() {
       picks: null,
       goals: null,
       subscriptions: null,
+      restrictions: null,
       following: null,
       social: null,
       followedAccounts: [],
@@ -183,6 +192,13 @@ export function DataSettings() {
         Date.parse(incomingSubscriptions.updatedAt) > Date.parse(subscriptions.updatedAt)
       ) {
         replaceSubscriptions(incomingSubscriptions);
+      }
+      const incomingRestrictions = pendingImport.restrictions;
+      if (
+        incomingRestrictions &&
+        Date.parse(incomingRestrictions.updatedAt) > Date.parse(restrictions.updatedAt)
+      ) {
+        replaceRestrictions(incomingRestrictions);
       }
       const incomingFollowing = pendingImport.following;
       if (

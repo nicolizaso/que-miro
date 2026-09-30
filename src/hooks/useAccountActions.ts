@@ -15,6 +15,7 @@ import { useMediaStore } from '@/store';
 import { picksPath } from '@/hooks/useTastePicks';
 import { goalsPath } from '@/hooks/useGoals';
 import { subscriptionsPath } from '@/hooks/useSubscriptions';
+import { restrictionsPath } from '@/hooks/useRestrictions';
 import { followingPath } from '@/hooks/useFollowing';
 import { pushPath } from '@/lib/push';
 import { publicListPath } from '@/lib/publicList';
@@ -181,10 +182,11 @@ export function useAccountActions() {
       // borrar el documento de un usuario no borra sus subcolecciones: sin
       // esta línea el cuestionario sobreviviría a la cuenta que lo escribió.
       await deleteDoc(doc(db, picksPath(user.uid)));
-      // Las metas, las suscripciones y los perfiles seguidos viven al lado y
-      // tienen el mismo problema.
+      // Las metas, las suscripciones, las restricciones y los perfiles
+      // seguidos viven al lado y tienen el mismo problema.
       await deleteDoc(doc(db, goalsPath(user.uid)));
       await deleteDoc(doc(db, subscriptionsPath(user.uid)));
+      await deleteDoc(doc(db, restrictionsPath(user.uid)));
       await deleteDoc(doc(db, followingPath(user.uid)));
       // La instantánea de avisos está fuera de `users/`: sin esto, el cron
       // seguiría avisándole a una cuenta que ya no existe.

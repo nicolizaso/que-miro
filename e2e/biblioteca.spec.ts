@@ -345,6 +345,31 @@ test('las respuestas de "Contanos de vos" se guardan y sobreviven a una recarga'
   ).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('lo que no te interesa se guarda y sobrevive a una recarga', async ({ page }) => {
+  await page.getByRole('link', { name: 'Perfil' }).click();
+  await page.getByRole('link', { name: 'Contanos de vos' }).click();
+
+  const section = page.getByRole('region', { name: 'Lo que no te interesa' });
+  const year = section.getByRole('button', { name: '1990', exact: true });
+  await year.click();
+  await expect(year).toHaveAttribute('aria-pressed', 'true');
+
+  const western = section.getByRole('button', { name: 'Western', exact: true });
+  await western.click();
+  await expect(western).toHaveAttribute('aria-pressed', 'true');
+
+  await page.reload();
+  const reloaded = page.getByRole('region', { name: 'Lo que no te interesa' });
+  await expect(reloaded.getByRole('button', { name: '1990', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(reloaded.getByRole('button', { name: 'Western', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+});
+
 test('marcar el siguiente episodio desde el inicio', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Continuar viendo' })).toBeVisible();
 

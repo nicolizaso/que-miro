@@ -98,12 +98,22 @@ export interface TitleRegistry {
    * Se queda con los títulos de `results` que no haya tomado otra fila.
    *
    * Las filas locales muestran la biblioteca a propósito, así que para ellas no
-   * se descarta lo ya guardado.
+   * se descarta lo ya guardado ni lo que no pasa las restricciones: es tuyo, y
+   * esconderte algo que ya anotaste sería esconderte tu propia lista.
    */
   claim(blockId: string, results: TMDbResult[], local?: boolean): TMDbResult[];
 }
 
-export function createRegistry(saved: Set<number>): TitleRegistry {
+/**
+ * @param saved Lo que ya está en la biblioteca: nunca se recomienda.
+ * @param accepts Lo que se puede recomendar según lo que no te interesa. Es lo
+ *   que filtra las filas que no salen de `/discover` —parecidos, tendencias,
+ *   filmografías—, que no se pueden pedir ya filtradas.
+ */
+export function createRegistry(
+  saved: Set<number>,
+  accepts: (result: TMDbResult) => boolean = () => true,
+): TitleRegistry {
   /** Qué fila se quedó con cada título. */
   const owners = new Map<number, string>();
 
@@ -121,6 +131,7 @@ export function createRegistry(saved: Set<number>): TitleRegistry {
         // Sin póster la fila queda con huecos grises.
         if (!result.poster_path) continue;
         if (!local && saved.has(result.id)) continue;
+        if (!local && !accepts(result)) continue;
         if (owners.has(result.id)) continue;
 
         owners.set(result.id, blockId);

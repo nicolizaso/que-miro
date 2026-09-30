@@ -1,4 +1,13 @@
-import { Collection, Following, Goals, SavedMedia, SocialSettings, Subscriptions, TastePicks } from '@/types';
+import {
+  Collection,
+  Following,
+  Goals,
+  Restrictions,
+  SavedMedia,
+  SocialSettings,
+  Subscriptions,
+  TastePicks,
+} from '@/types';
 import {
   SCHEMA_VERSION,
   parseCollection,
@@ -8,6 +17,7 @@ import {
 import { hasPicks, parsePicks } from '@/lib/picks';
 import { hasGoals, parseGoals } from '@/lib/goals';
 import { hasSubscriptions, parseSubscriptions } from '@/lib/subscriptions';
+import { hasRestrictions, parseRestrictions } from '@/lib/restrictions';
 import { hasFollowing, parseFollowing } from '@/lib/following';
 import { hasSocialSettings, isValidHandle, parseSocialSettings } from '@/lib/social';
 import { progressPercent, watchedEpisodes } from '@/lib/progress';
@@ -31,6 +41,8 @@ export interface LibraryBackup {
   goals?: Goals;
   /** Las plataformas que se pagan, si había alguna. */
   subscriptions?: Subscriptions;
+  /** Lo que no interesa que se recomiende, si había algo. */
+  restrictions?: Restrictions;
   /** Los perfiles que se siguen, si había alguno. */
   following?: Following;
   /** Qué se comparte, a quién se silenció: si se tocó algo. */
@@ -85,6 +97,7 @@ export function buildBackup(
   subscriptions?: Subscriptions,
   following?: Following,
   social: SocialBackup = {},
+  restrictions?: Restrictions,
 ): LibraryBackup {
   return {
     app: 'que-miro',
@@ -101,6 +114,7 @@ export function buildBackup(
     // Lo mismo con las metas: sin ninguna, no van.
     ...(goals && hasGoals(goals) ? { goals } : {}),
     ...(subscriptions && hasSubscriptions(subscriptions) ? { subscriptions } : {}),
+    ...(restrictions && hasRestrictions(restrictions) ? { restrictions } : {}),
     ...(following && hasFollowing(following) ? { following } : {}),
     ...(social.settings && hasSocialSettings(social.settings) ? { social: social.settings } : {}),
     ...(social.followed?.length ? { followedAccounts: social.followed } : {}),
@@ -116,6 +130,8 @@ export interface ParsedBackup {
   goals: Goals | null;
   /** `null` si no traía suscripciones. */
   subscriptions: Subscriptions | null;
+  /** `null` si no traía restricciones. */
+  restrictions: Restrictions | null;
   /** `null` si no traía perfiles seguidos. */
   following: Following | null;
   /** `null` si no traía configuración social. */
@@ -171,6 +187,8 @@ export function parseBackup(contents: string): ParsedBackup {
   const goals = raw.goals === undefined ? null : parseGoals(raw.goals);
   const subscriptions =
     raw.subscriptions === undefined ? null : parseSubscriptions(raw.subscriptions);
+  const restrictions =
+    raw.restrictions === undefined ? null : parseRestrictions(raw.restrictions);
   const following = raw.following === undefined ? null : parseFollowing(raw.following);
   const social = raw.social === undefined ? null : parseSocialSettings(raw.social);
 
@@ -180,6 +198,7 @@ export function parseBackup(contents: string): ParsedBackup {
     picks: picks && hasPicks(picks) ? picks : null,
     goals: goals && hasGoals(goals) ? goals : null,
     subscriptions: subscriptions && hasSubscriptions(subscriptions) ? subscriptions : null,
+    restrictions: restrictions && hasRestrictions(restrictions) ? restrictions : null,
     following: following && hasFollowing(following) ? following : null,
     social: social && hasSocialSettings(social) ? social : null,
     followedAccounts: parseFollowedAccounts(raw.followedAccounts),

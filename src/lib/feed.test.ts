@@ -153,6 +153,20 @@ describe('createRegistry', () => {
     expect(claimed.map((result) => result.id)).toEqual([1]);
   });
 
+  it('descarta lo que no pasa las restricciones', () => {
+    const registry = createRegistry(new Set(), (result) => result.id !== 2);
+
+    const claimed = registry.claim('fila', [makeResult(1), makeResult(2), makeResult(3)]);
+    expect(claimed.map((result) => result.id)).toEqual([1, 3]);
+  });
+
+  it('pero no en las filas de tu biblioteca: lo que anotaste se sigue viendo', () => {
+    const registry = createRegistry(new Set(), () => false);
+
+    const claimed = registry.claim('terminar', [makeResult(1)], true);
+    expect(claimed.map((result) => result.id)).toEqual([1]);
+  });
+
   it('descarta lo que no tiene póster', () => {
     const registry = createRegistry(new Set());
 

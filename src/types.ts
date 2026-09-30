@@ -674,3 +674,22 @@ export interface TastePicks {
   decade?: number;
   updatedAt: string; // ISO
 }
+
+/** A qué se aplica el año mínimo de las restricciones. */
+export type RestrictionScope = 'movie' | 'tv' | 'both';
+
+/**
+ * Lo que no te interesa que te recomienden, en `users/{uid}/profile/restrictions`.
+ *
+ * Es la contracara de {@link TastePicks}: aquello suma filas a Explorar, esto
+ * saca títulos de todas. Vive en su propio documento y no adentro del
+ * cuestionario porque el cuestionario se escribe entero: una versión vieja de
+ * la app que guardara una respuesta borraría estas sin enterarse.
+ */
+export interface Restrictions {
+  /** Nada estrenado antes de este año, en películas, series o las dos. */
+  minYear?: { year: number; scope: RestrictionScope };
+  /** Nombres de género, como los guarda la biblioteca: "Terror", "Reality". */
+  excludedGenres: string[];
+  updatedAt: string; // ISO
+}
