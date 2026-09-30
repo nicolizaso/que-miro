@@ -5,6 +5,7 @@ import {
   Following,
   MediaStatus,
   Goals,
+  Restrictions,
   SavedMedia,
   SeriesProgress,
   SocialSettings,
@@ -22,6 +23,7 @@ import { isArchivedStatus } from './lib/archive';
 import { emptyPicks, parsePicks } from './lib/picks';
 import { emptyGoals, parseGoals } from './lib/goals';
 import { emptySubscriptions, parseSubscriptions } from './lib/subscriptions';
+import { emptyRestrictions, parseRestrictions } from './lib/restrictions';
 import { emptyFollowing, parseFollowing } from './lib/following';
 import { emptySocialSettings, parseSocialSettings } from './lib/social';
 
@@ -45,6 +47,8 @@ interface MediaState {
   goals: Goals;
   /** Las plataformas que la persona paga. De la cuenta, como las metas. */
   subscriptions: Subscriptions;
+  /** Lo que no le interesa que le recomienden. De la cuenta, como las metas. */
+  restrictions: Restrictions;
   /** Los perfiles públicos que sigue. De la cuenta, como las metas. */
   following: Following;
   /**
@@ -93,6 +97,7 @@ interface MediaState {
   setPicks: (picks: TastePicks) => void;
   setGoals: (goals: Goals) => void;
   setSubscriptions: (subscriptions: Subscriptions) => void;
+  setRestrictions: (restrictions: Restrictions) => void;
   setFollowing: (following: Following) => void;
   setSocialSettings: (settings: SocialSettings) => void;
 
@@ -129,6 +134,7 @@ export const useMediaStore = create<MediaState>()(
       picks: emptyPicks(),
       goals: emptyGoals(),
       subscriptions: emptySubscriptions(),
+      restrictions: emptyRestrictions(),
       following: emptyFollowing(),
       socialSettings: emptySocialSettings(),
       ownerUid: null,
@@ -137,6 +143,7 @@ export const useMediaStore = create<MediaState>()(
       setPicks: (picks) => set({ picks }),
       setGoals: (goals) => set({ goals }),
       setSubscriptions: (subscriptions) => set({ subscriptions }),
+      setRestrictions: (restrictions) => set({ restrictions }),
       setFollowing: (following) => set({ following }),
       setSocialSettings: (socialSettings) => set({ socialSettings }),
       setOwnerUid: (uid) => set({ ownerUid: uid }),
@@ -148,6 +155,7 @@ export const useMediaStore = create<MediaState>()(
           picks: emptyPicks(),
           goals: emptyGoals(),
           subscriptions: emptySubscriptions(),
+          restrictions: emptyRestrictions(),
           following: emptyFollowing(),
           socialSettings: emptySocialSettings(),
           ownerUid: null,
@@ -295,6 +303,7 @@ export const useMediaStore = create<MediaState>()(
           picks: parsePicks(state.picks),
           goals: parseGoals(state.goals),
           subscriptions: parseSubscriptions(state.subscriptions),
+          restrictions: parseRestrictions(state.restrictions),
           following: parseFollowing(state.following),
           socialSettings: parseSocialSettings(state.socialSettings),
         };
@@ -324,6 +333,7 @@ export const useMediaStore = create<MediaState>()(
           picks: parsePicks(state?.picks),
           goals: parseGoals(state?.goals),
           subscriptions: parseSubscriptions(state?.subscriptions),
+          restrictions: parseRestrictions(state?.restrictions),
           following: parseFollowing(state?.following),
           socialSettings: parseSocialSettings(state?.socialSettings),
         } as MediaState;

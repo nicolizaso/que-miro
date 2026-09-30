@@ -5,12 +5,14 @@ import { newWatchId } from '@/lib/schema';
 import { emptyPicks, parsePicks } from '@/lib/picks';
 import { emptyGoals, parseGoals } from '@/lib/goals';
 import { emptySubscriptions, parseSubscriptions } from '@/lib/subscriptions';
+import { emptyRestrictions, parseRestrictions } from '@/lib/restrictions';
 import { emptyFollowing, parseFollowing } from '@/lib/following';
 import { emptySocialSettings, parseSocialSettings } from '@/lib/social';
 import {
   EpisodeRef,
   Goals,
   MediaStatus,
+  Restrictions,
   Subscriptions,
   Following,
   MediaType,
@@ -82,6 +84,19 @@ export function buildDemoPicks(): TastePicks {
 export function buildDemoSubscriptions(now = new Date()): Subscriptions {
   return {
     providers: [{ id: 8, name: 'Netflix', logoPath: null }],
+    updatedAt: now.toISOString(),
+  };
+}
+
+/**
+ * Lo que al demo no le interesa: formatos que no tienen nada que ver con su
+ * biblioteca y un piso en los 70 para películas, que deja adentro a *El
+ * padrino* —su favorita más vieja— y afuera el cine mudo.
+ */
+export function buildDemoRestrictions(now = new Date()): Restrictions {
+  return {
+    minYear: { year: 1970, scope: 'movie' },
+    excludedGenres: ['Reality', 'Talk Show'],
     updatedAt: now.toISOString(),
   };
 }
@@ -589,6 +604,7 @@ export function enterDemoMode(): void {
     picks,
     goals,
     subscriptions,
+    restrictions,
     following,
     socialSettings,
     ownerUid,
@@ -596,6 +612,7 @@ export function enterDemoMode(): void {
     setPicks,
     setGoals,
     setSubscriptions,
+    setRestrictions,
     setFollowing,
     setSocialSettings,
     setOwnerUid,
@@ -605,7 +622,15 @@ export function enterDemoMode(): void {
     try {
       localStorage.setItem(
         SNAPSHOT_KEY,
-        JSON.stringify({ media: mediaList, picks, goals, subscriptions, following, socialSettings }),
+        JSON.stringify({
+          media: mediaList,
+          picks,
+          goals,
+          subscriptions,
+          restrictions,
+          following,
+          socialSettings,
+        }),
       );
     } catch {
       // Sin storage disponible se pierde el respaldo, pero el demo funciona.
@@ -616,6 +641,7 @@ export function enterDemoMode(): void {
   setPicks(buildDemoPicks());
   setGoals(buildDemoGoals());
   setSubscriptions(buildDemoSubscriptions());
+  setRestrictions(buildDemoRestrictions());
   // La lista vieja de perfiles seguidos, vacía: la gente que el demo sigue
   // es la de `lib/demoSocial.ts`, que no pasa por Firestore.
   setFollowing(emptyFollowing());
@@ -625,13 +651,22 @@ export function enterDemoMode(): void {
 
 /** Sale del demo y restituye lo que había antes: biblioteca y respuestas. */
 export function exitDemoMode(): void {
-  const { setMediaList, setPicks, setGoals, setSubscriptions, setFollowing, setSocialSettings, setOwnerUid } =
-    useMediaStore.getState();
+  const {
+    setMediaList,
+    setPicks,
+    setGoals,
+    setSubscriptions,
+    setRestrictions,
+    setFollowing,
+    setSocialSettings,
+    setOwnerUid,
+  } = useMediaStore.getState();
 
   let media: SavedMedia[] = [];
   let picks: TastePicks = emptyPicks();
   let goals: Goals = emptyGoals();
   let subscriptions: Subscriptions = emptySubscriptions();
+  let restrictions: Restrictions = emptyRestrictions();
   let following: Following = emptyFollowing();
   let socialSettings: SocialSettings = emptySocialSettings();
 
@@ -650,6 +685,7 @@ export function exitDemoMode(): void {
           picks?: unknown;
           goals?: unknown;
           subscriptions?: unknown;
+          restrictions?: unknown;
           following?: unknown;
           socialSettings?: unknown;
         };
@@ -659,6 +695,7 @@ export function exitDemoMode(): void {
         picks = parsePicks(snapshotObject.picks);
         goals = parseGoals(snapshotObject.goals);
         subscriptions = parseSubscriptions(snapshotObject.subscriptions);
+        restrictions = parseRestrictions(snapshotObject.restrictions);
         following = parseFollowing(snapshotObject.following);
         socialSettings = parseSocialSettings(snapshotObject.socialSettings);
       }
@@ -672,6 +709,7 @@ export function exitDemoMode(): void {
   setPicks(picks);
   setGoals(goals);
   setSubscriptions(subscriptions);
+  setRestrictions(restrictions);
   setFollowing(following);
   setSocialSettings(socialSettings);
   setOwnerUid(null);

@@ -1,7 +1,9 @@
-import { SavedMedia, Subscriptions, TMDbResult, TastePicks } from '@/types';
+import { Restrictions, SavedMedia, Subscriptions, TMDbResult, TastePicks } from '@/types';
 import { Taste, directedAbandoned, resemblesAbandoned } from '@/lib/taste';
 import { SocialSignals, SocialTitleSignal, namesText } from '@/lib/socialFeed';
+import { emptyRestrictions, restrictDiscover } from '@/lib/restrictions';
 import {
+  DiscoverParams,
   getDiscover,
   getGenreId,
   getList,
@@ -60,6 +62,17 @@ export interface FeedBlock {
   fetch: () => Promise<TMDbResult[]>;
 }
 
+/**
+ * Lo que arma una receta: una fila que sabe pedir sus títulos, o una que solo
+ * dice qué pedirle a `/discover`.
+ *
+ * Las de `/discover` no piden por su cuenta para que {@link buildBlocks} les
+ * sume lo que la persona no quiere ver —y descarte las que lo contradicen—
+ * en un solo lugar, en vez de que cada receta tenga que acordarse.
+ */
+export type RecipeBlock = Omit<FeedBlock, 'fetch'> &
+  ({ fetch: FeedBlock['fetch'] } | { discover: DiscoverParams });
+
 export interface RecipeContext {
   /** El gusto deducido de la biblioteca: qué puntuaste, con quién te cruzaste. */
   taste: Taste;
@@ -77,12 +90,14 @@ export interface RecipeContext {
    * cuenta, o sin seguir a nadie, esas filas no existen.
    */
   social?: SocialSignals;
+  /** Lo que la persona no quiere que le recomienden. Opcional: sin nada, no se filtra. */
+  restrictions?: Restrictions;
 }
 
 /** Una forma de armar filas. Si no hay señal, no devuelve ninguna. */
 export interface Recipe {
   id: string;
-  build: (context: RecipeContext) => FeedBlock[];
+  build: (context: RecipeContext) => RecipeBlock[];
 }
 
 /**
@@ -320,8 +335,7 @@ export const RECIPES: Recipe[] = [
           title: `Estas ${plural(mediaType)} de ${genre.name.toLowerCase()} te pueden gustar`,
           subtitle: 'Bien puntuadas, y ninguna está en tu biblioteca.',
           weight: 8,
-          fetch: () =>
-            getDiscover({ mediaType, genres: [genre.id], sort: 'rating' }),
+          discover: { mediaType, genres: [genre.id], sort: 'rating' },
         }));
     },
   },
@@ -340,8 +354,7 @@ export const RECIPES: Recipe[] = [
           title: `Poco ${genre.name.toLowerCase()} en tu biblioteca`,
           subtitle: 'Viste una sola y la puntuaste bien. Hay más.',
           weight: 6,
-          fetch: () =>
-            getDiscover({ mediaType: 'movie', genres: [genre.id], sort: 'rating' }),
+          discover: { mediaType: 'movie', genres: [genre.id], sort: 'rating' },
         })),
   },
   {
@@ -359,12 +372,11 @@ export const RECIPES: Recipe[] = [
           title: `${first.name} y ${second.name.toLowerCase()} a la vez`,
           subtitle: 'Tus dos géneros, en la misma película.',
           weight: 7,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              genres: [first.id, second.id],
-              sort: 'popular',
-            }),
+          discover: {
+            mediaType: 'movie',
+            genres: [first.id, second.id],
+            sort: 'popular',
+          },
         },
       ];
     },
@@ -383,13 +395,12 @@ export const RECIPES: Recipe[] = [
           title: `Clásicos de ${genre.name.toLowerCase()}`,
           subtitle: 'Anteriores al 2000, y con el puntaje intacto.',
           weight: 6,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              genres: [genre.id],
-              to: 1999,
-              sort: 'rating',
-            }),
+          discover: {
+            mediaType: 'movie',
+            genres: [genre.id],
+            to: 1999,
+            sort: 'rating',
+          },
         },
       ];
     },
@@ -408,13 +419,12 @@ export const RECIPES: Recipe[] = [
           title: `Los ${String(decade.decade).slice(2)} te quedaron bien`,
           subtitle: `Tenés ${decade.count} títulos de esa década puntuados.`,
           weight: 6,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              from: decade.decade,
-              to: decade.decade + 9,
-              sort: 'rating',
-            }),
+          discover: {
+            mediaType: 'movie',
+            from: decade.decade,
+            to: decade.decade + 9,
+            sort: 'rating',
+          },
         },
       ];
     },
@@ -444,12 +454,11 @@ export const RECIPES: Recipe[] = [
               : 'Películas, para cortar con las series',
           subtitle: 'Casi todo lo que tenés anotado es de lo otro.',
           weight: 6,
-          fetch: () =>
-            getDiscover({
-              mediaType: minority,
-              genres: genre ? [genre.id] : undefined,
-              sort: 'rating',
-            }),
+          discover: {
+            mediaType: minority,
+            genres: genre ? [genre.id] : undefined,
+            sort: 'rating',
+          },
         },
       ];
     },
@@ -481,13 +490,12 @@ export const RECIPES: Recipe[] = [
             ? 'Bien puntuadas e incluidas en lo que pagás, según JustWatch.'
             : 'Bien puntuadas y disponibles donde ya mirás, según JustWatch.',
         weight,
-        fetch: () =>
-          getDiscover({
-            mediaType: 'movie',
-            provider: name,
-            region,
-            sort: 'rating',
-          }),
+        discover: {
+          mediaType: 'movie',
+          provider: name,
+          region,
+          sort: 'rating',
+        },
       }));
     },
   },
@@ -504,14 +512,13 @@ export const RECIPES: Recipe[] = [
           title: 'Menos de 100 minutos',
           subtitle: 'Para cuando no da para una de tres horas.',
           weight: 5,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              genres: genre ? [genre.id] : undefined,
-              minRuntime: 60,
-              maxRuntime: 100,
-              sort: 'rating',
-            }),
+          discover: {
+            mediaType: 'movie',
+            genres: genre ? [genre.id] : undefined,
+            minRuntime: 60,
+            maxRuntime: 100,
+            sort: 'rating',
+          },
         },
       ];
     },
@@ -530,13 +537,12 @@ export const RECIPES: Recipe[] = [
           title: 'Series de media hora',
           subtitle: 'Capítulos cortos: se arrancan un martes.',
           weight: 5,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'tv',
-              genres: genre ? [genre.id] : undefined,
-              maxRuntime: 35,
-              sort: 'rating',
-            }),
+          discover: {
+            mediaType: 'tv',
+            genres: genre ? [genre.id] : undefined,
+            maxRuntime: 35,
+            sort: 'rating',
+          },
         },
       ];
     },
@@ -583,12 +589,11 @@ export const RECIPES: Recipe[] = [
           title: `Más películas ${names[language.code] ?? 'en ese idioma'}`,
           subtitle: 'Tus favoritas no son todas en inglés.',
           weight: 7,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              originalLanguage: language.code,
-              sort: 'rating',
-            }),
+          discover: {
+            mediaType: 'movie',
+            originalLanguage: language.code,
+            sort: 'rating',
+          },
         },
       ];
     },
@@ -604,12 +609,11 @@ export const RECIPES: Recipe[] = [
         title: `Más sobre ${keyword.name.toLowerCase()}`,
         subtitle: `El tema aparece en ${count} de tus favoritas.`,
         weight: 7,
-        fetch: () =>
-          getDiscover({
-            mediaType: 'movie',
-            keyword: keyword.id,
-            sort: 'popular',
-          }),
+        discover: {
+          mediaType: 'movie',
+          keyword: keyword.id,
+          sort: 'popular',
+        },
       })),
   },
   {
@@ -664,13 +668,12 @@ export const RECIPES: Recipe[] = [
           title: `Tu mejor año fue ${taste.bestYear}`,
           subtitle: 'Es de donde salen varias de tus favoritas.',
           weight: 5,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              from: taste.bestYear,
-              to: taste.bestYear,
-              sort: 'rating',
-            }),
+          discover: {
+            mediaType: 'movie',
+            from: taste.bestYear,
+            to: taste.bestYear,
+            sort: 'rating',
+          },
         },
       ];
     },
@@ -748,12 +751,11 @@ export const RECIPES: Recipe[] = [
           title: genre ? `Estrenos de ${genre.name.toLowerCase()}` : 'Recién estrenadas',
           subtitle: 'Lo último que salió, sin spoilers del futuro.',
           weight: 5,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              genres: genre ? [genre.id] : undefined,
-              sort: 'recent',
-            }),
+          discover: {
+            mediaType: 'movie',
+            genres: genre ? [genre.id] : undefined,
+            sort: 'recent',
+          },
         },
       ];
     },
@@ -864,8 +866,7 @@ export const RECIPES: Recipe[] = [
           title: `Lo mejor de ${genre.name.toLowerCase()}`,
           subtitle: 'Uno de los géneros que elegiste.',
           weight: 9,
-          fetch: () =>
-            getDiscover({ mediaType: 'movie', genres: [genre.id], sort: 'rating' }),
+          discover: { mediaType: 'movie', genres: [genre.id], sort: 'rating' },
         })),
   },
   {
@@ -881,8 +882,7 @@ export const RECIPES: Recipe[] = [
           title: `Series de ${genre.name.toLowerCase()}`,
           subtitle: 'Tu género favorito, en capítulos.',
           weight: 8,
-          fetch: () =>
-            getDiscover({ mediaType: 'tv', genres: [genre.id], sort: 'rating' }),
+          discover: { mediaType: 'tv', genres: [genre.id], sort: 'rating' },
         })),
   },
   {
@@ -928,8 +928,7 @@ export const RECIPES: Recipe[] = [
         // Por popularidad y no por puntaje: el catálogo de una productora ya
         // está acotado, y pedirle además 300 votos deja afuera justo lo que
         // alguien todavía no vio.
-        fetch: () =>
-          getDiscover({ mediaType: 'movie', company: studio.id, sort: 'popular' }),
+        discover: { mediaType: 'movie', company: studio.id, sort: 'popular' },
       })),
   },
   {
@@ -952,14 +951,13 @@ export const RECIPES: Recipe[] = [
             : `Lo mejor de ${label}`,
           subtitle: 'Tu década favorita, bien puntuada.',
           weight: 7,
-          fetch: () =>
-            getDiscover({
-              mediaType: 'movie',
-              genres: genre ? [genre.id] : undefined,
-              from: decade,
-              to: decade + 9,
-              sort: 'rating',
-            }),
+          discover: {
+            mediaType: 'movie',
+            genres: genre ? [genre.id] : undefined,
+            from: decade,
+            to: decade + 9,
+            sort: 'rating',
+          },
         },
       ];
     },
@@ -1013,9 +1011,19 @@ export const RECIPES: Recipe[] = [
  * barajar y de paginar. Acá solo se decide qué existe.
  */
 export function buildBlocks(context: RecipeContext): FeedBlock[] {
+  const restrictions = context.restrictions ?? emptyRestrictions();
+
   return RECIPES.flatMap((recipe) => {
     try {
-      return recipe.build(context);
+      return recipe.build(context).flatMap((block): FeedBlock[] => {
+        if ('fetch' in block) return [block];
+        const { discover, ...rest } = block;
+        const params = restrictDiscover(discover, restrictions);
+        // La fila contradice lo que no te interesa: "los 80" con un piso en
+        // 1990 no tiene nada para mostrar.
+        if (!params) return [];
+        return [{ ...rest, fetch: () => getDiscover(params) }];
+      });
     } catch (error) {
       // Una receta rota no se lleva puesta la pestaña entera.
       console.error(`[explorar] La receta "${recipe.id}" falló:`, error);

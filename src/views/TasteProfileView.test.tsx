@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TMDbResult } from '@/types';
@@ -79,6 +79,20 @@ function renderForm() {
   );
 }
 
+/**
+ * El chip de un género en la pregunta de favoritos. Los mismos nombres están
+ * también en "Lo que no te interesa", así que se busca adentro de la pregunta.
+ */
+function favoriteGenre(name: string) {
+  const question = screen.getByRole('heading', { name: 'Tus géneros' }).closest('li')!;
+  return within(question).getByRole('button', { name });
+}
+
+/** La sección de restricciones. */
+function restrictionsSection() {
+  return screen.getByRole('region', { name: 'Lo que no te interesa' });
+}
+
 /** Lo que quedó guardado en el cuestionario. */
 function saved() {
   return useMediaStore.getState().picks;
@@ -102,11 +116,11 @@ describe('Contanos de vos', () => {
   it('guarda el género que se elige y cuenta la respuesta', async () => {
     renderForm();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Terror' }));
+    await userEvent.click(favoriteGenre('Terror'));
 
     expect(saved().genres).toEqual(['Terror']);
     expect(screen.getByText('1 de 7')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Terror' })).toHaveAttribute(
+    expect(favoriteGenre('Terror')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -115,8 +129,8 @@ describe('Contanos de vos', () => {
   it('vuelve a sacar un género al tocarlo de nuevo', async () => {
     renderForm();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Comedia' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Comedia' }));
+    await userEvent.click(favoriteGenre('Comedia'));
+    await userEvent.click(favoriteGenre('Comedia'));
 
     expect(saved().genres).toEqual([]);
     expect(screen.getByText('0 de 7')).toBeInTheDocument();
@@ -126,12 +140,12 @@ describe('Contanos de vos', () => {
     renderForm();
 
     for (const genre of ['Terror', 'Comedia', 'Drama']) {
-      await userEvent.click(screen.getByRole('button', { name: genre }));
+      await userEvent.click(favoriteGenre(genre));
     }
 
     expect(saved().genres).toHaveLength(3);
-    expect(screen.getByRole('button', { name: 'Western' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Terror' })).toBeEnabled();
+    expect(favoriteGenre('Western')).toBeDisabled();
+    expect(favoriteGenre('Terror')).toBeEnabled();
   });
 
   it('busca la película favorita y guarda lo mínimo para recomendarla', async () => {
@@ -243,12 +257,54 @@ describe('Contanos de vos', () => {
       screen.queryByRole('link', { name: /Ver cómo quedó Explorar/ }),
     ).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Terror' }));
+    await userEvent.click(favoriteGenre('Terror'));
 
     await waitFor(() =>
       expect(
         screen.getByRole('link', { name: /Ver cómo quedó Explorar/ }),
       ).toBeInTheDocument(),
     );
+  });
+
+  describe('lo que no te interesa', () => {
+    it('pone un año mínimo para las dos, lo cambia a películas y lo saca', async () => {
+      renderForm();
+      const section = restrictionsSection();
+
+      // Sin año no hay a qué aplicarlo: la pregunta aparece recién después.
+      expect(within(section).queryByRole('group', { name: 'Aplica a' })).not.toBeInTheDocument();
+
+      await userEvent.click(within(section).getByRole('button', { name: '1990' }));
+      expect(useMediaStore.getState().restrictions.minYear).toEqual({ year: 1990, scope: 'both' });
+
+      const scope = within(section).getByRole('group', { name: 'Aplica a' });
+      await userEvent.click(within(scope).getByRole('button', { name: 'Películas' }));
+      expect(useMediaStore.getState().restrictions.minYear).toEqual({ year: 1990, scope: 'movie' });
+
+      await userEvent.click(within(section).getByRole('button', { name: '1990' }));
+      expect(useMediaStore.getState().restrictions.minYear).toBeUndefined();
+    });
+
+    it('excluye un género, incluso los que no son un gusto', async () => {
+      renderForm();
+      const section = restrictionsSection();
+
+      await userEvent.click(within(section).getByRole('button', { name: 'Reality' }));
+      await userEvent.click(within(section).getByRole('button', { name: 'Terror' }));
+
+      expect(useMediaStore.getState().restrictions.excludedGenres).toEqual(['Reality', 'Terror']);
+      // No cuenta como respuesta del cuestionario: es un filtro, no un gusto.
+      expect(screen.getByText('0 de 7')).toBeInTheDocument();
+    });
+
+    it('no deja que un género sea favorito y excluido a la vez', async () => {
+      renderForm();
+
+      await userEvent.click(favoriteGenre('Comedia'));
+      expect(within(restrictionsSection()).getByRole('button', { name: 'Comedia' })).toBeDisabled();
+
+      await userEvent.click(within(restrictionsSection()).getByRole('button', { name: 'Terror' }));
+      expect(favoriteGenre('Terror')).toBeDisabled();
+    });
   });
 });

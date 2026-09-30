@@ -31,6 +31,12 @@ import {
   parseSubscriptions,
   subscriptionsToDocument,
 } from '@/lib/subscriptions';
+import { restrictionsPath } from '@/hooks/useRestrictions';
+import {
+  hasRestrictions,
+  parseRestrictions,
+  restrictionsToDocument,
+} from '@/lib/restrictions';
 import { followingPath } from '@/hooks/useFollowing';
 import { followingToDocument, hasFollowing, parseFollowing } from '@/lib/following';
 import { socialSettingsPath } from '@/hooks/useSocialSettings';
@@ -143,6 +149,7 @@ export function SyncManager() {
       picks: localPicks,
       goals: localGoals,
       subscriptions: localSubscriptions,
+      restrictions: localRestrictions,
       following: localFollowing,
       socialSettings: localSocialSettings,
       syncedUid,
@@ -163,6 +170,7 @@ export function SyncManager() {
     const localPicksToUpload = isFirstSync ? localPicks : null;
     const localGoalsToUpload = isFirstSync ? localGoals : null;
     const localSubscriptionsToUpload = isFirstSync ? localSubscriptions : null;
+    const localRestrictionsToUpload = isFirstSync ? localRestrictions : null;
     const localFollowingToUpload = isFirstSync ? localFollowing : null;
     const localSocialToUpload = isFirstSync ? localSocialSettings : null;
 
@@ -173,6 +181,7 @@ export function SyncManager() {
     const picksRef = doc(db, picksPath(user.uid));
     const goalsRef = doc(db, goalsPath(user.uid));
     const subscriptionsRef = doc(db, subscriptionsPath(user.uid));
+    const restrictionsRef = doc(db, restrictionsPath(user.uid));
     const followingRef = doc(db, followingPath(user.uid));
     const socialRef = doc(db, socialSettingsPath(user.uid));
     let migrated = false;
@@ -461,6 +470,21 @@ export function SyncManager() {
       onListenError,
     ));
 
+    const unsubscribeRestrictions = listen((onListenError) => onSnapshot(
+      restrictionsRef,
+      profileDocHandler({
+        ref: restrictionsRef,
+        parse: (value) => parseRestrictions(value),
+        hasContent: hasRestrictions,
+        toDocument: restrictionsToDocument,
+        localToUpload: localRestrictionsToUpload,
+        getLocal: () => useMediaStore.getState().restrictions,
+        setLocal: (restrictions) => useMediaStore.getState().setRestrictions(restrictions),
+        what: 'lo que no te interesa',
+      }),
+      onListenError,
+    ));
+
     const unsubscribeFollowing = listen((onListenError) => onSnapshot(
       followingRef,
       profileDocHandler({
@@ -500,6 +524,7 @@ export function SyncManager() {
       unsubscribePicks();
       unsubscribeGoals();
       unsubscribeSubscriptions();
+      unsubscribeRestrictions();
       unsubscribeFollowing();
       // Sin listeners no hay nada que sincronizar: el cartel dejaría de
       // describir el estado de la app.

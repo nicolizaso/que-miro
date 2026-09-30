@@ -8,6 +8,7 @@ import {
   toCsv,
 } from './backup';
 import { emptyPicks } from './picks';
+import { emptyRestrictions } from './restrictions';
 import { SavedMedia } from '@/types';
 
 function makeMedia(overrides: Partial<SavedMedia> = {}): SavedMedia {
@@ -282,6 +283,35 @@ describe('las suscripciones en el backup', () => {
     const backup = buildBackup([makeMedia()], [], undefined, undefined, subscriptions);
 
     expect(parseBackup(JSON.stringify(backup)).subscriptions).toEqual(subscriptions);
+  });
+});
+
+describe('las restricciones en el backup', () => {
+  it('viajan con la biblioteca y vuelven enteras', () => {
+    const restrictions = {
+      minYear: { year: 1990, scope: 'movie' as const },
+      excludedGenres: ['Terror'],
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+    const backup = buildBackup(
+      [makeMedia()],
+      [],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {},
+      restrictions,
+    );
+
+    expect(parseBackup(JSON.stringify(backup)).restrictions).toEqual(restrictions);
+  });
+
+  it('vacías no se escriben, y un backup sin ellas las trae en null', () => {
+    const backup = buildBackup([makeMedia()], [], undefined, undefined, undefined, undefined, {}, emptyRestrictions());
+
+    expect(backup).not.toHaveProperty('restrictions');
+    expect(parseBackup(JSON.stringify(backup)).restrictions).toBeNull();
   });
 });
 

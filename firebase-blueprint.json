@@ -135,6 +135,22 @@
     },
     {
       "collection": "profile",
+      "path": "/users/{userId}/profile/restrictions",
+      "description": "What the user doesn't want recommended in Explore (minimum release year for movies, series or both, and excluded genres). Its own document and not a field of profile/taste because the questionnaire is written whole and an older client would erase it; synced newest-wins, in the backup and deleted with the account",
+      "access": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId"
+      },
+      "schema": {
+        "fields": [
+          { "name": "minYear", "type": "map", "required": false },
+          { "name": "excludedGenres", "type": "list", "required": true },
+          { "name": "updatedAt", "type": "timestamp", "required": true }
+        ]
+      }
+    },
+    {
+      "collection": "profile",
       "path": "/users/{userId}/profile/calendar",
       "description": "Which token the account's subscribable calendar uses; null when turned off. Not in the backup: it is a capability link, not data",
       "access": {

@@ -74,7 +74,8 @@ service cloud.firestore {
 
       // "Contanos de vos" (`profile/taste`), las metas del año
       // (`profile/goals`), las plataformas que se pagan
-      // (`profile/subscriptions`), el token del calendario suscribible
+      // (`profile/subscriptions`), lo que no te interesa que te recomienden
+      // (`profile/restrictions`), el token del calendario suscribible
       // (`profile/calendar`) y los perfiles que se siguen
       // (`profile/following`): documentos de la cuenta. Mismo dueño y mismas
       // reglas que la biblioteca — son datos de la persona, no algo publicado.

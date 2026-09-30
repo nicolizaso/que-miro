@@ -7,6 +7,7 @@ import {
   exitDemoMode,
 } from './demo';
 import { emptyPicks } from './picks';
+import { emptyRestrictions } from './restrictions';
 import { useMediaStore } from '@/store';
 import { SavedMedia } from '@/types';
 
@@ -183,6 +184,32 @@ describe('modo demo', () => {
 
     exitDemoMode();
     expect(useMediaStore.getState().picks).toEqual(propio);
+  });
+
+  it('trae restricciones que no contradicen su cuestionario', () => {
+    enterDemoMode();
+
+    const { picks, restrictions } = useMediaStore.getState();
+    expect(restrictions.excludedGenres.length).toBeGreaterThan(0);
+    // Un género del demo no puede ser favorito y excluido a la vez, y el piso
+    // no puede dejar vacía la fila de su década.
+    expect(restrictions.excludedGenres.filter((genre) => picks.genres.includes(genre))).toEqual([]);
+    expect(picks.decade! + 9).toBeGreaterThanOrEqual(restrictions.minYear!.year);
+  });
+
+  it('devuelve las restricciones de invitado al salir', () => {
+    const propias = {
+      ...emptyRestrictions(),
+      excludedGenres: ['Western'],
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    useMediaStore.getState().setRestrictions(propias);
+
+    enterDemoMode();
+    expect(useMediaStore.getState().restrictions).not.toEqual(propias);
+
+    exitDemoMode();
+    expect(useMediaStore.getState().restrictions).toEqual(propias);
   });
 
   it('entiende un respaldo del formato viejo, sin cuestionario', () => {

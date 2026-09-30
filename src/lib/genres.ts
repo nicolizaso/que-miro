@@ -121,3 +121,16 @@ export function genreOptions(): string[] {
   );
   return Array.from(names).sort((a, b) => a.localeCompare(b, 'es'));
 }
+
+/**
+ * Los géneros que se pueden marcar como "no me interesa".
+ *
+ * Son todos, formatos incluidos: los que {@link genreOptions} deja afuera por
+ * no ser un gusto —reality, talk show, telenovela— son justo los que más gente
+ * quiere sacarse de encima.
+ */
+export function excludableGenreOptions(): string[] {
+  return Array.from(new Set(Object.values(GENRE_MAP))).sort((a, b) =>
+    a.localeCompare(b, 'es'),
+  );
+}
