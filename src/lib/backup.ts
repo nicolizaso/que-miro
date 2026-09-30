@@ -1,4 +1,4 @@
-import { Collection, Following, Goals, SavedMedia, Subscriptions, TastePicks } from '@/types';
+import { Collection, Following, Goals, SavedMedia, SocialSettings, Subscriptions, TastePicks } from '@/types';
 import {
   SCHEMA_VERSION,
   parseCollection,
@@ -9,6 +9,7 @@ import { hasPicks, parsePicks } from '@/lib/picks';
 import { hasGoals, parseGoals } from '@/lib/goals';
 import { hasSubscriptions, parseSubscriptions } from '@/lib/subscriptions';
 import { hasFollowing, parseFollowing } from '@/lib/following';
+import { hasSocialSettings, isValidHandle, parseSocialSettings } from '@/lib/social';
 import { progressPercent, watchedEpisodes } from '@/lib/progress';
 
 export { SCHEMA_VERSION };
@@ -32,6 +33,40 @@ export interface LibraryBackup {
   subscriptions?: Subscriptions;
   /** Los perfiles que se siguen, si había alguno. */
   following?: Following;
+  /** Qué se comparte, a quién se silenció: si se tocó algo. */
+  social?: SocialSettings;
+  /**
+   * A quiénes seguías con tu cuenta. Las relaciones son de dos personas y
+   * no se restauran tal cual: al importar se los vuelve a seguir (y a una
+   * cuenta privada se le vuelve a pedir).
+   */
+  followedAccounts?: FollowedAccount[];
+}
+
+/** Alguien que seguías, como va en el backup. */
+export interface FollowedAccount {
+  uid: string;
+  /** Para leerlo en el archivo; vacío si no se sabía. Se sigue por el uid. */
+  handle: string;
+}
+
+/** Lo social que va al backup, aparte de la biblioteca. */
+export interface SocialBackup {
+  settings?: SocialSettings;
+  followed?: FollowedAccount[];
+}
+
+function parseFollowedAccounts(value: unknown): FollowedAccount[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isRecord)
+    .map((item) => ({
+      uid: typeof item.uid === 'string' ? item.uid : '',
+      handle: typeof item.handle === 'string' ? item.handle : '',
+    }))
+    .filter((item) => item.uid.length > 0 && item.uid.length <= 128)
+    .map((item) => ({ ...item, handle: isValidHandle(item.handle) ? item.handle : '' }))
+    .slice(0, 500);
 }
 
 /** Error de importación con un mensaje pensado para mostrarle a la persona. */
@@ -49,6 +84,7 @@ export function buildBackup(
   goals?: Goals,
   subscriptions?: Subscriptions,
   following?: Following,
+  social: SocialBackup = {},
 ): LibraryBackup {
   return {
     app: 'que-miro',
@@ -66,6 +102,8 @@ export function buildBackup(
     ...(goals && hasGoals(goals) ? { goals } : {}),
     ...(subscriptions && hasSubscriptions(subscriptions) ? { subscriptions } : {}),
     ...(following && hasFollowing(following) ? { following } : {}),
+    ...(social.settings && hasSocialSettings(social.settings) ? { social: social.settings } : {}),
+    ...(social.followed?.length ? { followedAccounts: social.followed } : {}),
   };
 }
 
@@ -80,6 +118,10 @@ export interface ParsedBackup {
   subscriptions: Subscriptions | null;
   /** `null` si no traía perfiles seguidos. */
   following: Following | null;
+  /** `null` si no traía configuración social. */
+  social: SocialSettings | null;
+  /** A quiénes seguía la cuenta; vacío si no traía. */
+  followedAccounts: FollowedAccount[];
   /** Títulos descartados por estar incompletos o corruptos. */
   skipped: number;
 }
@@ -130,6 +172,7 @@ export function parseBackup(contents: string): ParsedBackup {
   const subscriptions =
     raw.subscriptions === undefined ? null : parseSubscriptions(raw.subscriptions);
   const following = raw.following === undefined ? null : parseFollowing(raw.following);
+  const social = raw.social === undefined ? null : parseSocialSettings(raw.social);
 
   return {
     media,
@@ -138,6 +181,8 @@ export function parseBackup(contents: string): ParsedBackup {
     goals: goals && hasGoals(goals) ? goals : null,
     subscriptions: subscriptions && hasSubscriptions(subscriptions) ? subscriptions : null,
     following: following && hasFollowing(following) ? following : null,
+    social: social && hasSocialSettings(social) ? social : null,
+    followedAccounts: parseFollowedAccounts(raw.followedAccounts),
     skipped,
   };
 }
@@ -192,6 +237,7 @@ const CSV_HEADERS = [
   'resena',
   'episodios_vistos',
   'progreso',
+  'agregado',
   'actualizado',
 ] as const;
 
@@ -227,6 +273,7 @@ export function toCsv(media: SavedMedia[]): string {
       csvCell(latest?.text),
       csvCell(isSeries ? watchedEpisodes(item) : ''),
       csvCell(isSeries ? `${progressPercent(item)}%` : ''),
+      csvCell(item.addedAt),
       csvCell(item.updatedAt),
     ].join(',');
   });

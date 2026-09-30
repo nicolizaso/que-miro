@@ -23,6 +23,18 @@ import { Reaction, ReactionId, isImagePath, isReactionId } from '@/lib/social';
  * por título, y todo lo que apagaste en Ajustes.
  */
 
+/**
+ * Cuánto se espera después del último cambio antes de republicar: quien
+ * termina algo suele puntuarlo y escribir la reseña enseguida.
+ */
+export const ACTIVITY_DEBOUNCE_MS = 30_000;
+/**
+ * El mínimo entre dos publicaciones. Más corto que el del perfil público: el
+ * feed es para enterarse de lo que pasa, y un "empezó *Shōgun*" que llega
+ * media hora tarde ya no es noticia.
+ */
+export const ACTIVITY_MIN_INTERVAL_MS = 2 * 60_000;
+
 /** Cuántos eventos se publican: alcanza para ponerse al día, no es un archivo. */
 export const MAX_EVENTS = 50;
 export const MAX_WATCHING = 10;
@@ -102,6 +114,13 @@ export type ReactionSummary = Record<string, Partial<Record<ReactionId, string[]
 
 export interface Activity {
   uid: string;
+  /**
+   * Quién es, repetido de su cuenta: así el feed lee un documento por
+   * persona y no dos. Se republica cuando cambia el nombre o el avatar.
+   */
+  handle: string;
+  displayName: string;
+  avatarPath: string | null;
   updatedAt: string;
   events: ActivityEvent[];
   watching: WatchingNow[];
@@ -304,6 +323,7 @@ export function summarizeReactions(reactions: Reaction[], eventIds: Set<string>)
 
 export interface BuildActivityInput {
   uid: string;
+  person: { handle: string; displayName: string; avatarPath: string | null };
   mediaList: SavedMedia[];
   collections: Collection[];
   goals: Goals;
@@ -315,6 +335,7 @@ export interface BuildActivityInput {
 /** Arma la instantánea con lo que se eligió compartir. */
 export function buildActivity({
   uid,
+  person,
   mediaList,
   collections,
   goals,
@@ -346,6 +367,9 @@ export function buildActivity({
 
   return {
     uid,
+    handle: person.handle,
+    displayName: person.displayName,
+    avatarPath: person.avatarPath,
     updatedAt: now.toISOString(),
     events,
     watching: sharing.watching ? watchingNow(visible, now) : [],
@@ -400,6 +424,9 @@ export function activityToDocument(activity: Activity): Record<string, unknown> 
   return JSON.parse(
     JSON.stringify({
       uid: activity.uid,
+      handle: activity.handle,
+      displayName: activity.displayName,
+      avatarPath: activity.avatarPath,
       updatedAt: activity.updatedAt,
       events: activity.events,
       watching: activity.watching,
@@ -508,8 +535,12 @@ export function parseActivity(value: unknown): Activity | null {
   const list = <T,>(raw: unknown, parse: (item: unknown) => T | null, max: number): T[] =>
     (Array.isArray(raw) ? raw : []).map(parse).filter((item): item is T => item !== null).slice(0, max);
 
+  const handle = text(value.handle, 24);
   return {
     uid,
+    handle,
+    displayName: text(value.displayName, 60).trim() || handle || 'Alguien',
+    avatarPath: isImagePath(value.avatarPath) ? value.avatarPath : null,
     updatedAt: iso(value.updatedAt) ?? new Date(0).toISOString(),
     events: list(value.events, parseEvent, MAX_EVENTS),
     watching: list(

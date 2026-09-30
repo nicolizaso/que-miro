@@ -29,7 +29,7 @@ function person(uid: string, name = uid): FeedPerson {
 }
 
 function activity(uid: string, events: ActivityEvent[], extra: Partial<Activity> = {}): Activity {
-  return { uid, updatedAt: '', events, watching: [], library: [], watchlist: [], lists: [], reactions: {}, ...extra };
+  return { uid, handle: uid, displayName: uid, avatarPath: null, updatedAt: '', events, watching: [], library: [], watchlist: [], lists: [], reactions: {}, ...extra };
 }
 
 const completed = (id: string, at: string, extra: Partial<ActivityEvent> = {}): ActivityEvent => ({

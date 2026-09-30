@@ -383,7 +383,7 @@ service cloud.firestore {
     match /activity/{uid} {
       function validActivity() {
         let data = request.resource.data;
-        return data.keys().hasOnly(['uid', 'updatedAt', 'events', 'watching', 'library', 'watchlist', 'lists', 'reactions'])
+        return data.keys().hasOnly(['uid', 'handle', 'displayName', 'avatarPath', 'updatedAt', 'events', 'watching', 'library', 'watchlist', 'lists', 'reactions'])
           && data.uid == uid
           && data.events is list && data.events.size() <= 60
           && data.watching is list && data.watching.size() <= 12

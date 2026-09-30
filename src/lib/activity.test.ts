@@ -33,6 +33,7 @@ function makeMedia(overrides: Partial<SavedMedia> = {}): SavedMedia {
 function build(mediaList: SavedMedia[], extra: Partial<Parameters<typeof buildActivity>[0]> = {}) {
   return buildActivity({
     uid: 'u-ana',
+    person: { handle: 'ana', displayName: 'Ana', avatarPath: null },
     mediaList,
     collections: [],
     goals: emptyGoals(),

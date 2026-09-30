@@ -21,6 +21,22 @@ import { useTastePicks } from '@/hooks/useTastePicks';
 import { useGoals } from '@/hooks/useGoals';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useFollowing } from '@/hooks/useFollowing';
+import { useSocialSettings } from '@/hooks/useSocialSettings';
+import { loadPerson, useSocial, useSocialStore } from '@/hooks/useSocial';
+import { useFollowActions } from '@/hooks/useFollowActions';
+import { useSocialCache } from '@/hooks/useSocialFeed';
+import { MyFollows } from '@/lib/social';
+
+/** A quiénes seguís, con el usuario si ya se sabe: para el backup. */
+function followedAccountsFor(follows: MyFollows) {
+  const { people } = useSocialStore.getState();
+  const { activities } = useSocialCache.getState();
+  return follows.outgoing.map(({ followed }) => {
+    const cached = activities[followed];
+    const handle = people[followed]?.handle ?? (cached && cached !== 'locked' ? cached.handle : '');
+    return { uid: followed, handle };
+  });
+}
 import { formatWatchDate } from '@/lib/dates';
 import { ImportDialog } from '@/components/ImportDialog';
 
@@ -38,6 +54,9 @@ export function DataSettings() {
   const { goals, replaceGoals } = useGoals();
   const { subscriptions, replaceSubscriptions } = useSubscriptions();
   const { following, replaceFollowing } = useFollowing();
+  const { settings: socialSettings, replaceSettings } = useSocialSettings();
+  const { follows, account: socialAccount } = useSocial();
+  const { follow } = useFollowActions();
   const { authState } = useAuth();
   const { showToast } = useToast();
   const { saveMany } = useMediaActions();
@@ -60,7 +79,10 @@ export function DataSettings() {
     downloadFile(
       backupFilename('json'),
       JSON.stringify(
-        buildBackup(mediaList, collections, picks, goals, subscriptions, following),
+        buildBackup(mediaList, collections, picks, goals, subscriptions, following, {
+          settings: socialSettings,
+          followed: followedAccountsFor(follows),
+        }),
         null,
         2,
       ),
@@ -84,6 +106,8 @@ export function DataSettings() {
       goals: null,
       subscriptions: null,
       following: null,
+      social: null,
+      followedAccounts: [],
       skipped: 0,
     });
     setDialog('import');
@@ -166,6 +190,20 @@ export function DataSettings() {
         Date.parse(incomingFollowing.updatedAt) > Date.parse(following.updatedAt)
       ) {
         replaceFollowing(incomingFollowing);
+      }
+      const incomingSocial = pendingImport.social;
+      if (incomingSocial && Date.parse(incomingSocial.updatedAt) > Date.parse(socialSettings.updatedAt)) {
+        replaceSettings(incomingSocial);
+      }
+      // A quienes seguías se los vuelve a seguir, si ya tenés usuario. Los que
+      // ya seguís, o que borraron su cuenta, se saltean.
+      if (socialAccount && pendingImport.followedAccounts.length) {
+        const current = new Set(follows.outgoing.map((f) => f.followed));
+        for (const { uid } of pendingImport.followedAccounts) {
+          if (current.has(uid) || uid === socialAccount.uid) continue;
+          const target = await loadPerson(uid);
+          if (target) follow(target);
+        }
       }
 
       showToast(

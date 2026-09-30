@@ -71,7 +71,7 @@ function account(uid: string, handle: string, isPrivate = false) {
 }
 
 function activity(uid: string) {
-  return { uid, updatedAt: NOW, events: [], watching: [], library: [], watchlist: [], lists: [], reactions: {} };
+  return { uid, handle: uid, displayName: uid, avatarPath: null, updatedAt: NOW, events: [], watching: [], library: [], watchlist: [], lists: [], reactions: {} };
 }
 
 /** Siembra sin reglas: cuentas, usuarios y actividad ya existentes. */
@@ -320,6 +320,31 @@ describe('recommendations', () => {
     });
     await assertSucceeds(getDocs(collection(as('ana'), 'users/ana/recommendations')));
     await assertFails(getDocs(collection(as('caro'), 'users/ana/recommendations')));
+  });
+});
+
+describe('borrar la cuenta', () => {
+  it('quien reaccionó encuentra y borra sus reacciones; quien recomendó, sus recomendaciones', async () => {
+    await seedAccount('ana', 'ana');
+    await seed(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'activity/ana/reactions/caro_e1'), {
+        reactor: 'caro', reactorName: 'Caro', reactorHandle: 'caro', eventId: 'e1', emoji: 'fire', at: NOW,
+      });
+      await setDoc(doc(db, 'users/ana/recommendations/caro_movie603'), {
+        from: 'caro', fromName: 'Caro', fromHandle: 'caro', tmdbId: 603, mediaType: 'movie', title: 'Matrix',
+        posterPath: null, releaseYear: '1999', note: '', at: NOW,
+      });
+    });
+    const db = as('caro');
+    const reactions = await assertSucceeds(
+      getDocs(query(collection(db, 'activity/ana/reactions'), where('reactor', '==', 'caro'))),
+    );
+    await assertSucceeds(deleteDoc(reactions.docs[0].ref));
+    const recs = await assertSucceeds(
+      getDocs(query(collection(db, 'users/ana/recommendations'), where('from', '==', 'caro'))),
+    );
+    await assertSucceeds(deleteDoc(recs.docs[0].ref));
   });
 });
 

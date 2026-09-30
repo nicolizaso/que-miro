@@ -243,3 +243,31 @@ describe('el Por Ver y las plataformas, a pedido', () => {
     expect(sameProfileContent(original, parsed)).toBe(true);
   });
 });
+
+describe('buildPublicProfile — títulos ocultos', () => {
+  it('lo que se ocultó de los seguidores tampoco se publica', async () => {
+    const { buildPublicProfile } = await import('./publicProfile');
+    const profile = buildPublicProfile({
+      slug: 'ana',
+      uid: 'u',
+      displayName: 'Ana',
+      mediaList: [
+        {
+          tmdbId: 1,
+          mediaType: 'movie',
+          title: 'Secreta',
+          posterPath: null,
+          backdropPath: null,
+          releaseYear: '',
+          genres: [],
+          status: 'completada',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          hiddenFromFollowers: true,
+          history: [{ id: 'h', rating: 5, text: 'Nadie tiene que saber', completedAt: '2026-01-01T00:00:00.000Z' }],
+        },
+      ],
+    });
+    expect(JSON.stringify(profile)).not.toContain('Secreta');
+    expect(profile.summary.titles).toBe(0);
+  });
+});

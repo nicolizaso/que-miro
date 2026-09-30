@@ -384,6 +384,9 @@
       "schema": {
         "fields": [
           { "name": "uid", "type": "string", "required": true },
+          { "name": "handle", "type": "string", "required": true },
+          { "name": "displayName", "type": "string", "required": true },
+          { "name": "avatarPath", "type": "string", "required": false },
           { "name": "updatedAt", "type": "timestamp", "required": true },
           { "name": "events", "type": "list", "required": true },
           { "name": "watching", "type": "list", "required": true },

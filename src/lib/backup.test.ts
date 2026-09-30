@@ -305,3 +305,48 @@ describe('los perfiles seguidos en el backup', () => {
     expect(parseBackup(JSON.stringify(backup)).following).toBeNull();
   });
 });
+
+describe('backup — lo social', () => {
+  it('lleva la configuración social si se tocó y a quién seguías, y vuelve igual', async () => {
+    const { buildBackup, parseBackup } = await import('./backup');
+    const { emptySocialSettings } = await import('./social');
+    const settings = { ...emptySocialSettings(), paused: true, updatedAt: '2026-09-01T00:00:00.000Z' };
+    const backup = buildBackup([], [], undefined, undefined, undefined, undefined, {
+      settings,
+      followed: [{ uid: 'u-ana', handle: 'ana' }],
+    });
+    const parsed = parseBackup(JSON.stringify(backup));
+    expect(parsed.social?.paused).toBe(true);
+    expect(parsed.followedAccounts).toEqual([{ uid: 'u-ana', handle: 'ana' }]);
+  });
+
+  it('lo de fábrica no va, y un backup de antes no trae nada', async () => {
+    const { buildBackup, parseBackup } = await import('./backup');
+    const { emptySocialSettings } = await import('./social');
+    const backup = buildBackup([], [], undefined, undefined, undefined, undefined, { settings: emptySocialSettings() });
+    expect(backup).not.toHaveProperty('social');
+    const parsed = parseBackup(JSON.stringify({ app: 'que-miro', version: 2, media: [] }));
+    expect(parsed.social).toBeNull();
+    expect(parsed.followedAccounts).toEqual([]);
+  });
+
+  it('el CSV suma cuándo se agregó cada título', async () => {
+    const { toCsv } = await import('./backup');
+    const csv = toCsv([
+      {
+        tmdbId: 1,
+        mediaType: 'movie',
+        title: 'Matrix',
+        posterPath: null,
+        backdropPath: null,
+        releaseYear: '1999',
+        genres: [],
+        status: 'por_ver',
+        updatedAt: '2026-09-02T00:00:00.000Z',
+        addedAt: '2026-09-01T00:00:00.000Z',
+      },
+    ]);
+    expect(csv.split('\n')[0]).toContain('agregado');
+    expect(csv).toContain('"2026-09-01T00:00:00.000Z"');
+  });
+});
