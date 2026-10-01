@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   CalendarDays,
   Compass,
-  Film,
   LayoutGrid,
   Search,
   Shuffle,
@@ -12,6 +11,7 @@ import {
 } from 'lucide-react';
 import { SearchModal } from '@/components/SearchModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Logo } from '@/components/ui/Logo';
 import { DemoBanner } from '@/components/DemoBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { SyncIssueBanner } from '@/components/SyncIssueBanner';
@@ -128,9 +128,7 @@ export function AppLayout() {
             caiga en la misma vertical que el título de la página. */}
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center gap-6">
           <div className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <Film size={20} className="text-accent-contrast" aria-hidden="true" />
-            </div>
+            <Logo className="w-8 h-8" />
             {/* Debajo de 400 px el nombre no entra con los íconos: queda el logo. */}
             <span className="font-serif italic font-bold text-xl tracking-tight hidden min-[400px]:inline">
               Qué Miro?

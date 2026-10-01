@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Film, Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Logo } from '@/components/ui/Logo';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { getAuthErrorMessage } from '@/lib/authErrors';
 
@@ -70,9 +71,7 @@ export function LoginView() {
       </div>
 
       <div className="w-full max-w-sm flex flex-col items-center">
-        <div className="w-16 h-16 rounded-surface bg-accent flex items-center justify-center mb-6">
-          <Film size={32} className="text-accent-contrast" aria-hidden="true" />
-        </div>
+        <Logo className="w-16 h-16 mb-6" />
 
         <h1 className="text-display mb-2 text-center">
           Qué Miro?
