@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_PICKER_FILTERS,
   PickerFilters,
+  POSTER_WALL_MIN,
   RECENT_MEMORY,
   candidates,
   pickRandom,
+  pickerFacets,
+  posterWall,
   rememberPick,
 } from './picker';
 import { SavedMedia } from '@/types';
@@ -160,5 +163,76 @@ describe('Lo que puedo ver ya, en el picker', () => {
 
     const ids = candidates(list, filters({ availableNow: true }), new Set(['disney plus']));
     expect(ids.map((m) => m.tmdbId)).toEqual([1]);
+  });
+});
+
+describe('pickerFacets', () => {
+  const list = [
+    makeMedia({ tmdbId: 1, mediaType: 'movie', genres: ['Drama'], runtime: 80, providers: ['Netflix'] }),
+    makeMedia({ tmdbId: 2, mediaType: 'movie', genres: ['Drama', 'Comedia'], runtime: 140 }),
+    makeMedia({ tmdbId: 3, mediaType: 'tv', genres: ['Comedia', 'Drama'], runtime: 30, providers: ['Max'] }),
+    makeMedia({ tmdbId: 4, mediaType: 'movie', genres: ['Terror'], status: 'completada' }),
+  ];
+
+  it('cuenta cuántos quedarían con cada opción, con el resto de los filtros puestos', () => {
+    const facets = pickerFacets(list, filters({ type: 'movie' }));
+
+    expect(facets.genre).toEqual([
+      { value: 'Drama', label: 'Drama', count: 2 },
+      { value: 'Comedia', label: 'Comedia', count: 1 },
+    ]);
+    // La fila del propio filtro se cuenta reemplazándolo, no sumándolo.
+    expect(facets.type).toEqual([
+      { value: 'movie', label: 'Películas', count: 2 },
+      { value: 'tv', label: 'Series', count: 1 },
+    ]);
+  });
+
+  it('ordena por frecuencia en toda la lista, y el orden no cambia al filtrar', () => {
+    const all = pickerFacets(list, filters()).genre.map((option) => option.value);
+    const filtered = pickerFacets(list, filters({ type: 'tv' })).genre.map((option) => option.value);
+
+    expect(all).toEqual(['Drama', 'Comedia']);
+    expect(filtered).toEqual(all);
+  });
+
+  it('no ofrece lo que no tiene sentido tocar', () => {
+    const onlyMovies = [makeMedia({ tmdbId: 1 }), makeMedia({ tmdbId: 2 })];
+    const facets = pickerFacets(onlyMovies, filters(), new Set(), [], false);
+
+    expect(facets.type.map((option) => option.value)).toEqual(['movie']);
+    expect(facets.duration.map((option) => option.value)).not.toContain('larga');
+    expect(facets.tag).toEqual([]);
+  });
+
+  it('las listas van en el orden de la persona y con su nombre', () => {
+    const inList = [makeMedia({ tmdbId: 1, collections: ['b'] })];
+    const facets = pickerFacets(inList, filters(), new Set(), [
+      { id: 'a', name: 'Domingo' },
+      { id: 'b', name: 'Clásicos' },
+    ]);
+
+    expect(facets.collection).toEqual([
+      { value: 'a', label: 'Domingo', count: 0 },
+      { value: 'b', label: 'Clásicos', count: 1 },
+    ]);
+  });
+});
+
+describe('posterWall', () => {
+  it('usa los pósters de Por Ver, sin repetir', () => {
+    const list = Array.from({ length: 8 }, (_, i) =>
+      makeMedia({ tmdbId: i, posterPath: `/p${i % 7}.jpg` }),
+    );
+
+    expect(posterWall(list)).toHaveLength(7);
+  });
+
+  it('no arma nada si no alcanzan para llenar el fondo', () => {
+    const list = Array.from({ length: POSTER_WALL_MIN - 1 }, (_, i) =>
+      makeMedia({ tmdbId: i, posterPath: `/p${i}.jpg` }),
+    );
+
+    expect(posterWall(list)).toEqual([]);
   });
 });

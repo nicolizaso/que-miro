@@ -109,3 +109,125 @@ export const RECENT_MEMORY = 5;
 export function rememberPick(recent: number[], tmdbId: number): number[] {
   return [tmdbId, ...recent.filter((id) => id !== tmdbId)].slice(0, RECENT_MEMORY);
 }
+
+/** Un valor posible de un filtro y cuántos candidatos quedarían con él. */
+export interface FacetOption<V extends string = string> {
+  value: V;
+  label: string;
+  count: number;
+}
+
+export interface PickerFacets {
+  type: FacetOption<MediaType>[];
+  duration: FacetOption<DurationBucket>[];
+  genre: FacetOption[];
+  provider: FacetOption[];
+  collection: FacetOption[];
+  tag: FacetOption[];
+}
+
+const TYPE_LABELS: Record<MediaType, string> = { movie: 'Películas', tv: 'Series' };
+
+/**
+ * Los valores de un campo, del más frecuente al menos.
+ *
+ * El orden sale de la lista entera y no de lo que queda filtrado: si se
+ * recalculara con cada filtro, las píldoras cambiarían de lugar justo cuando
+ * la persona está por tocar la siguiente.
+ */
+function byFrequency(
+  list: SavedMedia[],
+  pick: (media: SavedMedia) => string[] | undefined,
+): string[] {
+  const counts = new Map<string, number>();
+  for (const media of list) {
+    // Un `Set` por título: una etiqueta repetida en dos reseñas no lo cuenta dos veces.
+    for (const value of new Set(pick(media) ?? [])) {
+      counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.keys()).sort(
+    (a, b) => counts.get(b)! - counts.get(a)! || a.localeCompare(b, 'es'),
+  );
+}
+
+/**
+ * Las opciones de cada fila de filtros, con cuántos candidatos deja cada una.
+ *
+ * Cada cuenta se hace con los otros filtros puestos y el de su fila
+ * reemplazado: es la respuesta a "si toco esta, ¿cuántos me quedan?", que es
+ * lo que hace falta para apagar las que dejarían el sorteo en cero.
+ */
+export function pickerFacets(
+  list: SavedMedia[],
+  filters: PickerFilters,
+  subscribed: Set<string> = new Set(),
+  /** Las listas propias para ofrecer, en el orden de la persona. */
+  collections: { id: string; name: string }[] = [],
+  /** Sin la biblioteca propia (de a dos), el ánimo de las reseñas no se ofrece. */
+  includeTags = true,
+): PickerFacets {
+  const pending = list.filter((media) => media.status === 'por_ver');
+  const facet = <V extends string>(
+    key: keyof PickerFacets,
+    values: { value: V; label: string }[],
+  ): FacetOption<V>[] =>
+    values.map(({ value, label }) => ({
+      value,
+      label,
+      count: candidates(pending, { ...filters, [key]: value }, subscribed).length,
+    }));
+
+  const plain = (values: string[]) => values.map((value) => ({ value, label: value }));
+
+  return {
+    // Solo los tipos que hay: con todo películas, "Series" sería una píldora
+    // que siempre da cero.
+    type: facet(
+      'type',
+      (['movie', 'tv'] as const)
+        .filter((type) => pending.some((media) => media.mediaType === type))
+        .map((type) => ({ value: type, label: TYPE_LABELS[type] })),
+    ),
+    // "Sin límite" es lo mismo que no filtrar, así que no se ofrece aparte.
+    duration: facet(
+      'duration',
+      DURATION_BUCKETS.filter((bucket) => Number.isFinite(bucket.max)),
+    ),
+    genre: facet('genre', plain(byFrequency(pending, (media) => media.genres))),
+    provider: facet('provider', plain(byFrequency(pending, (media) => media.providers))),
+    collection: facet(
+      'collection',
+      collections.map(({ id, name }) => ({ value: id, label: name })),
+    ),
+    tag: includeTags
+      ? facet(
+          'tag',
+          plain(
+            byFrequency(pending, (media) =>
+              media.history?.flatMap((entry) => entry.tags ?? []),
+            ),
+          ),
+        )
+      : [],
+  };
+}
+
+/** Con menos pósters que esto, el fondo de la pantalla se ve como un hueco. */
+export const POSTER_WALL_MIN = 6;
+/** Los que entran en el fondo sin repetirse. */
+export const POSTER_WALL_MAX = 18;
+
+/**
+ * Los pósters para el fondo del picker: los de la propia lista *Por Ver*.
+ *
+ * Vacío si no alcanzan para llenarlo: un fondo de dos pósters sueltos se lee
+ * como un error de carga, y mejor no mostrar nada.
+ */
+export function posterWall(list: SavedMedia[]): string[] {
+  const posters = list
+    .filter((media) => media.status === 'por_ver' && media.posterPath)
+    .map((media) => media.posterPath!);
+  const unique = Array.from(new Set(posters)).slice(0, POSTER_WALL_MAX);
+  return unique.length >= POSTER_WALL_MIN ? unique : [];
+}

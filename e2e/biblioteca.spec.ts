@@ -161,10 +161,13 @@ test('el picker filtra los candidatos y sortea uno', async ({ page }) => {
   await expect(counter).toBeVisible();
   const before = await counter.textContent();
 
-  await page.getByLabel('Filtrar por tipo').selectOption('tv');
+  const types = page.getByRole('group', { name: 'Filtrar por tipo' });
+  await types.getByRole('button', { name: /^Series/ }).click();
+  await expect(types.getByRole('button', { name: /^Series/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(counter).not.toHaveText(before!);
 
-  await page.getByLabel('Filtrar por tipo').selectOption('');
+  await types.getByRole('button', { name: 'Todo' }).click();
+  await expect(counter).toHaveText(before!);
   await page.getByRole('button', { name: /Elegir/ }).click();
 
   await expect(page.locator('article')).toHaveCount(1, { timeout: 10_000 });

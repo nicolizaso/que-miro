@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Film, HeartHandshake, Shuffle, Swords, Tv, UserX } from 'lucide-react';
+import { Film, HeartHandshake, Tv, UserX } from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { usePublicProfileBySlug } from '@/hooks/usePublicProfile';
 import { useSocial } from '@/hooks/useSocial';
@@ -8,19 +8,13 @@ import { usePerson } from '@/hooks/usePerson';
 import { seenFromLibrary } from '@/lib/affinity';
 import { PickerRoulette } from '@/components/PickerRoulette';
 import { DuelMode } from '@/components/DuelMode';
+import { ModeSwitch, PickerMode } from '@/components/picker/ModeSwitch';
 import { TitleDetailModal } from '@/components/TitleDetailModal';
 import { TogetherCandidate, crossWatchlists, sharedPlatforms, sourceLabel } from '@/lib/together';
 import { subscribedNames } from '@/lib/subscriptions';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
-import { cn } from '@/lib/utils';
 import { SavedMedia } from '@/types';
 
-type Mode = 'azar' | 'duelo';
-
-const MODES: { value: Mode; label: string; Icon: typeof Shuffle }[] = [
-  { value: 'azar', label: 'Al azar', Icon: Shuffle },
-  { value: 'duelo', label: 'Duelo', Icon: Swords },
-];
 
 /** El resultado del sorteo: póster, de quién era y la ficha a un toque. */
 function TogetherResult({
@@ -109,7 +103,7 @@ export function TogetherView() {
     isLoadingProfile || (social.mode !== 'off' && person.account === undefined && !person.error);
   const mediaList = useMediaStore((state) => state.mediaList);
   const subscriptions = useMediaStore((state) => state.subscriptions);
-  const [mode, setMode] = useState<Mode>('azar');
+  const [mode, setMode] = useState<PickerMode>('azar');
   const [open, setOpen] = useState<SavedMedia | null>(null);
 
   const cross = useMemo(
@@ -180,26 +174,8 @@ export function TogetherView() {
 
       {cross.length > 0 && (
         <>
-          <div
-            role="tablist"
-            aria-label="Cómo elegir"
-            className="flex bg-bg-card p-1 rounded-control border border-border-card mb-8"
-          >
-            {MODES.map(({ value, label, Icon }) => (
-              <button
-                key={value}
-                role="tab"
-                aria-selected={mode === value}
-                onClick={() => setMode(value)}
-                className={cn(
-                  'flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors',
-                  mode === value ? 'bg-border-card text-text-main' : 'text-text-muted hover:text-text-main',
-                )}
-              >
-                <Icon size={16} aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+          <div className="mb-8">
+            <ModeSwitch value={mode} onChange={setMode} label="Cómo elegir" />
           </div>
 
           {mode === 'azar' ? (

@@ -108,7 +108,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   solos como eventos de todo el día, y se actualizan cuando abrís la app. Si
   la compartiste de más, se genera una nueva y la anterior deja de andar.
 - **Smart Picker** — elige al azar de tu lista *Por Ver*, filtrando por duración,
-  tipo, género, plataforma, lista o ánimo.
+  tipo, género, plataforma, lista o ánimo. Los filtros son píldoras que se
+  deslizan y dicen cuántos títulos deja cada una (las que vaciarían el sorteo
+  se apagan), con tus propios pósters de fondo.
 - **Modo duelo** — comparaciones de a dos que arman un ranking de tu lista, con
   puntaje tipo Elo.
 - **¿Qué miramos juntos?** — desde el perfil público de alguien que comparte

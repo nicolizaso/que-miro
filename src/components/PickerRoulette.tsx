@@ -7,19 +7,20 @@ import { MediaCard } from '@/components/MediaCard';
 import { ShareButton } from '@/components/ShareButton';
 import { JustWatchCredit } from '@/components/Attribution';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
-import { collectGenres, collectProviders, collectTags } from '@/lib/library';
+import { cn } from '@/lib/utils';
+import { FilterRail } from '@/components/picker/FilterRail';
 import {
-  DURATION_BUCKETS,
-  DurationBucket,
   EMPTY_PICKER_FILTERS,
   PickerFilters,
   candidates,
   pickRandom,
+  pickerFacets,
   rememberPick,
 } from '@/lib/picker';
-import { MediaType } from '@/types';
-import { cn } from '@/lib/utils';
 import { hasSubscriptions, subscribedNames } from '@/lib/subscriptions';
+
+/** Fijo y no un `[]` en línea: uno nuevo por render rompería el `useMemo`. */
+const NO_COLLECTIONS: { id: string; name: string }[] = [];
 
 /** Cuánto dura la vuelta de la ruleta. */
 const SPIN_MS = 1400;
@@ -52,7 +53,7 @@ export function PickerRoulette({
   };
 }) {
   const ownCollections = useMediaStore((state) => state.collections);
-  const collections = together ? [] : ownCollections;
+  const collections = together ? NO_COLLECTIONS : ownCollections;
   const reduceMotion = useReducedMotion();
 
   const [filters, setFilters] = useState<PickerFilters>(EMPTY_PICKER_FILTERS);
@@ -62,9 +63,6 @@ export function PickerRoulette({
   const [recent, setRecent] = useState<number[]>([]);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const genres = useMemo(() => collectGenres(pending), [pending]);
-  const providers = useMemo(() => collectProviders(pending), [pending]);
-  const tags = useMemo(() => (together ? [] : collectTags(pending)), [pending, together]);
   const subscriptions = useMediaStore((state) => state.subscriptions);
   const subscribed = useMemo(
     () => together?.shared ?? subscribedNames(subscriptions),
@@ -74,6 +72,10 @@ export function PickerRoulette({
   const pool = useMemo(
     () => candidates(pending, filters, subscribed),
     [pending, filters, subscribed],
+  );
+  const facets = useMemo(
+    () => pickerFacets(pending, filters, subscribed, collections, !together),
+    [pending, filters, subscribed, collections, together],
   );
 
   useEffect(
@@ -109,6 +111,13 @@ export function PickerRoulette({
     timers.current.push(stop as unknown as ReturnType<typeof setTimeout>);
   };
 
+  // Cambiar un filtro descarta el resultado anterior: quedaría a la vista un
+  // título que quizás ya no entra en lo que se pidió.
+  const setFilter = <K extends keyof PickerFilters>(key: K, value: PickerFilters[K]) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+    setPicked(null);
+  };
+
   const clearFilters = () => {
     setFilters(EMPTY_PICKER_FILTERS);
     setPicked(null);
@@ -121,155 +130,83 @@ export function PickerRoulette({
   const spinning = pool[frame % Math.max(pool.length, 1)];
 
   return (
-    <div className="w-full flex flex-col items-center gap-8">
+    <div className="w-full flex flex-col items-center gap-10">
       <div className="w-full flex flex-col gap-3">
-        <div className="flex flex-wrap justify-center gap-2">
-          <select
-            value={filters.type ?? ''}
-            onChange={(e) =>
-              setFilters((f) => ({
-                ...f,
-                type: (e.target.value || null) as MediaType | null,
-              }))
-            }
-            aria-label="Filtrar por tipo"
-            className="select-control"
-          >
-            <option value="">Película o serie</option>
-            <option value="movie">Solo películas</option>
-            <option value="tv">Solo series</option>
-          </select>
-
-          <select
-            value={filters.duration ?? ''}
-            onChange={(e) =>
-              setFilters((f) => ({
-                ...f,
-                duration: (e.target.value || null) as DurationBucket | null,
-              }))
-            }
-            aria-label="Filtrar por duración"
-            className="select-control"
-          >
-            <option value="">Cualquier duración</option>
-            {DURATION_BUCKETS.map(({ value, label }) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-
-          {genres.length > 1 && (
-            <select
-              value={filters.genre ?? ''}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, genre: e.target.value || null }))
-              }
-              aria-label="Filtrar por género"
-              className="select-control"
-            >
-              <option value="">Cualquier género</option>
-              {genres.map((genre) => (
-                <option key={genre} value={genre}>
-                  {genre}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {providers.length > 1 && (
-            <select
-              value={filters.provider ?? ''}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, provider: e.target.value || null }))
-              }
-              aria-label="Filtrar por plataforma"
-              className="select-control"
-            >
-              <option value="">Cualquier plataforma</option>
-              {providers.map((provider) => (
-                <option key={provider} value={provider}>
-                  {provider}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {collections.length > 0 && (
-            <select
-              value={filters.collection ?? ''}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, collection: e.target.value || null }))
-              }
-              aria-label="Filtrar por lista"
-              className="select-control"
-            >
-              <option value="">Cualquier lista</option>
-              {collections.map((collection) => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {tags.length > 1 && (
-            <select
-              value={filters.tag ?? ''}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, tag: e.target.value || null }))
-              }
-              aria-label="Filtrar por ánimo"
-              className="select-control"
-            >
-              <option value="">Cualquier ánimo</option>
-              {tags.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        {facets.type.length > 1 && (
+          <FilterRail
+            label="Tipo"
+            name="Filtrar por tipo"
+            allLabel="Todo"
+            options={facets.type}
+            value={filters.type}
+            onChange={(type) => setFilter('type', type)}
+          />
+        )}
+        <FilterRail
+          label="Duración"
+          name="Filtrar por duración"
+          allLabel="Cualquiera"
+          options={facets.duration}
+          value={filters.duration}
+          onChange={(duration) => setFilter('duration', duration)}
+        />
+        {facets.genre.length > 1 && (
+          <FilterRail
+            label="Género"
+            name="Filtrar por género"
+            allLabel="Todos"
+            options={facets.genre}
+            value={filters.genre}
+            onChange={(genre) => setFilter('genre', genre)}
+          />
+        )}
+        {facets.provider.length > 1 && (
+          <FilterRail
+            label="Plataforma"
+            name="Filtrar por plataforma"
+            allLabel="Todas"
+            options={facets.provider}
+            value={filters.provider}
+            onChange={(provider) => setFilter('provider', provider)}
+          />
+        )}
+        {facets.collection.length > 0 && (
+          <FilterRail
+            label="Lista"
+            name="Filtrar por lista"
+            allLabel="Todas"
+            options={facets.collection}
+            value={filters.collection}
+            onChange={(collection) => setFilter('collection', collection)}
+          />
+        )}
+        {facets.tag.length > 1 && (
+          <FilterRail
+            label="Ánimo"
+            name="Filtrar por ánimo"
+            allLabel="Cualquiera"
+            options={facets.tag}
+            value={filters.tag}
+            onChange={(tag) => setFilter('tag', tag)}
+          />
+        )}
 
         {/* Solo con suscripciones marcadas: sin ellas, "lo que puedo ver
             ya" no tiene contra qué compararse. De a dos, con las que pagan
             los dos. */}
         {canFilterAvailable && (
-          <div className="flex justify-center">
+          <div className="flex justify-center pt-2">
             <button
               type="button"
               aria-pressed={filters.availableNow}
-              onClick={() => setFilters((f) => ({ ...f, availableNow: !f.availableNow }))}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm transition-colors',
-                filters.availableNow
-                  ? 'bg-accent text-accent-contrast border-accent font-medium'
-                  : 'border-border-control text-text-muted hover:text-text-main hover:border-accent',
-              )}
+              onClick={() => setFilter('availableNow', !filters.availableNow)}
+              className="pill"
             >
-              <Zap size={16} aria-hidden="true" />
+              <Zap size={15} aria-hidden="true" />
               {together ? 'En plataformas de los dos' : 'Lo que puedo ver ya'}
             </button>
           </div>
         )}
-
-        <div className="flex items-center justify-center gap-3 text-sm">
-          <p aria-live="polite" className="text-text-muted">
-            {pool.length === 0
-              ? 'Ningún título entra en esos filtros.'
-              : `${pool.length} ${pool.length === 1 ? 'candidato' : 'candidatos'}`}
-          </p>
-          {isFiltered && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1 text-text-muted hover:text-text-main transition-colors"
-            >
-              <X size={14} aria-hidden="true" />
-              Limpiar
-            </button>
-          )}
-        </div>
 
         {/* Sortear por plataforma es usar los datos de JustWatch. */}
         {(filters.provider || filters.availableNow) && (
@@ -277,83 +214,144 @@ export function PickerRoulette({
         )}
       </div>
 
+      <div className="flex flex-col items-center gap-2">
+        {/* Un solo nodo con el número y la palabra, para que el lector de
+            pantalla lo anuncie entero cuando cambia. */}
+        <p aria-live="polite" className="flex flex-col items-center gap-1 text-center">
+          {pool.length === 0 ? (
+            <span className="text-text-muted">Ningún título entra en esos filtros.</span>
+          ) : (
+            <>
+              <span className="font-serif italic text-5xl tabular-nums text-text-main">
+                {pool.length}
+              </span>{' '}
+              <span className="text-eyebrow">
+                {pool.length === 1 ? 'candidato' : 'candidatos'} en juego
+              </span>
+            </>
+          )}
+        </p>
+        {isFiltered && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="btn btn-ghost px-3 py-1.5 text-sm"
+          >
+            <X size={14} aria-hidden="true" />
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+
       {isSpinning ? (
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-40 h-60 rounded-surface overflow-hidden border-2 border-accent bg-bg-card">
-            {spinning?.posterPath ? (
-              <motion.img
-                key={spinning.tmdbId}
-                initial={{ opacity: 0.4, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.09 }}
-                src={`${TMDB_IMAGE_BASE_URL}${spinning.posterPath}`}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center p-3 text-center text-sm text-text-muted">
-                {spinning?.title}
-              </div>
-            )}
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative w-44 aspect-[2/3]">
+            <div
+              aria-hidden="true"
+              className="absolute -inset-8 rounded-full bg-accent/20 blur-3xl -z-10"
+            />
+            <div className="w-full h-full rounded-surface overflow-hidden ring-1 ring-accent/60 bg-bg-card shadow-pop">
+              {spinning?.posterPath ? (
+                <motion.img
+                  key={spinning.tmdbId}
+                  initial={{ opacity: 0.4, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.09 }}
+                  src={`${TMDB_IMAGE_BASE_URL}${spinning.posterPath}`}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center p-3 text-center font-serif italic text-lg text-text-muted">
+                  {spinning?.title}
+                </div>
+              )}
+            </div>
           </div>
-          <p aria-live="polite" className="text-sm text-text-muted">
-            Eligiendo...
+          <p aria-live="polite" className="text-eyebrow">
+            Eligiendo…
           </p>
         </div>
       ) : !picked ? (
-        <button
-          onClick={handlePick}
-          disabled={pool.length === 0}
-          className={cn(
-            'group relative w-48 h-48 rounded-full bg-bg-card border-2 border-accent flex items-center justify-center transition-colors',
-            pool.length === 0
-              ? 'opacity-40 cursor-not-allowed'
-              : 'hover:bg-accent/10',
-          )}
-        >
-          <span className="flex flex-col items-center gap-2">
-            <Shuffle
-              className="text-accent group-hover:scale-110 transition-transform"
-              size={40}
+        // El halo va afuera del botón: adentro, aunque vaya con `-z-10`, se
+        // pinta encima del fondo del propio botón y lo tiñe de rojo.
+        <div className="relative isolate">
+          <span
+            aria-hidden="true"
+            className={cn(
+              'absolute -inset-6 rounded-full bg-accent/15 blur-2xl -z-10 motion-safe:animate-breathe',
+              pool.length === 0 && 'hidden',
+            )}
+          />
+          <button
+            type="button"
+            onClick={handlePick}
+            disabled={pool.length === 0}
+            className="group relative w-52 h-52 sm:w-56 sm:h-56 rounded-full bg-bg-card shadow-pop flex items-center justify-center transition-transform duration-300 hover-device:hover:scale-[1.03] active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none"
+          >
+            {/* El aro fijo, el que gira y un filete interior: tres capas
+                finas en vez de un borde grueso, que es lo que separa un botón
+                de una joya. */}
+            <span aria-hidden="true" className="absolute inset-0 rounded-full border border-accent/25" />
+            <span
               aria-hidden="true"
+              className="absolute inset-0 rounded-full ring-sweep motion-safe:animate-[spin_9s_linear_infinite]"
             />
-            <span className="font-bold text-accent font-serif italic text-xl">
-              Elegir
+            <span aria-hidden="true" className="absolute inset-3 rounded-full border border-border-card" />
+            <span className="flex flex-col items-center gap-2">
+              <Shuffle
+                className="text-accent transition-transform duration-300 group-hover:rotate-12"
+                size={34}
+                strokeWidth={1.5}
+                aria-hidden="true"
+              />
+              <span className="font-serif italic font-bold text-accent text-3xl">Elegir</span>
             </span>
-          </span>
-        </button>
+          </button>
+        </div>
       ) : (
-        <div className="flex flex-col items-center w-full max-w-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="flex flex-col items-center w-full max-w-sm"
+        >
           <p aria-live="polite" className="sr-only">
             {together ? `Les tocó ${picked.title}` : `Te tocó ${picked.title}`}
           </p>
-          <div className="w-full mb-4">
+          <p aria-hidden="true" className="text-eyebrow mb-4">
+            {together ? 'Esta noche miran' : 'Esta noche te toca'}
+          </p>
+          <div className="w-full mb-5">
             {together ? together.renderResult(picked) : <MediaCard media={picked} />}
           </div>
-          <ShareButton
-            className="mb-4"
-            label="Compartir"
-            title="Qué Miro?"
-            text={
-              together
-                ? `Esta noche vemos ${picked.title} con ${together.name}.`
-                : `Esta noche me toca ${picked.title}.`
-            }
-            card={{
-              eyebrow: together ? 'Esta noche vemos' : 'Me tocó',
-              headline: picked.title,
-              subline: [together ? `Con ${together.name}` : null, picked.releaseYear, picked.genres[0]]
-                .filter(Boolean)
-                .join(' · '),
-            }}
-          />
-          <button
-            onClick={handlePick}
-            className="text-sm text-text-muted hover:text-text-main underline underline-offset-4"
-          >
-            Probar otra vez
-          </button>
-        </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <ShareButton
+              label="Compartir"
+              title="Qué Miro?"
+              text={
+                together
+                  ? `Esta noche vemos ${picked.title} con ${together.name}.`
+                  : `Esta noche me toca ${picked.title}.`
+              }
+              card={{
+                eyebrow: together ? 'Esta noche vemos' : 'Me tocó',
+                headline: picked.title,
+                subline: [together ? `Con ${together.name}` : null, picked.releaseYear, picked.genres[0]]
+                  .filter(Boolean)
+                  .join(' · '),
+              }}
+            />
+            <button
+              type="button"
+              onClick={handlePick}
+              className="btn btn-ghost px-4 py-2.5 text-sm"
+            >
+              <Shuffle size={16} aria-hidden="true" />
+              Probar otra vez
+            </button>
+          </div>
+        </motion.div>
       )}
     </div>
   );

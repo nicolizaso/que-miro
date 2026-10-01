@@ -69,6 +69,37 @@
 }
 
 /*
+ * Animaciones lentas del picker. Las dos son ambiente, no información: el
+ * bloque de `prefers-reduced-motion` de más abajo las corta, y además se usan
+ * detrás de `motion-safe:`.
+ */
+@theme {
+  --animate-drift: qm-drift 48s ease-in-out infinite alternate;
+  --animate-breathe: qm-breathe 4.5s ease-in-out infinite;
+
+  @keyframes qm-drift {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-4%, -8%, 0);
+    }
+  }
+
+  @keyframes qm-breathe {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(0.96);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.04);
+    }
+  }
+}
+
+/*
  * En un dispositivo con mouse el hover existe; en uno táctil, no.
  * Esta variante es la que deja esconder un control hasta que el cursor pasa por
  * encima sin que en el celular quede escondido para siempre.
@@ -103,6 +134,10 @@
   /* La barra de scroll, del mismo gris cálido que los bordes. */
   --qm-scroll-thumb: rgb(120 112 100 / 0.38);
   --qm-scroll-thumb-hover: rgb(120 112 100 / 0.62);
+
+  /* El fondo de pósters del picker. Sobre crema un póster pesa mucho más que
+     sobre negro, así que en claro va más apagado. */
+  --qm-wall-opacity: 0.16;
 }
 
 /* Tema oscuro: explícito y también cuando el sistema lo pide y no hay una
@@ -137,6 +172,8 @@
 
   --qm-scroll-thumb: rgb(160 172 186 / 0.22);
   --qm-scroll-thumb-hover: rgb(160 172 186 / 0.42);
+
+  --qm-wall-opacity: 0.24;
 }
 
 /* El selector de arriba con `:not([data-theme='light'])` aplica siempre que no
@@ -150,7 +187,7 @@
     --qm-bg-main: #faf8f5;
     --qm-bg-card: #ffffff;
     --qm-border-card: #e5e0d8;
-  --qm-border-control: #938f8a;
+    --qm-border-control: #938f8a;
     --qm-accent: #c1121f;
     --qm-accent-contrast: #ffffff;
     --qm-text-main: #17161a;
@@ -167,6 +204,8 @@
 
     --qm-scroll-thumb: rgb(120 112 100 / 0.38);
     --qm-scroll-thumb-hover: rgb(120 112 100 / 0.62);
+
+    --qm-wall-opacity: 0.16;
   }
 }
 
@@ -312,6 +351,16 @@
   padding-bottom: 0.06em;
 }
 
+/**
+ * El título de una vista que es una sola acción, como el picker: el mismo
+ * display, un escalón más grande, porque ahí la tipografía es casi todo lo
+ * que hay en pantalla.
+ */
+@utility text-hero {
+  @apply font-serif italic font-bold tracking-tight text-[2.75rem] leading-[1.05] sm:text-6xl;
+  padding-bottom: 0.06em;
+}
+
 /** Encabezado de sección: sans, para que la jerarquía se lea de un vistazo. */
 @utility text-section {
   @apply font-semibold text-lg tracking-tight;
@@ -405,4 +454,53 @@
  */
 @utility btn-icon {
   @apply inline-flex items-center justify-center shrink-0 rounded-control transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:scale-[0.94] disabled:opacity-50 disabled:pointer-events-none;
+}
+
+/**
+ * Píldora de filtro.
+ *
+ * Elegida va invertida —el color del texto de fondo—, no en rojo: el acento
+ * queda para la única acción de la pantalla, y blanco sobre negro (o al revés
+ * en claro) es el contraste más alto que hay. El borde es decorativo: lo que
+ * dice que es un control es el texto.
+ */
+@utility pill {
+  @apply inline-flex items-center gap-1.5 shrink-0 h-10 px-4 rounded-full border border-border-card text-sm text-text-muted whitespace-nowrap transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.97] hover:border-border-control hover:text-text-main disabled:opacity-35 disabled:pointer-events-none aria-pressed:bg-text-main aria-pressed:border-text-main aria-pressed:text-bg-main aria-pressed:font-medium;
+}
+
+/** Los pósters del fondo del picker (ver `PosterWall`). */
+@utility poster-wall {
+  opacity: var(--qm-wall-opacity);
+}
+
+/**
+ * Lo que vuelve legible el texto encima de los pósters: un velo del color del
+ * fondo detrás del título y un fundido abajo para que la pared no termine en
+ * un corte. Sin esto, un póster claro dejaba el subtítulo por debajo de AA.
+ */
+@utility poster-wall-scrim {
+  background:
+    radial-gradient(
+      ellipse 70% 60% at 50% 45%,
+      color-mix(in srgb, var(--qm-bg-main) 65%, transparent),
+      transparent 85%
+    ),
+    linear-gradient(to bottom, transparent 35%, var(--qm-bg-main) 95%);
+}
+
+/**
+ * El aro que gira alrededor del botón de sortear: un degradado cónico del
+ * acento recortado a un anillo de 2px.
+ */
+@utility ring-sweep {
+  background: conic-gradient(
+    from 0deg,
+    var(--qm-accent),
+    transparent 28%,
+    transparent 50%,
+    var(--qm-accent) 78%,
+    var(--qm-accent)
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
 }
