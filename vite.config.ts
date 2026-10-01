@@ -5,6 +5,7 @@ import path from 'path';
 // sección `test` de abajo.
 import { defineConfig } from 'vitest/config';
 import { VitePWA } from 'vite-plugin-pwa';
+import { manifestIcons } from './src/lib/brand';
 
 export default defineConfig({
   plugins: [
@@ -21,18 +22,9 @@ export default defineConfig({
         background_color: '#0B0D0E',
         display: 'standalone',
         orientation: 'portrait',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-        ],
+        // Salen de src/lib/brand.ts, igual que los PNG: `scripts/generate-icons.ts`
+        // los regenera si cambia el logo.
+        icons: manifestIcons(),
       },
       // El service worker se escribe a mano (src/sw.ts) desde que la app
       // manda avisos: el generado no sabe atender `push` ni abrir la ficha al

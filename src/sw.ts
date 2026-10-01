@@ -79,7 +79,9 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(push.title || 'Qué Miro?', {
       body: push.body || 'Salió un episodio de una serie que seguís.',
       icon: '/pwa-192x192.png',
-      badge: '/pwa-192x192.png',
+      // Android pinta el badge en la barra de estado usando solo su silueta:
+      // con el ícono entero saldría un cuadrado lleno.
+      badge: '/pwa-badge-96x96.png',
       // Una por serie: si llegan dos avisos de la misma, el segundo reemplaza
       // al primero en vez de apilarse.
       tag: push.tag,

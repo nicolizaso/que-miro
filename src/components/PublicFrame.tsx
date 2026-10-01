@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Film, LucideIcon } from 'lucide-react';
+import { LucideIcon } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -20,9 +21,7 @@ export function PublicFrame({ children }: { children: React.ReactNode }) {
         {/* Mismo ancho que el contenido: el logo cae en la vertical del título. */}
         <div className="w-full max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <Film size={20} className="text-accent-contrast" aria-hidden="true" />
-            </span>
+            <Logo className="w-8 h-8" />
             <span className="font-serif italic font-bold text-xl">Qué Miro?</span>
           </Link>
           <div className="flex items-center gap-2">

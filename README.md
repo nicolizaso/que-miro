@@ -185,6 +185,9 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
 - **Accesible** — navegable por teclado, con foco atrapado en los modales y
   respeto por `prefers-reduced-motion`.
 - **PWA** — instalable en el celular, con los pósters cacheados para uso offline.
+  Se instala con su propio ícono —un signo de pregunta con un "play" como
+  punto—, que Android adapta a la forma de cada launcher y que también es el
+  favicon y la silueta de los avisos.
 
 <div align="center">
   <img src="docs/screenshots/login.png" alt="Pantalla de inicio de sesión" width="440" />
@@ -344,6 +347,7 @@ api/                  Funciones serverless (Vercel)
   cal/[token].ts      GET /cal/{token}.ics: el calendario suscribible
   _lib/ics.ts         El generador .ics (RFC 5545): escape, plegado, UID estable
 e2e/                  Tests de punta a punta (Playwright)
+scripts/generate-icons.ts  Regenera favicon, íconos e imagen para redes desde lib/brand.ts
 tests/rules/          Las reglas de Firestore contra el emulador
 src/
   components/         MediaCard, SearchModal, TitleDetailModal, ReviewDrawer, SyncManager
@@ -370,6 +374,7 @@ src/
   lib/importers/      Un parser por app (IMDb, Letterboxd, Trakt), el match con
                       TMDB y la mezcla con la biblioteca
   lib/person.ts       La filmografía de una persona cruzada con tu biblioteca
+  lib/brand.ts        El logo: su dibujo y la lista de íconos que se generan
   components/charts/  Piezas del panel de estadísticas
   views/              ListView, ExploreView, SmartPickerView, CalendarView, ProfileView,
                       TasteProfileView, PersonView, SocialView, UserProfileView,
