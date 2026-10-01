@@ -284,6 +284,17 @@ describe('las suscripciones en el backup', () => {
 
     expect(parseBackup(JSON.stringify(backup)).subscriptions).toEqual(subscriptions);
   });
+
+  it('con "solo lo que está en mis plataformas" prendido', () => {
+    const subscriptions = {
+      providers: [{ id: 8, name: 'Netflix', logoPath: null }],
+      onlyMine: true,
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    };
+    const backup = buildBackup([makeMedia()], [], undefined, undefined, subscriptions);
+
+    expect(parseBackup(JSON.stringify(backup)).subscriptions).toEqual(subscriptions);
+  });
 });
 
 describe('las restricciones en el backup', () => {

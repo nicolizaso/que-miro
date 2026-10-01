@@ -9,7 +9,6 @@ import { StatsDashboard } from '@/components/StatsDashboard';
 import { GoalsPanel } from '@/components/GoalsPanel';
 import { PublicProfileSettings } from '@/components/PublicProfileSettings';
 import { SocialAccountSettings } from '@/components/social/SocialAccountSettings';
-import { SubscriptionsSettings } from '@/components/SubscriptionsSettings';
 import { NotificationsSettings } from '@/components/NotificationsSettings';
 import { CalendarFeedSettings } from '@/components/CalendarFeedSettings';
 import { AboutSettings } from '@/components/Attribution';
@@ -280,9 +279,6 @@ export function ProfileSettings() {
   return (
     <div className="flex flex-col gap-10">
       <AppSettings />
-
-      {/* Al lado del país: la lista de plataformas es la de ese país. */}
-      <SubscriptionsSettings />
 
       <NotificationsSettings />
 

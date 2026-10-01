@@ -574,6 +574,11 @@ export interface SubscribedProvider {
  */
 export interface Subscriptions {
   providers: SubscribedProvider[];
+  /**
+   * Explorar recomienda solo lo incluido en estas plataformas. Opcional y
+   * apagado si falta: un documento de antes de que existiera no cambia nada.
+   */
+  onlyMine?: boolean;
   updatedAt: string; // ISO
 }
 

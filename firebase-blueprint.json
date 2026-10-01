@@ -121,7 +121,7 @@
     {
       "collection": "profile",
       "path": "/users/{userId}/profile/subscriptions",
-      "description": "Streaming platforms the user pays for, used by the 'available now' filter; synced newest-wins",
+      "description": "Streaming platforms the user pays for, used by the 'available now' filter and Explore's platform rows. onlyMine (optional, only written when on) limits Explore to what is included in them. Synced newest-wins",
       "access": {
         "read": "request.auth != null && request.auth.uid == userId",
         "write": "request.auth != null && request.auth.uid == userId"
@@ -129,6 +129,7 @@
       "schema": {
         "fields": [
           { "name": "providers", "type": "list", "required": true },
+          { "name": "onlyMine", "type": "boolean", "required": false },
           { "name": "updatedAt", "type": "timestamp", "required": true }
         ]
       }

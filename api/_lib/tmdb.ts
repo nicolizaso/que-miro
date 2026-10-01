@@ -707,7 +707,12 @@ export interface DiscoverQuery {
   company?: number;
   /** Nombre de la plataforma, tal como lo guarda la biblioteca. */
   provider?: string;
-  /** País cuyo catálogo se consulta. Obligatorio si hay `provider`. */
+  /**
+   * Ids de las plataformas que la persona paga: el título tiene que estar
+   * incluido en alguna. Vacío, no se filtra.
+   */
+  providers: number[];
+  /** País cuyo catálogo se consulta. Obligatorio si hay `provider` o `providers`. */
   region?: string;
   maxRuntime?: number;
   minRuntime?: number;
@@ -725,6 +730,29 @@ const MIN_VOTES: Record<DiscoverSort, number> = {
 };
 
 const MAX_GENRES = 3;
+
+/**
+ * Cuántas plataformas se aceptan juntas: las mismas que se pueden marcar como
+ * suscripción (`MAX_SUBSCRIPTIONS` en el cliente).
+ */
+const MAX_PROVIDERS = 30;
+
+function parseProviderIds(value: unknown): number[] {
+  if (value === undefined || value === '') return [];
+  const ids = String(value)
+    .split(',')
+    .map((part) => parseIntParam(part.trim(), 'providers'));
+
+  if (ids.length > MAX_PROVIDERS) {
+    throw new TmdbError(
+      `El parámetro 'providers' admite hasta ${MAX_PROVIDERS} plataformas.`,
+      400,
+    );
+  }
+  // Ordenados y sin repetir: la misma elección en otro orden es la misma
+  // consulta, y tiene que ser la misma entrada de la caché.
+  return Array.from(new Set(ids)).sort((a, b) => a - b);
+}
 
 function parseIntParam(value: unknown, name: string): number {
   const num = Number(value);
@@ -815,6 +843,14 @@ export function parseDiscoverQuery(
     );
   }
 
+  const providers = parseProviderIds(query.providers);
+  if (providers.length > 0 && region === undefined) {
+    throw new TmdbError(
+      "El parámetro 'providers' necesita también 'region': un catálogo de streaming es distinto en cada país.",
+      400,
+    );
+  }
+
   return {
     mediaType: parseMediaType(query.type),
     genres: parseGenreList(query.genre, 'genre'),
@@ -831,6 +867,7 @@ export function parseDiscoverQuery(
         ? undefined
         : parseIntParam(query.company, 'company'),
     provider,
+    providers,
     region,
     maxRuntime:
       query.maxRuntime === undefined || query.maxRuntime === ''
@@ -858,6 +895,7 @@ function discoverCacheKey(query: DiscoverQuery): string {
     query.keyword ?? '',
     query.company ?? '',
     query.provider ?? '',
+    query.providers.join('|'),
     query.region ?? '',
     query.minRuntime ?? '',
     query.maxRuntime ?? '',
@@ -995,6 +1033,13 @@ function discoverParams(
   if (providerId !== null && query.region) {
     params.with_watch_providers = String(providerId);
     params.watch_region = query.region;
+  } else if (query.providers.length > 0 && query.region) {
+    // `|` es "cualquiera de estas". Y solo lo incluido en la suscripción: lo
+    // que está en alquiler o en compra no es algo que ya pagás, igual que en
+    // "Lo que puedo ver ya".
+    params.with_watch_providers = query.providers.join('|');
+    params.watch_region = query.region;
+    params.with_watch_monetization_types = 'flatrate';
   }
 
   return params;

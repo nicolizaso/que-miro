@@ -6,8 +6,12 @@ import {
   hasSubscriptions,
   isAvailableNow,
   isSubscribed,
+  limitToSubscriptions,
   parseSubscriptions,
   paysFor,
+  recommendsOnlyMine,
+  searchProviders,
+  setOnlyMine,
   subscribedIn,
   subscribedNames,
   subscriptionsToDocument,
@@ -78,6 +82,77 @@ describe('las suscripciones', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
     expect(JSON.stringify(document)).not.toContain('undefined');
+  });
+});
+
+describe('solo lo que está en mis plataformas', () => {
+  const now = new Date('2026-03-01T00:00:00.000Z');
+  const mine = { providers: [netflix, max], updatedAt: '2026-01-01T00:00:00.000Z' };
+
+  it('se prende y se apaga, con la fecha de ahora', () => {
+    const on = setOnlyMine(mine, true, now);
+    expect(recommendsOnlyMine(on)).toBe(true);
+    expect(on.updatedAt).toBe(now.toISOString());
+    expect(recommendsOnlyMine(setOnlyMine(on, false, now))).toBe(false);
+  });
+
+  it('no se prende sin plataformas', () => {
+    expect(recommendsOnlyMine(setOnlyMine(emptySubscriptions(), true, now))).toBe(false);
+    expect(recommendsOnlyMine(undefined)).toBe(false);
+  });
+
+  it('se apaga al sacar la última plataforma, y no vuelve sola', () => {
+    const on = setOnlyMine({ providers: [netflix], updatedAt: '' }, true, now);
+    const none = toggleSubscription(on, netflix, now);
+    expect(none.onlyMine).toBeUndefined();
+    expect(recommendsOnlyMine(toggleSubscription(none, netflix, now))).toBe(false);
+  });
+
+  it('marcar otra plataforma no lo apaga', () => {
+    const on = setOnlyMine(mine, true, now);
+    expect(recommendsOnlyMine(toggleSubscription(on, { id: 337, name: 'Disney Plus', logoPath: null }, now))).toBe(true);
+  });
+
+  it('viaja en el documento solo si está prendido, y vuelve igual', () => {
+    expect(subscriptionsToDocument(mine)).not.toHaveProperty('onlyMine');
+    const document = subscriptionsToDocument(setOnlyMine(mine, true, now));
+    expect(document.onlyMine).toBe(true);
+    expect(recommendsOnlyMine(parseSubscriptions(document))).toBe(true);
+  });
+
+  it('un documento viejo, o uno roto, queda apagado', () => {
+    expect(parseSubscriptions(subscriptionsToDocument(mine)).onlyMine).toBeUndefined();
+    expect(parseSubscriptions({ ...subscriptionsToDocument(mine), onlyMine: 'sí' }).onlyMine).toBeUndefined();
+    expect(parseSubscriptions({ providers: [], onlyMine: true }).onlyMine).toBeUndefined();
+  });
+
+  it('limita una consulta a /discover a los ids de lo que pagás', () => {
+    expect(limitToSubscriptions({ mediaType: 'movie', genres: [27] }, mine, 'AR')).toEqual({
+      mediaType: 'movie',
+      genres: [27],
+      providers: [8, 1899],
+      region: 'AR',
+    });
+  });
+
+  it('no toca la consulta que ya es de una plataforma', () => {
+    const netflixRow = { mediaType: 'movie' as const, provider: 'Netflix', region: 'AR' };
+    expect(limitToSubscriptions(netflixRow, mine, 'AR')).toBe(netflixRow);
+    const idRow = { mediaType: 'tv' as const, providers: [8], region: 'AR' };
+    expect(limitToSubscriptions(idRow, mine, 'AR')).toBe(idRow);
+  });
+});
+
+describe('buscar una plataforma', () => {
+  const list = [netflix, max, { id: 2, name: 'Apple TV', logoPath: null }, { id: 3, name: 'Clarovídeo', logoPath: null }];
+
+  it('busca por una parte del nombre, sin mayúsculas ni tildes', () => {
+    expect(searchProviders(list, 'apple').map((p) => p.id)).toEqual([2]);
+    expect(searchProviders(list, ' CLAROVIDEO ').map((p) => p.id)).toEqual([3]);
+  });
+
+  it('vacía, devuelve todas', () => {
+    expect(searchProviders(list, '  ')).toBe(list);
   });
 });
 

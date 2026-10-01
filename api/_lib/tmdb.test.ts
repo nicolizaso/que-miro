@@ -409,6 +409,26 @@ describe('parseDiscoverQuery', () => {
       parseDiscoverQuery({ type: 'movie', provider: 'Netflix', region: 'AR' }),
     ).toMatchObject({ provider: 'Netflix', region: 'AR' });
   });
+
+  it('acepta los ids de varias plataformas, ordenados y sin repetir', () => {
+    expect(
+      parseDiscoverQuery({ type: 'movie', providers: '337,8,337', region: 'AR' }).providers,
+    ).toEqual([8, 337]);
+    expect(parseDiscoverQuery({ type: 'movie' }).providers).toEqual([]);
+  });
+
+  it.each([
+    { type: 'movie', providers: '8' },
+    { type: 'movie', providers: 'Netflix', region: 'AR' },
+    { type: 'movie', providers: '8,-1', region: 'AR' },
+    {
+      type: 'movie',
+      providers: Array.from({ length: 31 }, (_, i) => i + 1).join(','),
+      region: 'AR',
+    },
+  ])('rechaza las plataformas de %o con un 400', (query) => {
+    expect(() => parseDiscoverQuery(query)).toThrow(TmdbError);
+  });
 });
 
 describe('getDiscover', () => {
@@ -484,6 +504,29 @@ describe('getDiscover', () => {
     const url = calledUrl(fetchMock, 1);
     expect(url.searchParams.get('with_watch_providers')).toBe('8');
     expect(url.searchParams.get('watch_region')).toBe('AR');
+  });
+
+  it('con varias plataformas pide cualquiera de ellas, y solo lo incluido', async () => {
+    const fetchMock = stubFetch([]);
+
+    await getDiscover(
+      parseDiscoverQuery({ type: 'tv', providers: '8,337', region: 'AR' }),
+    );
+
+    const url = calledUrl(fetchMock);
+    expect(url.searchParams.get('with_watch_providers')).toBe('8|337');
+    expect(url.searchParams.get('watch_region')).toBe('AR');
+    expect(url.searchParams.get('with_watch_monetization_types')).toBe('flatrate');
+  });
+
+  it('cachea cada combinación de plataformas, sin importar el orden', async () => {
+    const fetchMock = stubFetch([]);
+
+    await getDiscover(parseDiscoverQuery({ type: 'movie', providers: '8,337', region: 'AR' }));
+    await getDiscover(parseDiscoverQuery({ type: 'movie', providers: '337,8', region: 'AR' }));
+    await getDiscover(parseDiscoverQuery({ type: 'movie', providers: '8', region: 'AR' }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('filtra por productora cuando se pide una', async () => {

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { PickerSearch } from '@/components/taste/PickerSearch';
 import { RestrictionsSection } from '@/components/taste/RestrictionsSection';
+import { SubscriptionsSettings } from '@/components/SubscriptionsSettings';
 import { ToggleChip } from '@/components/taste/ToggleChip';
 import { useTastePicks } from '@/hooks/useTastePicks';
 import { useMediaStore } from '@/store';
@@ -610,6 +611,10 @@ export function TasteProfileView() {
           </ul>
         </Question>
       </ol>
+
+      {/* Entre lo que te gusta y lo que no: lo que pagás también decide qué
+          te recomienda Explorar. */}
+      <SubscriptionsSettings />
 
       <RestrictionsSection favoriteGenres={picks.genres} />
 
