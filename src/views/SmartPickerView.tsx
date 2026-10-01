@@ -1,17 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Shuffle, Swords } from 'lucide-react';
+import { Shuffle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMediaStore } from '@/store';
 import { PickerRoulette } from '@/components/PickerRoulette';
 import { DuelMode } from '@/components/DuelMode';
-import { cn } from '@/lib/utils';
-
-type Mode = 'azar' | 'duelo';
-
-const MODES: { value: Mode; label: string; Icon: typeof Shuffle }[] = [
-  { value: 'azar', label: 'Al azar', Icon: Shuffle },
-  { value: 'duelo', label: 'Duelo', Icon: Swords },
-];
+import { ModeSwitch, PickerMode } from '@/components/picker/ModeSwitch';
+import { PosterWall } from '@/components/picker/PosterWall';
+import { posterWall } from '@/lib/picker';
 
 /**
  * Las dos formas de decidir qué mirar.
@@ -22,12 +17,13 @@ const MODES: { value: Mode; label: string; Icon: typeof Shuffle }[] = [
  */
 export function SmartPickerView() {
   const mediaList = useMediaStore((state) => state.mediaList);
-  const [mode, setMode] = useState<Mode>('azar');
+  const [mode, setMode] = useState<PickerMode>('azar');
 
   const pending = useMemo(
     () => mediaList.filter((media) => media.status === 'por_ver'),
     [mediaList],
   );
+  const posters = useMemo(() => posterWall(pending), [pending]);
 
   if (pending.length === 0) {
     return (
@@ -48,43 +44,28 @@ export function SmartPickerView() {
   }
 
   return (
-    <div className="flex flex-col items-center w-full max-w-3xl mx-auto px-4 pt-8">
-      <h1 className="text-display mb-2">Qué ver hoy</h1>
-      <p className="text-text-muted mb-6 text-center">
-        {mode === 'azar'
-          ? 'Dejá que el destino elija tu próxima historia.'
-          : 'Elegí de a dos y armá tu ranking.'}
-      </p>
+    <div className="relative isolate w-full">
+      <PosterWall posters={posters} />
 
-      <div
-        role="tablist"
-        aria-label="Modo del picker"
-        className="flex bg-bg-card p-1 rounded-control border border-border-card mb-8"
-      >
-        {MODES.map(({ value, label, Icon }) => (
-          <button
-            key={value}
-            role="tab"
-            aria-selected={mode === value}
-            onClick={() => setMode(value)}
-            className={cn(
-              'flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors',
-              mode === value
-                ? 'bg-border-card text-text-main'
-                : 'text-text-muted hover:text-text-main',
-            )}
-          >
-            <Icon size={16} aria-hidden="true" />
-            {label}
-          </button>
-        ))}
+      <div className="flex flex-col items-center w-full max-w-3xl mx-auto px-4 pt-12 sm:pt-16">
+        <p className="text-eyebrow mb-3">Esta noche</p>
+        <h1 className="text-hero text-center mb-3">Qué ver hoy</h1>
+        <p className="text-text-muted mb-6 text-center max-w-xs sm:max-w-none">
+          {mode === 'azar'
+            ? 'Dejá que el destino elija tu próxima historia.'
+            : 'Elegí de a dos y armá tu ranking.'}
+        </p>
+
+        <div className="mb-10">
+          <ModeSwitch value={mode} onChange={setMode} label="Modo del picker" />
+        </div>
+
+        {mode === 'azar' ? (
+          <PickerRoulette pending={pending} />
+        ) : (
+          <DuelMode pending={pending} />
+        )}
       </div>
-
-      {mode === 'azar' ? (
-        <PickerRoulette pending={pending} />
-      ) : (
-        <DuelMode pending={pending} />
-      )}
     </div>
   );
 }
