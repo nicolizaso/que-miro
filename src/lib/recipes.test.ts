@@ -476,8 +476,45 @@ describe('la fila de plataformas con suscripciones', () => {
       subscriptions,
     }).filter((b) => b.id.startsWith('plataforma-'));
 
-    expect(blocks.map((b) => b.id)).toEqual(['plataforma-Disney Plus']);
+    expect(blocks.map((b) => b.id)).toEqual([
+      'plataforma-Disney Plus',
+      'plataforma-series-Disney Plus',
+    ]);
     expect(blocks[0].weight).toBeGreaterThan(deduced.weight);
+  });
+
+  it('pide por id, en películas y en series', () => {
+    const blocks = buildBlocks({
+      taste: tasteProfile([], NOW),
+      picks: emptyPicks(),
+      region: 'UY',
+      subscriptions,
+    }).filter((b) => b.id.startsWith('plataforma-'));
+
+    vi.mocked(getDiscover).mockClear();
+    blocks.forEach((block) => block.fetch());
+    expect(getDiscover).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaType: 'movie', providers: [337], region: 'UY' }),
+    );
+    expect(getDiscover).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaType: 'tv', providers: [337], region: 'UY' }),
+    );
+  });
+
+  it('arma filas para cada plataforma, con tope', () => {
+    const many = {
+      providers: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `P${i + 1}`, logoPath: null })),
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const blocks = buildBlocks({
+      taste: tasteProfile([], NOW),
+      picks: emptyPicks(),
+      region: 'AR',
+      subscriptions: many,
+    }).filter((b) => b.id.startsWith('plataforma-'));
+
+    expect(blocks.length).toBeGreaterThan(4);
+    expect(blocks.length).toBeLessThan(20);
   });
 
   it('sin suscripciones sigue saliendo de la biblioteca', () => {
@@ -492,6 +529,89 @@ describe('la fila de plataformas con suscripciones', () => {
       subscriptions: { providers: [], updatedAt: '2026-01-01T00:00:00.000Z' },
     });
     expect(blocks.some((b) => b.id === 'plataforma-Netflix')).toBe(true);
+  });
+});
+
+describe('solo lo que está en mis plataformas', () => {
+  const mine = {
+    providers: [
+      { id: 8, name: 'Netflix', logoPath: null },
+      { id: 337, name: 'Disney Plus', logoPath: null },
+    ],
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const library = [
+    makeMedia({ tmdbId: 1, genres: ['Terror'], history: [watch(5)] }),
+    makeMedia({ tmdbId: 2, genres: ['Terror'], history: [watch(4.5)] }),
+    makeMedia({ tmdbId: 3, genres: ['Terror'], history: [watch(4)] }),
+    makeMedia({
+      tmdbId: 4,
+      mediaType: 'tv',
+      title: 'Dark',
+      status: 'viendo',
+      history: undefined,
+      seasons: [{ seasonNumber: 1, name: 'T1', episodeCount: 10 }],
+      progress: { watched: { 1: [1, 2] } },
+    }),
+  ];
+
+  function blocksWith(onlyMine: boolean) {
+    return buildBlocks({
+      taste: tasteProfile(library, NOW),
+      picks: emptyPicks(),
+      region: 'AR',
+      subscriptions: { ...mine, ...(onlyMine ? { onlyMine: true } : {}) },
+    });
+  }
+
+  it('apagado, el feed es el de siempre', () => {
+    const blocks = blocksWith(false);
+    expect(blocks.some((b) => b.id.startsWith('porque-viste'))).toBe(true);
+  });
+
+  it('pide cada fila de /discover limitada a lo que pagás', () => {
+    const blocks = blocksWith(true);
+    const discoverRows = blocks.filter((b) => !b.local && !b.id.startsWith('plataforma-'));
+    expect(discoverRows.length).toBeGreaterThan(0);
+
+    vi.mocked(getDiscover).mockClear();
+    discoverRows.forEach((block) => block.fetch());
+    for (const [params] of vi.mocked(getDiscover).mock.calls) {
+      expect(params).toMatchObject({ providers: [8, 337], region: 'AR' });
+    }
+  });
+
+  it('las filas de una plataforma siguen pidiendo solo la suya', () => {
+    vi.mocked(getDiscover).mockClear();
+    blocksWith(true)
+      .find((b) => b.id === 'plataforma-Netflix')!
+      .fetch();
+    expect(getDiscover).toHaveBeenCalledWith(expect.objectContaining({ providers: [8] }));
+  });
+
+  it('esconde lo que no se puede pedir filtrado, pero no tu biblioteca', () => {
+    const before = blocksWith(false);
+    const after = blocksWith(true);
+
+    vi.mocked(getRecommendations).mockClear();
+    vi.mocked(getSimilar).mockClear();
+    after.forEach((block) => block.fetch());
+    expect(getRecommendations).not.toHaveBeenCalled();
+    expect(getSimilar).not.toHaveBeenCalled();
+
+    const localBefore = before.filter((b) => b.local).map((b) => b.id);
+    expect(localBefore.length).toBeGreaterThan(0);
+    expect(after.filter((b) => b.local).map((b) => b.id)).toEqual(localBefore);
+  });
+
+  it('sin plataformas, el interruptor no hace nada', () => {
+    const blocks = buildBlocks({
+      taste: tasteProfile(library, NOW),
+      picks: emptyPicks(),
+      region: 'AR',
+      subscriptions: { providers: [], onlyMine: true, updatedAt: '2026-01-01T00:00:00.000Z' },
+    });
+    expect(blocks.some((b) => b.id.startsWith('porque-viste'))).toBe(true);
   });
 });
 

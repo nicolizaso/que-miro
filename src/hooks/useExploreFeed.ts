@@ -86,7 +86,7 @@ export function useExploreFeed(): ExploreFeed {
     }
   }, [storedPicks, picks.updatedAt]);
 
-  // Las suscripciones, igual: marcar una plataforma en Ajustes y volver no
+  // Las suscripciones, igual: marcar una plataforma en el perfil y volver no
   // tiene que esperar a barajar, pero tampoco reordenar mientras se mira.
   useEffect(() => {
     if (Date.parse(storedSubscriptions.updatedAt) > Date.parse(subscriptions.updatedAt)) {

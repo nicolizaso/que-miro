@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useMediaStore } from '@/store';
 import { SubscribedProvider, Subscriptions } from '@/types';
-import { subscriptionsToDocument, toggleSubscription } from '@/lib/subscriptions';
+import { setOnlyMine, subscriptionsToDocument, toggleSubscription } from '@/lib/subscriptions';
 
 /**
  * Dónde viven las suscripciones de una cuenta: al lado del cuestionario y de
@@ -45,10 +45,15 @@ export function useSubscriptions() {
     persist(toggleSubscription(useMediaStore.getState().subscriptions, provider));
   };
 
+  /** "Recomendame solo lo que está en mis plataformas". */
+  const toggleOnlyMine = (onlyMine: boolean) => {
+    persist(setOnlyMine(useMediaStore.getState().subscriptions, onlyMine));
+  };
+
   /** Reemplaza todo: lo usa la importación de un backup. */
   const replaceSubscriptions = (incoming: Subscriptions) => {
     persist({ ...incoming, updatedAt: new Date().toISOString() });
   };
 
-  return { subscriptions, toggle, replaceSubscriptions };
+  return { subscriptions, toggle, toggleOnlyMine, replaceSubscriptions };
 }

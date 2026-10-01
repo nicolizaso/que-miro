@@ -40,10 +40,14 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   plataformas, o una película que anotaste antes de que saliera se estrena
   en digital, aparece en "Novedades" al abrir la app. Se descarta con un
   toque y no vuelve.
-- **Tus plataformas** — marcá en Ajustes, con sus logos, las plataformas que
-  pagás. "Lo que puedo ver ya" filtra la biblioteca y el picker por lo que
-  está incluido en ellas (no en alquiler), la ficha separa "Incluido en" de
-  "Alquiler o compra", y Explorar muestra primero su catálogo.
+- **Tus plataformas** — en el perfil, junto a "Contanos de vos", marcá con
+  sus logos las plataformas que pagás, con un buscador para encontrar
+  cualquiera del país. "Lo que puedo ver ya" filtra la biblioteca y el picker
+  por lo que está incluido en ellas (no en alquiler), la ficha separa
+  "Incluido en" de "Alquiler o compra", y Explorar arma filas de películas y
+  series con el catálogo de cada una. Con "Recomendame solo lo que está en mis
+  plataformas", todo Explorar se limita a eso: las filas que no se pueden
+  filtrar así se esconden mientras esté prendido.
 - **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está
   disponible, según el país que elijas, con un enlace a la página que lleva
   directo a cada una.

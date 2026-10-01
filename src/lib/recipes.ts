@@ -2,6 +2,7 @@ import { Restrictions, SavedMedia, Subscriptions, TMDbResult, TastePicks } from 
 import { Taste, directedAbandoned, resemblesAbandoned } from '@/lib/taste';
 import { SocialSignals, SocialTitleSignal, namesText } from '@/lib/socialFeed';
 import { emptyRestrictions, restrictDiscover } from '@/lib/restrictions';
+import { limitToSubscriptions, recommendsOnlyMine } from '@/lib/subscriptions';
 import {
   DiscoverParams,
   getDiscover,
@@ -82,7 +83,8 @@ export interface RecipeContext {
   region: string;
   /**
    * Las plataformas que la persona dijo que paga. Opcional: sin ellas, la
-   * fila de plataforma sale de las que aparecen en su biblioteca.
+   * fila de plataforma sale de las que aparecen en su biblioteca. Con
+   * `onlyMine`, además, todo el feed se limita a lo incluido en ellas.
    */
   subscriptions?: Subscriptions;
   /**
@@ -93,6 +95,14 @@ export interface RecipeContext {
   /** Lo que la persona no quiere que le recomienden. Opcional: sin nada, no se filtra. */
   restrictions?: Restrictions;
 }
+
+/**
+ * De cuántas plataformas declaradas se arman filas propias.
+ *
+ * Son dos por plataforma —películas y series—: con más de seis, el feed
+ * abriría con una pared de logos y taparía todo lo demás.
+ */
+const MAX_PLATFORM_ROWS = 6;
 
 /** Una forma de armar filas. Si no hay señal, no devuelve ninguna. */
 export interface Recipe {
@@ -469,34 +479,48 @@ export const RECIPES: Recipe[] = [
     build: ({ taste, region, subscriptions }) => {
       // Lo declarado primero, como en QM-3: si dijiste qué pagás, no hay nada
       // que deducir, y pesa más que lo que salió de contar logos en tu
-      // biblioteca.
-      const declared = subscriptions?.providers ?? [];
-      const sources =
-        declared.length > 0
-          ? declared.slice(0, 2).map((provider) => ({ name: provider.name, weight: 10 }))
-          : taste.providers
-              .filter((provider) => provider.count >= 2)
-              .slice(0, 2)
-              .map((provider) => ({ name: provider.name, weight: 8 }));
+      // biblioteca. Va por id y no por nombre: el id es el que eligió la
+      // persona, y así se pide solo lo incluido, no lo que se alquila.
+      const declared = (subscriptions?.providers ?? []).slice(0, MAX_PLATFORM_ROWS);
+      if (declared.length > 0) {
+        return declared.flatMap((provider): RecipeBlock[] => [
+          {
+            id: `plataforma-${provider.name}`,
+            family: 'catalogo',
+            title: `Está en tu ${provider.name}`,
+            // El catálogo de cada plataforma es de JustWatch, y hay que
+            // decirlo donde se muestra.
+            subtitle: 'Bien puntuadas e incluidas en lo que pagás, según JustWatch.',
+            weight: 10,
+            discover: { mediaType: 'movie', providers: [provider.id], region, sort: 'rating' },
+          },
+          {
+            id: `plataforma-series-${provider.name}`,
+            family: 'catalogo',
+            title: `Series en tu ${provider.name}`,
+            subtitle: 'Bien puntuadas e incluidas en lo que pagás, según JustWatch.',
+            weight: 9,
+            discover: { mediaType: 'tv', providers: [provider.id], region, sort: 'rating' },
+          },
+        ]);
+      }
 
-      return sources.map(({ name, weight }) => ({
-        id: `plataforma-${name}`,
-        family: 'catalogo',
-        title: `Está en tu ${name}`,
-        // El catálogo de cada plataforma es de JustWatch, y hay que decirlo
-        // donde se muestra.
-        subtitle:
-          declared.length > 0
-            ? 'Bien puntuadas e incluidas en lo que pagás, según JustWatch.'
-            : 'Bien puntuadas y disponibles donde ya mirás, según JustWatch.',
-        weight,
-        discover: {
-          mediaType: 'movie',
-          provider: name,
-          region,
-          sort: 'rating',
-        },
-      }));
+      return taste.providers
+        .filter((provider) => provider.count >= 2)
+        .slice(0, 2)
+        .map((provider) => ({
+          id: `plataforma-${provider.name}`,
+          family: 'catalogo',
+          title: `Está en tu ${provider.name}`,
+          subtitle: 'Bien puntuadas y disponibles donde ya mirás, según JustWatch.',
+          weight: 8,
+          discover: {
+            mediaType: 'movie',
+            provider: provider.name,
+            region,
+            sort: 'rating',
+          },
+        }));
     },
   },
   {
@@ -1012,16 +1036,28 @@ export const RECIPES: Recipe[] = [
  */
 export function buildBlocks(context: RecipeContext): FeedBlock[] {
   const restrictions = context.restrictions ?? emptyRestrictions();
+  const subscriptions = recommendsOnlyMine(context.subscriptions)
+    ? context.subscriptions
+    : undefined;
 
   return RECIPES.flatMap((recipe) => {
     try {
       return recipe.build(context).flatMap((block): FeedBlock[] => {
-        if ('fetch' in block) return [block];
+        if ('fetch' in block) {
+          // Con "solo lo que está en mis plataformas", lo que no sale de
+          // `/discover` —parecidos, filmografías, tendencias— no se puede
+          // pedir filtrado, y averiguar dónde está cada título serían veinte
+          // consultas por fila. Se esconde. Lo de tu biblioteca queda: es tuyo.
+          return subscriptions && !block.local ? [] : [block];
+        }
         const { discover, ...rest } = block;
-        const params = restrictDiscover(discover, restrictions);
+        const restricted = restrictDiscover(discover, restrictions);
         // La fila contradice lo que no te interesa: "los 80" con un piso en
         // 1990 no tiene nada para mostrar.
-        if (!params) return [];
+        if (!restricted) return [];
+        const params = subscriptions
+          ? limitToSubscriptions(restricted, subscriptions, context.region)
+          : restricted;
         return [{ ...rest, fetch: () => getDiscover(params) }];
       });
     } catch (error) {

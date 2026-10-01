@@ -338,7 +338,12 @@ export interface DiscoverParams {
   company?: number;
   /** Nombre de la plataforma, tal como lo guarda la biblioteca. */
   provider?: string;
-  /** País cuyo catálogo se consulta. Va siempre junto a `provider`. */
+  /**
+   * Ids de las plataformas que la persona paga: solo lo incluido en alguna de
+   * ellas, ni alquiler ni compra.
+   */
+  providers?: number[];
+  /** País cuyo catálogo se consulta. Va siempre junto a `provider` o `providers`. */
   region?: string;
   minRuntime?: number;
   maxRuntime?: number;
@@ -365,6 +370,10 @@ export async function getDiscover(
   if (params.company) query.set('company', String(params.company));
   if (params.provider && params.region) {
     query.set('provider', params.provider);
+    query.set('region', params.region);
+  }
+  if (params.providers?.length && params.region) {
+    query.set('providers', params.providers.join(','));
     query.set('region', params.region);
   }
   if (params.minRuntime) query.set('minRuntime', String(params.minRuntime));

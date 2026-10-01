@@ -62,8 +62,22 @@ vi.mock('@/lib/tmdb', async () => {
     searchMulti: () => searchMulti(),
     searchPeople: () => searchPeople(),
     searchCompanies: vi.fn(async () => []),
+    getRegionProviders: vi.fn(async () => regionProviders),
   };
 });
+
+/** Más que una página, para que aparezcan el buscador y "Ver todas". */
+const regionProviders = [
+  { id: 8, name: 'Netflix', logoPath: null, priority: 1 },
+  { id: 337, name: 'Disney Plus', logoPath: null, priority: 2 },
+  ...Array.from({ length: 20 }, (_, i) => ({
+    id: 1000 + i,
+    name: `Plataforma ${i + 1}`,
+    logoPath: null,
+    priority: 10 + i,
+  })),
+  { id: 11, name: 'MUBI', logoPath: null, priority: 99 },
+];
 
 const { TasteProfileView } = await import('@/views/TasteProfileView');
 const { ToastProvider } = await import('@/contexts/ToastContext');
@@ -86,6 +100,11 @@ function renderForm() {
 function favoriteGenre(name: string) {
   const question = screen.getByRole('heading', { name: 'Tus géneros' }).closest('li')!;
   return within(question).getByRole('button', { name });
+}
+
+/** La sección de plataformas. */
+function subscriptionsSection() {
+  return screen.getByRole('region', { name: 'Tus plataformas' });
 }
 
 /** La sección de restricciones. */
@@ -305,6 +324,48 @@ describe('Contanos de vos', () => {
 
       await userEvent.click(within(restrictionsSection()).getByRole('button', { name: 'Terror' }));
       expect(favoriteGenre('Terror')).toBeDisabled();
+    });
+  });
+
+  describe('Tus plataformas', () => {
+    it('marca una plataforma y recién ahí ofrece limitar Explorar', async () => {
+      renderForm();
+      const section = subscriptionsSection();
+      const switchName = /Recomendame solo lo que está en mis plataformas/;
+
+      expect(within(section).queryByRole('checkbox', { name: switchName })).not.toBeInTheDocument();
+
+      await userEvent.click(await within(section).findByRole('button', { name: 'Netflix' }));
+      expect(useMediaStore.getState().subscriptions.providers.map((p) => p.id)).toEqual([8]);
+
+      await userEvent.click(within(section).getByRole('checkbox', { name: switchName }));
+      expect(useMediaStore.getState().subscriptions.onlyMine).toBe(true);
+
+      await userEvent.click(within(section).getByRole('checkbox', { name: switchName }));
+      expect(useMediaStore.getState().subscriptions.onlyMine).toBeUndefined();
+    });
+
+    it('busca en todas, no solo en las de la primera página', async () => {
+      renderForm();
+      const section = subscriptionsSection();
+      await within(section).findByRole('button', { name: 'Netflix' });
+
+      expect(within(section).queryByRole('button', { name: 'MUBI' })).not.toBeInTheDocument();
+
+      await userEvent.type(within(section).getByRole('searchbox', { name: 'Buscar una plataforma' }), 'mubi');
+
+      expect(within(section).getByRole('button', { name: 'MUBI' })).toBeInTheDocument();
+      expect(within(section).queryByRole('button', { name: 'Netflix' })).not.toBeInTheDocument();
+      expect(within(section).queryByRole('button', { name: /Ver todas/ })).not.toBeInTheDocument();
+    });
+
+    it('"Ver todas" muestra la lista completa', async () => {
+      renderForm();
+      const section = subscriptionsSection();
+
+      await userEvent.click(await within(section).findByRole('button', { name: `Ver todas (${regionProviders.length})` }));
+
+      expect(within(section).getByRole('button', { name: 'MUBI' })).toBeInTheDocument();
     });
   });
 });

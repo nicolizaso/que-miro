@@ -1,4 +1,5 @@
 import { SavedMedia, SubscribedProvider, Subscriptions } from '@/types';
+import type { DiscoverParams } from '@/lib/tmdb';
 
 /**
  * Las plataformas que la persona paga.
@@ -45,14 +46,23 @@ export function parseSubscriptions(value: unknown): Subscriptions {
       ? raw.updatedAt
       : new Date(0).toISOString();
 
-  return { providers, updatedAt };
+  // Sin plataformas no hay nada a qué limitarse: el interruptor no se guarda
+  // prendido sobre una lista vacía.
+  const onlyMine = raw.onlyMine === true && providers.length > 0;
+
+  return { providers, ...(onlyMine ? { onlyMine } : {}), updatedAt };
 }
 
 export function hasSubscriptions(subscriptions: Subscriptions): boolean {
   return subscriptions.providers.length > 0;
 }
 
-/** Firestore rechaza `undefined`: el logo que falta va como `null`. */
+/**
+ * Firestore rechaza `undefined`: el logo que falta va como `null`.
+ *
+ * `onlyMine` va solo si está prendido: el documento de quien no lo usa queda
+ * igual que el de siempre.
+ */
 export function subscriptionsToDocument(subscriptions: Subscriptions): Record<string, unknown> {
   return {
     providers: subscriptions.providers.map(({ id, name, logoPath }) => ({
@@ -60,6 +70,7 @@ export function subscriptionsToDocument(subscriptions: Subscriptions): Record<st
       name,
       logoPath: logoPath ?? null,
     })),
+    ...(subscriptions.onlyMine ? { onlyMine: true } : {}),
     updatedAt: subscriptions.updatedAt,
   };
 }
@@ -77,11 +88,67 @@ export function toggleSubscription(
   const providers = isSubscribed(subscriptions, provider.id)
     ? subscriptions.providers.filter((p) => p.id !== provider.id)
     : [...subscriptions.providers, provider].slice(0, MAX_SUBSCRIPTIONS);
-  return { providers, updatedAt: now.toISOString() };
+  // Al sacar la última se apaga: volver a marcar una no tiene que prender de
+  // sorpresa un filtro que ya no se veía.
+  const onlyMine = subscriptions.onlyMine === true && providers.length > 0;
+  return { providers, ...(onlyMine ? { onlyMine } : {}), updatedAt: now.toISOString() };
+}
+
+/** Prende o apaga "solo lo que está en mis plataformas", con la fecha de ahora. */
+export function setOnlyMine(
+  subscriptions: Subscriptions,
+  onlyMine: boolean,
+  now = new Date(),
+): Subscriptions {
+  const on = onlyMine && subscriptions.providers.length > 0;
+  return {
+    providers: subscriptions.providers,
+    ...(on ? { onlyMine: true } : {}),
+    updatedAt: now.toISOString(),
+  };
+}
+
+/** Si Explorar tiene que limitarse a lo que la persona paga. */
+export function recommendsOnlyMine(subscriptions: Subscriptions | undefined): boolean {
+  return subscriptions?.onlyMine === true && subscriptions.providers.length > 0;
+}
+
+/**
+ * Una consulta a `/discover` limitada a lo incluido en tus plataformas.
+ *
+ * La que ya pide una plataforma ("Está en tu Netflix") queda como está: ya es
+ * de una de las tuyas, y sumarle las otras la volvería otra fila.
+ */
+export function limitToSubscriptions(
+  params: DiscoverParams,
+  subscriptions: Subscriptions,
+  region: string,
+): DiscoverParams {
+  if (params.provider || params.providers?.length) return params;
+  return {
+    ...params,
+    providers: subscriptions.providers.map((provider) => provider.id),
+    region,
+  };
 }
 
 function normalize(name: string): string {
   return name.trim().toLowerCase();
+}
+
+/** Sin tildes ni mayúsculas: "globoplay" encuentra "Globoplay", "movistar" a "Movistar Plus+". */
+function searchable(text: string): string {
+  return normalize(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Las plataformas cuyo nombre contiene lo que se escribió. Con la búsqueda
+ * vacía, todas: el buscador no esconde nada hasta que se lo usa.
+ */
+export function searchProviders<T extends { name: string }>(providers: T[], query: string): T[] {
+  const wanted = searchable(query);
+  if (!wanted) return providers;
+  return providers.filter((provider) => searchable(provider.name).includes(wanted));
 }
 
 /** Si una plataforma, por su nombre, está entre las que pagás. */
