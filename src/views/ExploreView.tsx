@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Compass, Shuffle, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Compass, LogIn, Shuffle, Sparkles } from 'lucide-react';
 import { TitleCarousel } from '@/components/TitleCarousel';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTmdbList } from '@/hooks/useTmdbList';
 import { useExploreFeed } from '@/hooks/useExploreFeed';
 import { usePeopleBackfill } from '@/hooks/usePeopleBackfill';
 import { MIN_RESULTS, TitleRegistry } from '@/lib/feed';
+import { isFirebaseConfigured } from '@/lib/firebase';
+import { isNewVisitor } from '@/lib/landing';
 import { FeedBlock } from '@/lib/recipes';
 import { useMediaStore } from '@/store';
 
@@ -60,6 +63,53 @@ function FeedRow({
 }
 
 /**
+ * La bienvenida de quien abrió la app sin cuenta y sin nada guardado.
+ *
+ * Explorar es donde cae la primera vez, así que acá van las dos cosas que
+ * antes eran la pantalla de login: el demo, para quien vino a ver de qué se
+ * trata, y la cuenta, para quien ya tiene una. Se va sola cuando guarda algo.
+ */
+function Welcome() {
+  const { startDemo } = useAuth();
+  const navigate = useNavigate();
+
+  const handleDemo = () => {
+    startDemo();
+    // El demo se luce en las listas, no en Explorar: es lo que viene a ver.
+    navigate('/');
+  };
+
+  return (
+    <section
+      aria-labelledby="bienvenida"
+      className="surface p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="min-w-0">
+        <h2 id="bienvenida" className="text-section mb-1">
+          Armá tu biblioteca, sin cuenta
+        </h2>
+        <p className="text-sm text-text-muted max-w-md">
+          Lo que guardes queda en este dispositivo. Si después iniciás sesión,
+          pasa solo a tu cuenta.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2 shrink-0">
+        <button type="button" onClick={handleDemo} className="btn btn-secondary px-4 py-2 text-sm">
+          <Sparkles size={16} aria-hidden="true" />
+          Ver una biblioteca de ejemplo
+        </button>
+        {isFirebaseConfigured && (
+          <Link to="/login" className="btn btn-ghost px-4 py-2 text-sm">
+            <LogIn size={16} aria-hidden="true" />
+            Ya tengo cuenta
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
  * Punto de entrada para descubrir qué mirar.
  *
  * Antes eran cuatro filas fijas y una sola idea —"porque viste X"—, iguales en
@@ -76,6 +126,8 @@ function FeedRow({
 export function ExploreView() {
   const mediaList = useMediaStore((state) => state.mediaList);
   usePeopleBackfill(mediaList);
+  const { authState } = useAuth();
+  const isNew = isNewVisitor({ isGuest: authState === 'guest', librarySize: mediaList.length });
 
   const { blocks, hasMore, loadMore, shuffle, registry, isPersonal, hasAnswers } =
     useExploreFeed();
@@ -160,6 +212,8 @@ export function ExploreView() {
           Barajar
         </button>
       </header>
+
+      {isNew && <Welcome />}
 
       {everythingFailed && (
         <div

@@ -9,8 +9,9 @@ Webapp para llevar el registro de lo que querés ver, lo que estás viendo y lo 
 ya terminaste — con reseñas propias y un selector aleatorio para las noches en
 las que no sabés qué mirar.
 
-Funciona como PWA instalable, sincroniza entre dispositivos si iniciás sesión, y
-se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
+Funciona como PWA instalable y se usa sin cuenta: abre directo, sin login, y lo
+que guardás queda en el navegador. Si iniciás sesión, se sincroniza entre
+dispositivos.
 
 ---
 
@@ -172,8 +173,12 @@ se puede usar sin cuenta: en modo invitado todo queda guardado en el navegador.
   compartir como historia, en vertical.
 - **Offline de verdad** — sin conexión seguís usando la app, y los cambios se
   sincronizan solos cuando vuelve la red.
+- **Sin cuenta de entrada** — la app abre directo, sin pantalla de login. La
+  primera vez cae en Explorar, con una bienvenida que ofrece el demo o entrar
+  a una cuenta; se va sola cuando guardás algo. Lo que guardes queda en el
+  dispositivo, y si después iniciás sesión —"Ingresar" en el header o en el
+  perfil— tu biblioteca se migra sola.
 - **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.
-- **Modo invitado** — usala sin cuenta; si después iniciás sesión, tu biblioteca se migra sola.
 - **Tus datos son tuyos** — exportá a JSON o CSV, reimportá el JSON y eliminá tu
   cuenta con todos sus datos cuando quieras.
 - **Importar de Letterboxd, IMDb y Trakt** — subí el export de cada app (el
@@ -225,8 +230,8 @@ npm run dev                  # http://localhost:3000
 
 ### Variables de entorno
 
-Solo **TMDB** es obligatoria. Sin Firebase la app arranca igual, directamente en
-modo invitado.
+Solo **TMDB** es obligatoria. Sin Firebase la app arranca igual, sin cuentas: no
+se ofrece el login y todo queda en el navegador.
 
 | Variable | Obligatoria | Para qué |
 |---|---|---|

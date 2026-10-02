@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useMediaStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeRadioGroup } from '@/components/ThemeToggle';
@@ -16,17 +16,20 @@ import { REGIONS, RegionCode, usePreferences } from '@/preferences';
 import { formatWatchDate } from '@/lib/dates';
 import { allWatches } from '@/lib/stats';
 import { cn } from '@/lib/utils';
+import { isFirebaseConfigured } from '@/lib/firebase';
 import { LogIn, LogOut, Repeat, Star } from 'lucide-react';
 
 /** Tarjeta de la sesión actual: cuenta, invitado o demo. */
 function SessionCard() {
-  const { user, authState, logout, exitGuestMode } = useAuth();
+  const { user, authState, logout } = useAuth();
 
   // En demo no se muestra nada: el banner de arriba ya avisa y ya ofrece la
   // salida. Dos carteles diciendo lo mismo en la misma pantalla es ruido.
   if (authState === 'demo') return null;
 
   if (authState === 'guest') {
+    // Sin Firebase no hay cuenta donde sincronizar: ofrecerla es un callejón.
+    if (!isFirebaseConfigured) return null;
     return (
       <div className="bg-accent/10 border border-accent rounded-surface p-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex-1 min-w-[16rem]">
@@ -38,14 +41,11 @@ function SessionCard() {
             celular y la compu.
           </p>
         </div>
-        <button
-          // `exitGuestMode` y no `logout`: conserva los títulos guardados sin
-          // cuenta para poder migrarlos cuando la persona inicie sesión.
-          onClick={exitGuestMode}
-          className="btn btn-primary px-4 py-2 text-sm"
-        >
+        {/* Los títulos guardados sin cuenta se quedan donde están: al entrar,
+            SyncManager los pasa a la cuenta. */}
+        <Link to="/login" className="btn btn-primary px-4 py-2 text-sm">
           <LogIn size={16} aria-hidden="true" /> Ingresar
-        </button>
+        </Link>
       </div>
     );
   }

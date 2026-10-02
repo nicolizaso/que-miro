@@ -1,19 +1,14 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { getAuthErrorMessage } from '@/lib/authErrors';
 
 export function LoginView() {
-  const {
-    signInWithGoogle,
-    signInWithEmail,
-    registerWithEmail,
-    continueAsGuest,
-    startDemo,
-  } = useAuth();
+  const { signInWithGoogle, signInWithEmail, registerWithEmail } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +35,7 @@ export function LoginView() {
     e.preventDefault();
     if (!isFirebaseConfigured) {
       setError(
-        'Firebase no está configurado en esta instalación. Podés continuar como invitado.',
+        'Firebase no está configurado en esta instalación. Podés seguir usando la app sin cuenta.',
       );
       return;
     }
@@ -65,7 +60,16 @@ export function LoginView() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-bg-main flex flex-col items-center justify-center p-4">
+    <div className="min-h-[100dvh] bg-bg-main flex flex-col items-center justify-center px-4 pt-20 pb-8">
+      {/* Se llega acá desde la app, así que la salida va arriba, donde se
+          busca un "atrás": entrar a la cuenta es opcional. */}
+      <Link
+        to="/"
+        className="absolute top-4 left-4 btn btn-ghost px-3 py-2 text-sm"
+      >
+        <ArrowLeft size={16} aria-hidden="true" />
+        Seguir sin cuenta
+      </Link>
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
@@ -76,22 +80,9 @@ export function LoginView() {
         <h1 className="text-display mb-2 text-center">
           Qué Miro?
         </h1>
-        <p className="text-text-muted text-center mb-6">
-          Tu biblioteca personal de películas y series.
-        </p>
-
-        {/* Primera opción a propósito: quien llega a ver el proyecto quiere
-            recorrerlo, no crearse una cuenta. */}
-        <button
-          type="button"
-          onClick={startDemo}
-          className="btn btn-primary w-full py-3 mb-3"
-        >
-          <Sparkles size={18} aria-hidden="true" />
-          Ver el demo
-        </button>
-        <p className="text-xs text-text-subtle text-center mb-8">
-          Una biblioteca de ejemplo para recorrer la app sin registrarte.
+        <p className="text-text-muted text-center mb-8">
+          Con una cuenta, tu biblioteca se sincroniza entre el celular y la
+          compu.
         </p>
 
         <div className="w-full surface p-6">
@@ -212,20 +203,12 @@ export function LoginView() {
               )}
               Continuar con Google
             </button>
-
-            <button
-              type="button"
-              onClick={continueAsGuest}
-              className="w-full border border-border-card text-text-muted font-medium py-3 rounded-control hover:bg-border-card hover:text-text-main transition-colors mt-2"
-            >
-              Continuar como Invitado
-            </button>
           </form>
         </div>
 
         <p className="text-xs text-text-subtle text-center mt-6 max-w-xs">
-          En modo invitado tus títulos quedan solo en este dispositivo. Si
-          después iniciás sesión, los migramos a tu cuenta.
+          Lo que guardaste sin cuenta en este dispositivo pasa solo a tu
+          cuenta cuando entrás.
         </p>
       </div>
     </div>

@@ -11,8 +11,12 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  // La primera vez se cae en Explorar, y el demo lleva a las listas.
   await page.getByRole('button', { name: /Ver una biblioteca de ejemplo/i }).click();
   await expect(page.getByText(/Estás viendo el demo/)).toBeVisible();
+  // Se espera a que lleguen: cambiar de página cierra el buscador, y un ⌘K
+  // apretado antes de que termine el cambio se cerraría solo.
+  await expect(page.getByRole('tablist')).toBeVisible();
 });
 
 test('el feed muestra lo que hace la gente que seguís, con la reseña tapada si la estás viendo', async ({ page }) => {

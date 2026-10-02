@@ -3,6 +3,8 @@ import { LucideIcon } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
+import { isNewVisitor } from '@/lib/landing';
+import { useMediaStore } from '@/store';
 
 /**
  * El marco de las páginas que se ven sin sesión: un perfil público o una
@@ -12,8 +14,10 @@ import { useAuth } from '@/contexts/AuthContext';
  */
 export function PublicFrame({ children }: { children: React.ReactNode }) {
   const { authState } = useAuth();
-  // Quien ya usa la app no necesita que se la vendan: vuelve a la suya.
-  const hasLibrary = authState !== 'unauthenticated' && authState !== 'loading';
+  const librarySize = useMediaStore((state) => state.mediaList.length);
+  // Quien ya usa la app no necesita que se la vendan: vuelve a la suya. Sin
+  // cuenta se entra igual, así que lo que distingue es si guardó algo.
+  const hasLibrary = !isNewVisitor({ isGuest: authState === 'guest', librarySize });
 
   return (
     <div className="min-h-[100dvh] bg-bg-main text-text-main flex flex-col">

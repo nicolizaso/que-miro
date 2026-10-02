@@ -1,10 +1,13 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { MotionConfig } from 'motion/react';
 import { Film } from 'lucide-react';
 import { AppLayout } from '@/components/AppLayout';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { isFirebaseConfigured } from '@/lib/firebase';
+import { landsOnExplore } from '@/lib/landing';
 import { useApplyTheme } from '@/lib/theme';
+import { useMediaStore } from '@/store';
 import { ExploreView } from '@/views/ExploreView';
 import { CalendarView } from '@/views/CalendarView';
 import { ListView } from '@/views/ListView';
@@ -39,37 +42,52 @@ function Splash() {
   );
 }
 
+/**
+ * El inicio: tus listas, salvo para quien abre la app sin nada guardado, que
+ * cae en Explorar. Una biblioteca vacía no tiene nada que mostrar, y Explorar
+ * es lo que hace que alguien que llegó por curiosidad se quede.
+ */
+function Home() {
+  const { authState } = useAuth();
+  const librarySize = useMediaStore((state) => state.mediaList.length);
+  const location = useLocation();
+
+  // La primera ubicación del router es la única con clave `default`: es
+  // "acabo de abrir la app", no "toqué Mis listas". Recargar conserva la
+  // clave, así que quien recarga se queda donde estaba.
+  const isInitialLoad = location.key === 'default';
+  if (landsOnExplore({ isGuest: authState === 'guest', librarySize, isInitialLoad })) {
+    // Con la query: un `?ficha=` de un aviso se abre igual sobre Explorar.
+    return <Navigate to={{ pathname: '/explorar', search: location.search }} replace />;
+  }
+  return <ListView />;
+}
+
 function AppRoutes() {
   const { authState } = useAuth();
   useApplyTheme();
 
   if (authState === 'loading') return <Splash />;
 
-  if (authState === 'unauthenticated') {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginView />} />
-        {/* El perfil público y las listas compartidas se ven sin sesión: es
-            todo el punto de compartirlos. */}
-        <Route path="/u/:slug" element={<PublicProfileView />} />
-        <Route path="/l/:id" element={<PublicListView />} />
-        {/* Cualquier otra ruta manda al login. `replace` para no dejar la ruta
-            protegida en el historial y que "atrás" rebote de vuelta acá. */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
-
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to="/" replace />} />
+      {/* El login es para quien quiere sincronizar, no una puerta de entrada:
+          se llega desde la app. Solo desde invitado: con cuenta no hace falta,
+          y desde el demo la biblioteca de ejemplo terminaría migrada a la
+          cuenta nueva. Sin Firebase no hay cuentas a las que entrar. */}
+      <Route
+        path="/login"
+        element={
+          authState === 'guest' && isFirebaseConfigured ? <LoginView /> : <Navigate to="/" replace />
+        }
+      />
       {/* Sin cuenta no hay nada social que hacer en un perfil: el invitado ve
           la vidriera, como quien llega sin sesión. Con cuenta (o en el demo),
           el perfil es parte de la app. */}
       {authState === 'guest' && <Route path="/u/:slug" element={<PublicProfileView />} />}
       <Route path="/l/:id" element={<PublicListView />} />
       <Route element={<AppLayout />}>
-        <Route index element={<ListView />} />
+        <Route index element={<Home />} />
         <Route path="explorar" element={<ExploreView />} />
         <Route path="picker" element={<SmartPickerView />} />
         <Route path="calendario" element={<CalendarView />} />

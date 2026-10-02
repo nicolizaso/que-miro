@@ -23,6 +23,7 @@ import { FEED_FILTERS, FeedFilter } from '@/lib/socialFeed';
 import { SUGGESTION_TEXT, suggestions } from '@/lib/inbox';
 import { Account, inviteText, inviteUrl, normalizeHandle, suggestHandle, whatsappUrl } from '@/lib/social';
 import { cn } from '@/lib/utils';
+import { isFirebaseConfigured } from '@/lib/firebase';
 import { MediaType } from '@/types';
 
 /** La tarjeta de alguien para seguir: nombre, usuario, por qué, y el botón. */
@@ -337,7 +338,7 @@ const TABS = [
  * La primera vez, antes de todo, elegir el usuario.
  */
 export function SocialView() {
-  const { authState, exitGuestMode } = useAuth();
+  const { authState } = useAuth();
   const { mode, isLoading, needsOnboarding, unavailable } = useSocial();
   const { unread } = useInbox();
   const { pathname } = useLocation();
@@ -357,10 +358,10 @@ export function SocialView() {
           Para seguir a otros y que te sigan hace falta iniciar sesión: tu biblioteca de invitado se pasa sola a la
           cuenta.
         </p>
-        {authState === 'guest' && (
-          <button type="button" onClick={exitGuestMode} className="btn btn-primary px-4 py-2 text-sm">
+        {authState === 'guest' && isFirebaseConfigured && (
+          <Link to="/login" className="btn btn-primary px-4 py-2 text-sm">
             <LogIn size={16} aria-hidden="true" /> Ingresar
-          </button>
+          </Link>
         )}
       </div>
     );
