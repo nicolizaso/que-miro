@@ -31,6 +31,25 @@ async function openFirstCard(page: import('@playwright/test').Page) {
   await expect(page.getByRole('dialog')).toBeVisible();
 }
 
+/**
+ * Pone un puntaje con las estrellas.
+ *
+ * Se hace clic en el `<label>` de la media estrella, que es lo que toca una
+ * persona. El radio está oculto (`sr-only`), y forzar el clic sobre él lo
+ * mandaba a sus coordenadas sin esperar a que el drawer terminara de entrar:
+ * si todavía se estaba deslizando, el clic caía en otro lado, el puntaje no se
+ * marcaba y "Guardar Reseña" quedaba deshabilitado. Por eso, además, se
+ * confirma que quedó elegido antes de seguir.
+ */
+async function rate(scope: import('@playwright/test').Locator, label: string) {
+  await scope
+    .locator('label')
+    .filter({ hasText: new RegExp(`^${label}$`) })
+    .first()
+    .click();
+  await expect(scope.getByLabel(label, { exact: true }).first()).toBeChecked();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
@@ -151,7 +170,7 @@ test('volver a ver algo suma al historial sin pisar lo anterior', async ({ page 
   const drawer = page.getByRole('dialog').last();
   await expect(drawer.getByText(/vez número/)).toBeVisible();
 
-  await drawer.getByLabel('4 de 5 estrellas').first().click({ force: true });
+  await rate(drawer, '4 de 5 estrellas');
   await drawer.getByRole('button', { name: 'Para llorar' }).click();
   await drawer.getByRole('button', { name: /Guardar Reseña/ }).click();
 
@@ -448,7 +467,7 @@ test('abandonar una serie la manda a Archivadas, y retomarla la devuelve', async
 
   const confirm = page.getByRole('dialog', { name: /¿Abandonás Arcane\?/ });
   await confirm.getByLabel(/¿Por qué la dejás\?/).fill('No me enganchó');
-  await confirm.getByLabel('2 de 5 estrellas').click({ force: true });
+  await rate(confirm, '2 de 5 estrellas');
   await confirm.getByRole('button', { name: 'Abandonar' }).click();
 
   // Se va de Viendo, y el aviso dice adónde.

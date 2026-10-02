@@ -2,21 +2,12 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useMediaStore } from '@/store';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
-import {
-  Search,
-  Plus,
-  Check,
-  Tv,
-  Film,
-  AlertCircle,
-  X,
-  BookmarkCheck,
-  Loader2,
-} from 'lucide-react';
+import { Search, Tv, Film, AlertCircle, X } from 'lucide-react';
 import { searchMulti, getGenreNames, TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
 import { Dialog } from '@/components/ui/Dialog';
 import { TitleDetailModal } from '@/components/TitleDetailModal';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
+import { QuickStatusButtons } from '@/components/QuickStatusButtons';
 import { MediaStatus, SavedMedia, TMDbResult } from '@/types';
 
 const DEBOUNCE_MS = 400;
@@ -73,7 +64,6 @@ function ResultRow({
   const title = result.title || result.name || '';
   const date = result.release_date || result.first_air_date || '';
   const year = date ? date.split('-')[0] : '';
-  const isCompleted = saved?.status === 'completada';
 
   /**
    * Manda el título a una de las dos listas.
@@ -172,60 +162,14 @@ function ResultRow({
         </span>
       </button>
 
-      <div className="flex items-center gap-2 shrink-0">
-        {saved ? (
-          // Un marcador y no un tilde pelado: el tilde de al lado quiere decir
-          // "completada", y dos tildes juntos no dicen ninguna de las dos
-          // cosas.
-          <span
-            className="btn-icon w-11 h-11 bg-border-card text-text-muted"
-            title="Ya está en tu biblioteca"
-          >
-            <BookmarkCheck size={20} aria-hidden="true" />
-            <span className="sr-only">Ya está en tu biblioteca</span>
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => save('por_ver', 'Por Ver')}
-            disabled={savingStatus !== null}
-            className="btn-icon w-11 h-11 bg-bg-main border border-border-card text-status-por-ver hover:bg-border-card"
-            aria-label={`Agregar "${title}" a Por Ver`}
-            title="Agregar a Por Ver"
-          >
-            {savingStatus === 'por_ver' ? (
-              <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-            ) : (
-              <Plus size={20} aria-hidden="true" />
-            )}
-          </button>
-        )}
-
-        {isCompleted ? (
-          <span
-            className="btn-icon w-11 h-11 bg-status-completada/15 text-status-completada"
-            title="Ya está en Completadas"
-          >
-            <Check size={20} aria-hidden="true" />
-            <span className="sr-only">Ya está en Completadas</span>
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => save('completada', 'Completadas')}
-            disabled={savingStatus !== null}
-            className="btn-icon w-11 h-11 bg-bg-main border border-border-card text-status-completada hover:bg-border-card"
-            aria-label={`Marcar "${title}" como completada`}
-            title="Marcar Completada"
-          >
-            {savingStatus === 'completada' ? (
-              <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-            ) : (
-              <Check size={20} aria-hidden="true" />
-            )}
-          </button>
-        )}
-      </div>
+      <QuickStatusButtons
+        title={title}
+        saved={saved}
+        savingStatus={savingStatus}
+        onSave={(status) =>
+          save(status, status === 'completada' ? 'Completadas' : 'Por Ver')
+        }
+      />
 
       {isDetailOpen && (
         <TitleDetailModal
