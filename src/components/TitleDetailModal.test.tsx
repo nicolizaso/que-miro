@@ -327,6 +327,36 @@ describe('TitleDetailModal, sobre un título que ya está en la biblioteca', () 
   });
 });
 
+describe('TitleDetailModal, el puntaje de TMDB', () => {
+  afterEach(() => {
+    getMediaDetail.mockImplementation(async () => detail);
+  });
+
+  it('va al lado del nombre', async () => {
+    getMediaDetail.mockImplementation(async () => ({
+      ...detail,
+      vote_average: 8.37,
+      vote_count: 2500,
+    }));
+    await renderExploreDetail();
+
+    const heading = screen.getByRole('heading', { level: 2, name: 'Severance' });
+    const score = screen.getByText('Puntaje en TMDB: 8,4 de 10');
+    expect(heading.parentElement).toContainElement(score);
+  });
+
+  it('con pocos votos no aparece', async () => {
+    getMediaDetail.mockImplementation(async () => ({
+      ...detail,
+      vote_average: 10,
+      vote_count: 3,
+    }));
+    await renderExploreDetail();
+
+    expect(screen.queryByText(/Puntaje en TMDB/)).not.toBeInTheDocument();
+  });
+});
+
 describe('TitleDetailModal, las plataformas', () => {
   it('ofrece la página de TMDB con dónde verlo y le atribuye los datos a JustWatch', async () => {
     const link = 'https://www.themoviedb.org/tv/95396-severance/watch?locale=AR';

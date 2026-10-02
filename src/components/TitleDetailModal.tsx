@@ -8,7 +8,7 @@ import {
 } from '@/lib/tmdb';
 import { canonicalGenreNames } from '@/lib/genres';
 import { MediaStatus, SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
-import { X, Play, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { X, Play, AlertCircle, ExternalLink, Loader2, Star } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
 import { ScrollRail } from '@/components/ui/ScrollRail';
@@ -28,6 +28,7 @@ import { enrichFromDetail, isStale } from '@/lib/enrich';
 import { ProviderLogo, pickProviders } from '@/lib/providers';
 import { paysFor, subscribedNames } from '@/lib/subscriptions';
 import { newEpisodesSummary } from '@/lib/progress';
+import { formatTmdbScore } from '@/lib/tmdbScore';
 import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
 import { cn } from '@/lib/utils';
 import { useMediaStore } from '@/store';
@@ -216,6 +217,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   const news = saved?.mediaType === 'tv' ? newEpisodesSummary(saved) : null;
 
   const title = detail?.title || detail?.name || saved?.title || '';
+  const score = formatTmdbScore(detail?.vote_average, detail?.vote_count);
   // Las cacheadas ganan: reflejan lo que la persona vio cuando marcó episodios.
   const seasons = saved?.seasons?.length
     ? saved.seasons
@@ -371,12 +373,26 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
 
               {title && (
                 <div className="absolute bottom-6 left-6 right-6">
-                  <h2
-                    id={titleId}
-                    className="text-display text-white drop-shadow-lg line-clamp-2"
-                  >
-                    {title}
-                  </h2>
+                  <div className="flex items-start justify-between gap-3">
+                    <h2
+                      id={titleId}
+                      className="text-display text-white drop-shadow-lg line-clamp-2"
+                    >
+                      {title}
+                    </h2>
+                    {/* Alineado con la primera línea del título: si el nombre
+                        ocupa dos, el puntaje no baja a buscar el medio. */}
+                    {score && (
+                      <span
+                        className="inline-flex items-center gap-1 shrink-0 mt-1 sm:mt-1.5 rounded-full bg-black/50 backdrop-blur-md px-2.5 py-1 text-sm font-bold text-white"
+                        title="Puntaje en TMDB"
+                      >
+                        <Star size={14} className="fill-current" aria-hidden="true" />
+                        <span aria-hidden="true">{score}</span>
+                        <span className="sr-only">Puntaje en TMDB: {score} de 10</span>
+                      </span>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-2 text-sm text-white/80 mt-2">
                     <span>
                       {(detail?.release_date || detail?.first_air_date || '').split(

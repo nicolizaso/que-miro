@@ -49,9 +49,10 @@ dispositivos.
   series con el catálogo de cada una. Con "Recomendame solo lo que está en mis
   plataformas", todo Explorar se limita a eso: las filas que no se pueden
   filtrar así se esconden mientras esté prendido.
-- **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está
-  disponible, según el país que elijas, con un enlace a la página que lleva
-  directo a cada una. En la línea de la sinopsis están los mismos atajos del
+- **Ficha del título** — el puntaje de TMDB al lado del nombre (si tiene
+  votos suficientes para decir algo), sinopsis, reparto, tráiler y en qué
+  plataformas está disponible, según el país que elijas, con un enlace a la
+  página que lleva directo a cada una. En la línea de la sinopsis están los mismos atajos del
   buscador: *Por Ver* y *Completada* de un toque, o dónde quedó si ya está
   guardado.
 - **Página de persona** — desde el reparto de una ficha, las filas de Explorar
