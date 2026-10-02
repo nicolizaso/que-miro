@@ -8,21 +8,14 @@ import {
 } from '@/lib/tmdb';
 import { canonicalGenreNames } from '@/lib/genres';
 import { MediaStatus, SavedMedia, SeasonInfo, TMDbDetail } from '@/types';
-import {
-  X,
-  Play,
-  AlertCircle,
-  Check,
-  ExternalLink,
-  Loader2,
-  Plus,
-} from 'lucide-react';
+import { X, Play, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
 import { ScrollRail } from '@/components/ui/ScrollRail';
 import { SeriesProgress } from '@/components/SeriesProgress';
 import { CollectionPicker } from '@/components/CollectionPicker';
 import { StatusActions } from '@/components/StatusActions';
+import { QuickStatusButtons } from '@/components/QuickStatusButtons';
 import { NotifyToggle } from '@/components/NotifyToggle';
 import { WatchHistory } from '@/components/WatchHistory';
 import { SocialOnTitle } from '@/components/social/SocialOnTitle';
@@ -63,21 +56,6 @@ function seasonsFromDetail(detail: TMDbDetail | null): SeasonInfo[] {
       episodeCount: season.episode_count,
     }));
 }
-
-/**
- * Las dos listas a las que se llega de un clic desde la ficha.
- *
- * Son las dos puntas de lo que se hace desde Explorar: anotar algo para
- * después, o dejar asentado algo que ya se vio. *Viendo* queda afuera a
- * propósito: se llega solo al marcar el primer episodio, y sumarla acá era un
- * tercer botón para el caso más raro de los tres.
- */
-const QUICK_ADD: { status: MediaStatus; listName: string }[] = [
-  { status: 'por_ver', listName: 'Por Ver' },
-  // El botón dice "Completada" —habla del título— y el aviso "Completadas",
-  // que es como se llama la pestaña a la que fue a parar.
-  { status: 'completada', listName: 'Completadas' },
-];
 
 /**
  * Un grupo de plataformas —incluidas o de alquiler— con sus logos. Las que
@@ -273,12 +251,23 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
     await addMedia(draft);
   };
 
-  const handleQuickAdd = async (status: MediaStatus, listName: string) => {
+  /**
+   * Los atajos de la línea de la sinopsis.
+   *
+   * Si ya está en la biblioteca solo cambia de estado, como en el buscador:
+   * volver a agregarlo lo escribiría de cero y se llevaría puestos la reseña,
+   * el historial y el progreso de temporadas que tuviera.
+   */
+  const handleQuickAdd = async (status: MediaStatus) => {
     if (savingStatus) return;
 
     setSavingStatus(status);
     try {
-      await saveToLibrary(status);
+      if (saved) {
+        await updateStatus(saved.tmdbId, status);
+      } else {
+        await saveToLibrary(status);
+      }
     } finally {
       setSavingStatus(null);
     }
@@ -297,13 +286,22 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
       return;
     }
 
-    showToast(`"${title}" se agregó a ${listName}.`);
+    showToast(`"${title}" se agregó a Por Ver.`);
   };
 
   /** Guarda el título dentro de una lista propia, en un solo paso. */
   const handleSaveInto = async (collectionId: string) => {
     await saveToLibrary('por_ver', [collectionId]);
   };
+
+  const quickStatus = (
+    <QuickStatusButtons
+      title={title}
+      saved={saved}
+      savingStatus={savingStatus}
+      onSave={handleQuickAdd}
+    />
+  );
 
   return (
     <Dialog
@@ -396,110 +394,6 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8">
-              {(saved || detail) && (
-                <div className="flex flex-col gap-3">
-                  <h3 className="text-section">Tu biblioteca</h3>
-                  {saved ? (
-                    <>
-                      <p className="text-sm text-text-muted">
-                        Ya está en tu biblioteca, en{' '}
-                        <strong className="text-text-main">
-                          {isArchivedStatus(saved.status)
-                            ? 'Archivadas'
-                            : STATUS_LABELS[saved.status]}
-                        </strong>
-                        .
-                      </p>
-                      {/* El aviso ofrece volver a Viendo, pero no la mueve
-                          solo: puede que la persona quiera esperar a que
-                          salga la temporada entera. */}
-                      {news && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-accent/30 bg-accent/10 px-4 py-3">
-                          <p className="text-sm text-text-main">
-                            <strong className="text-accent">{news.label}</strong>{' '}
-                            {saved.status === 'completada'
-                              ? 'desde que la terminaste.'
-                              : 'desde la última vez que estabas al día.'}
-                          </p>
-                          {/* Una en pausa ya ofrece "Retomar" abajo: dos
-                              botones que hacen lo mismo se leen como dos
-                              cosas distintas. */}
-                          {saved.status !== 'viendo' && !isArchivedStatus(saved.status) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void updateStatus(saved.tmdbId, 'viendo');
-                                showToast(`"${saved.title}" volvió a Viendo.`);
-                              }}
-                              className="btn btn-primary px-3 py-2 text-sm"
-                            >
-                              Pasar a Viendo
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      <StatusActions media={saved} />
-                      <NotifyToggle media={saved} />
-                    </>
-                  ) : (
-                    <ul className="flex flex-wrap gap-2">
-                      {QUICK_ADD.map(({ status, listName }) => (
-                        <li key={status}>
-                          <button
-                            type="button"
-                            onClick={() => handleQuickAdd(status, listName)}
-                            disabled={savingStatus !== null}
-                            aria-label={`Guardar "${title}" en ${STATUS_LABELS[status]}`}
-                            className="btn btn-secondary px-4 py-2.5 text-sm"
-                          >
-                            {savingStatus === status ? (
-                              <Loader2
-                                size={16}
-                                className="animate-spin"
-                                aria-hidden="true"
-                              />
-                            ) : status === 'completada' ? (
-                              <Check size={16} aria-hidden="true" />
-                            ) : (
-                              <Plus size={16} aria-hidden="true" />
-                            )}
-                            {STATUS_LABELS[status]}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {saved && mediaType === 'tv' && (
-                <SeriesProgress media={saved} seasons={seasons} />
-              )}
-
-              {saved && <WatchHistory media={saved} />}
-
-              {title && (
-                <SocialOnTitle
-                  title={{
-                    tmdbId: id,
-                    mediaType,
-                    title,
-                    posterPath: saved?.posterPath ?? detail?.poster_path ?? null,
-                    releaseYear:
-                      saved?.releaseYear ?? (detail?.release_date || detail?.first_air_date || '').split('-')[0],
-                  }}
-                  saved={saved}
-                />
-              )}
-
-              {(saved || detail) && (
-                <CollectionPicker
-                  title={title}
-                  media={saved ?? undefined}
-                  onSaveInto={handleSaveInto}
-                />
-              )}
-
               {error && (
                 <p
                   role="alert"
@@ -517,56 +411,22 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                 </div>
               ) : (
                 <>
-                  {trailer && (
-                    <a
-                      href={`https://www.youtube.com/watch?v=${trailer.key}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-primary w-full py-4 shrink-0"
-                    >
-                      <Play size={20} className="fill-current" aria-hidden="true" />
-                      Ver Tráiler
-                      <span className="sr-only">(se abre en YouTube)</span>
-                    </a>
-                  )}
-
-                  {title && (
-                    <ShareButton
-                      className="self-start"
-                      title={title}
-                      text={`Estoy mirando ${title} en Qué Miro?`}
-                      card={{
-                        eyebrow: saved?.history?.length
-                          ? 'La vi'
-                          : 'Anotada para ver',
-                        headline: title,
-                        subline: [
-                          detail?.release_date?.split('-')[0] ??
-                            detail?.first_air_date?.split('-')[0] ??
-                            saved?.releaseYear,
-                          detail?.genres?.[0]?.name ?? saved?.genres[0],
-                        ]
-                          .filter(Boolean)
-                          .join(' · '),
-                        stats: saved?.history?.[0]
-                          ? [
-                              {
-                                value: String(saved.history[0].rating),
-                                label: 'de 5 estrellas',
-                              },
-                            ]
-                          : undefined,
-                      }}
-                    />
-                  )}
-
-                  {detail?.overview && (
+                  {detail?.overview ? (
                     <div>
-                      <h3 className="text-lg font-bold mb-2">Sinopsis</h3>
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <h3 className="text-lg font-bold">Sinopsis</h3>
+                        {quickStatus}
+                      </div>
                       <p className="text-text-muted text-sm leading-relaxed">
                         {detail.overview}
                       </p>
                     </div>
+                  ) : (
+                    // Sin sinopsis no va un encabezado vacío: los atajos quedan
+                    // solos, en el mismo lugar.
+                    (detail || saved) && (
+                      <div className="flex justify-end">{quickStatus}</div>
+                    )
                   )}
 
                   {cast.length > 0 && (
@@ -604,6 +464,126 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                         </li>
                       ))}
                     </ScrollRail>
+                  )}
+
+                  {trailer && (
+                    <a
+                      href={`https://www.youtube.com/watch?v=${trailer.key}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-primary w-full py-4 shrink-0"
+                    >
+                      <Play size={20} className="fill-current" aria-hidden="true" />
+                      Ver Tráiler
+                      <span className="sr-only">(se abre en YouTube)</span>
+                    </a>
+                  )}
+                </>
+              )}
+
+              {saved && (
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-section">Tu biblioteca</h3>
+                  <p className="text-sm text-text-muted">
+                    Ya está en tu biblioteca, en{' '}
+                    <strong className="text-text-main">
+                      {isArchivedStatus(saved.status)
+                        ? 'Archivadas'
+                        : STATUS_LABELS[saved.status]}
+                    </strong>
+                    .
+                  </p>
+                  {/* El aviso ofrece volver a Viendo, pero no la mueve
+                      solo: puede que la persona quiera esperar a que
+                      salga la temporada entera. */}
+                  {news && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-accent/30 bg-accent/10 px-4 py-3">
+                      <p className="text-sm text-text-main">
+                        <strong className="text-accent">{news.label}</strong>{' '}
+                        {saved.status === 'completada'
+                          ? 'desde que la terminaste.'
+                          : 'desde la última vez que estabas al día.'}
+                      </p>
+                      {/* Una en pausa ya ofrece "Retomar" abajo: dos
+                          botones que hacen lo mismo se leen como dos
+                          cosas distintas. */}
+                      {saved.status !== 'viendo' && !isArchivedStatus(saved.status) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void updateStatus(saved.tmdbId, 'viendo');
+                            showToast(`"${saved.title}" volvió a Viendo.`);
+                          }}
+                          className="btn btn-primary px-3 py-2 text-sm"
+                        >
+                          Pasar a Viendo
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <StatusActions media={saved} />
+                  <NotifyToggle media={saved} />
+                </div>
+              )}
+
+              {saved && mediaType === 'tv' && (
+                <SeriesProgress media={saved} seasons={seasons} />
+              )}
+
+              {saved && <WatchHistory media={saved} />}
+
+              {title && (
+                <SocialOnTitle
+                  title={{
+                    tmdbId: id,
+                    mediaType,
+                    title,
+                    posterPath: saved?.posterPath ?? detail?.poster_path ?? null,
+                    releaseYear:
+                      saved?.releaseYear ?? (detail?.release_date || detail?.first_air_date || '').split('-')[0],
+                  }}
+                  saved={saved}
+                />
+              )}
+
+              {(saved || detail) && (
+                <CollectionPicker
+                  title={title}
+                  media={saved ?? undefined}
+                  onSaveInto={handleSaveInto}
+                />
+              )}
+
+              {!loading && (
+                <>
+                  {title && (
+                    <ShareButton
+                      className="self-start"
+                      title={title}
+                      text={`Estoy mirando ${title} en Qué Miro?`}
+                      card={{
+                        eyebrow: saved?.history?.length
+                          ? 'La vi'
+                          : 'Anotada para ver',
+                        headline: title,
+                        subline: [
+                          detail?.release_date?.split('-')[0] ??
+                            detail?.first_air_date?.split('-')[0] ??
+                            saved?.releaseYear,
+                          detail?.genres?.[0]?.name ?? saved?.genres[0],
+                        ]
+                          .filter(Boolean)
+                          .join(' · '),
+                        stats: saved?.history?.[0]
+                          ? [
+                              {
+                                value: String(saved.history[0].rating),
+                                label: 'de 5 estrellas',
+                              },
+                            ]
+                          : undefined,
+                      }}
+                    />
                   )}
 
                   {allProviders.length > 0 && picked && (

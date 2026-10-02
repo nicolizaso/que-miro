@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { Collection, TMDbDetail } from '@/types';
+import { Collection, SavedMedia, TMDbDetail } from '@/types';
 
 /** Sin sesión: la biblioteca es el store local, que es lo que miran los tests. */
 vi.mock('@/contexts/AuthContext', () => ({
@@ -75,7 +75,7 @@ async function renderExploreDetail() {
   );
   // El primer render dispara el pedido de la ficha: sin esperarlo, lo que se ve
   // es el esqueleto y no los botones.
-  await screen.findByRole('heading', { name: 'Tu biblioteca' });
+  await screen.findByRole('heading', { name: 'Sinopsis' });
 }
 
 beforeEach(() => {
@@ -92,7 +92,7 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     const user = userEvent.setup();
     await renderExploreDetail();
 
-    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Por Ver' }));
+    await user.click(screen.getByRole('button', { name: 'Agregar "Severance" a Por Ver' }));
 
     await waitFor(() =>
       expect(useMediaStore.getState().mediaList).toHaveLength(1),
@@ -115,7 +115,7 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     const user = userEvent.setup();
     await renderExploreDetail();
 
-    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Completada' }));
+    await user.click(screen.getByRole('button', { name: 'Marcar "Severance" como completada' }));
 
     await waitFor(() =>
       expect(useMediaStore.getState().mediaList[0]?.status).toBe('completada'),
@@ -129,7 +129,7 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     const user = userEvent.setup();
     await renderExploreDetail();
 
-    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Completada' }));
+    await user.click(screen.getByRole('button', { name: 'Marcar "Severance" como completada' }));
     await screen.findByRole('heading', { name: 'Completaste' });
     await user.click(screen.getByRole('button', { name: 'Cancelar' }));
 
@@ -147,7 +147,7 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     const user = userEvent.setup();
     await renderExploreDetail();
 
-    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Completada' }));
+    await user.click(screen.getByRole('button', { name: 'Marcar "Severance" como completada' }));
     await screen.findByRole('heading', { name: 'Completaste' });
     await user.click(screen.getByLabelText('5 de 5 estrellas'));
     await user.click(screen.getByRole('button', { name: 'Guardar Reseña' }));
@@ -162,7 +162,7 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     const user = userEvent.setup();
     await renderExploreDetail();
 
-    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Por Ver' }));
+    await user.click(screen.getByRole('button', { name: 'Agregar "Severance" a Por Ver' }));
 
     await waitFor(() =>
       expect(useMediaStore.getState().mediaList).toHaveLength(1),
@@ -195,8 +195,8 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     const user = userEvent.setup();
     await renderExploreDetail();
 
-    await user.click(screen.getByRole('button', { name: 'Guardar "Severance" en Por Ver' }));
-    await screen.findByText(/Ya está en tu biblioteca/);
+    await user.click(screen.getByRole('button', { name: 'Agregar "Severance" a Por Ver' }));
+    await screen.findByText(/Ya está en tu biblioteca, en/);
     await user.click(screen.getByRole('button', { name: 'Maratón' }));
 
     await waitFor(() =>
@@ -205,6 +205,125 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
       ]),
     );
     expect(useMediaStore.getState().mediaList).toHaveLength(1);
+  });
+});
+
+describe('TitleDetailModal, el orden de la ficha', () => {
+  /** La fila del reparto mide su ancho con un observador que jsdom no trae. */
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    getMediaDetail.mockImplementation(async () => detail);
+    vi.unstubAllGlobals();
+  });
+
+  /** Si `first` aparece antes que `second` en la página. */
+  function isBefore(first: Element, second: Element) {
+    return Boolean(
+      first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  }
+
+  it('arranca por la sinopsis, sigue con el reparto y después el tráiler', async () => {
+    getMediaDetail.mockImplementation(async () => ({
+      ...detail,
+      credits: { cast: [{ id: 525, name: 'Adam Scott', character: 'Mark S.', profile_path: null }] },
+      videos: { results: [{ type: 'Trailer', site: 'YouTube', key: 'abc' }] },
+    }));
+
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <TitleDetailModal id={42} mediaType="tv" isOpen onClose={() => {}} />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+
+    const synopsis = await screen.findByRole('heading', { name: 'Sinopsis' });
+    const cast = screen.getByRole('heading', { name: 'Reparto Principal' });
+    const trailer = screen.getByRole('link', { name: /Ver Tráiler/ });
+    const collections = screen.getByRole('heading', { name: 'Mis listas' });
+
+    expect(isBefore(synopsis, cast)).toBe(true);
+    expect(isBefore(cast, trailer)).toBe(true);
+    expect(isBefore(trailer, collections)).toBe(true);
+  });
+
+  it('los atajos van en la línea de la sinopsis, solo con ícono', async () => {
+    await renderExploreDetail();
+
+    const row = screen.getByRole('heading', { name: 'Sinopsis' }).parentElement!;
+    for (const name of ['Agregar "Severance" a Por Ver', 'Marcar "Severance" como completada']) {
+      const button = within(row).getByRole('button', { name });
+      expect(button.textContent).toBe('');
+    }
+    // Sin el título guardado, "Tu biblioteca" no tendría nada adentro.
+    expect(screen.queryByRole('heading', { name: 'Tu biblioteca' })).not.toBeInTheDocument();
+  });
+});
+
+describe('TitleDetailModal, sobre un título que ya está en la biblioteca', () => {
+  const saved: SavedMedia = {
+    tmdbId: 42,
+    mediaType: 'tv',
+    title: 'Severance',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    releaseYear: '2022',
+    genres: ['Drama'],
+    status: 'por_ver',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+  };
+
+  function renderSavedDetail(media: SavedMedia) {
+    act(() => useMediaStore.setState({ mediaList: [media] }));
+    render(
+      <ToastProvider>
+        <TitleDetailModal id={42} mediaType="tv" media={media} isOpen onClose={() => {}} />
+      </ToastProvider>,
+    );
+  }
+
+  it('muestra los mismos indicadores que el buscador, y no ofrece agregarlo de nuevo', async () => {
+    renderSavedDetail(saved);
+
+    const row = (await screen.findByRole('heading', { name: 'Sinopsis' })).parentElement!;
+    expect(within(row).getByText('Ya está en tu biblioteca')).toBeInTheDocument();
+    expect(
+      within(row).queryByRole('button', { name: 'Agregar "Severance" a Por Ver' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('el tilde lo pasa a Completadas sin escribirlo de cero', async () => {
+    const user = userEvent.setup();
+    renderSavedDetail({ ...saved, collections: ['col-Maratón'] });
+
+    await screen.findByRole('heading', { name: 'Sinopsis' });
+    await user.click(screen.getByRole('button', { name: 'Marcar "Severance" como completada' }));
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0]?.status).toBe('completada'),
+    );
+    expect(useMediaStore.getState().mediaList[0]?.collections).toEqual(['col-Maratón']);
+  });
+
+  it('una completada muestra el tilde como indicador', async () => {
+    renderSavedDetail({ ...saved, status: 'completada' });
+
+    const row = (await screen.findByRole('heading', { name: 'Sinopsis' })).parentElement!;
+    expect(within(row).getByText('Ya está en Completadas')).toBeInTheDocument();
+    expect(
+      within(row).queryByRole('button', { name: 'Marcar "Severance" como completada' }),
+    ).not.toBeInTheDocument();
   });
 });
 

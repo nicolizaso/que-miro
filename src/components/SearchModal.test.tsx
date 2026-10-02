@@ -115,7 +115,7 @@ describe('SearchModal', () => {
     );
 
     // La sección de la ficha, que el resultado de la búsqueda no tiene.
-    expect(await screen.findByRole('heading', { name: 'Tu biblioteca' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sinopsis' })).toBeInTheDocument();
     expect(await screen.findByText('Nueve familias por un trono.')).toBeInTheDocument();
     // Abrir la ficha no guarda nada.
     expect(useMediaStore.getState().mediaList).toHaveLength(0);

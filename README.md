@@ -51,7 +51,9 @@ dispositivos.
   filtrar así se esconden mientras esté prendido.
 - **Ficha del título** — sinopsis, reparto, tráiler y en qué plataformas está
   disponible, según el país que elijas, con un enlace a la página que lleva
-  directo a cada una.
+  directo a cada una. En la línea de la sinopsis están los mismos atajos del
+  buscador: *Por Ver* y *Completada* de un toque, o dónde quedó si ya está
+  guardado.
 - **Página de persona** — desde el reparto de una ficha, las filas de Explorar
   que hablan de alguien o lo que elegiste en "Contanos de vos", su página
   (`/persona/…`): quién es, su filmografía sin repetidos —con filtro reparto /
