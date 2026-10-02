@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   CalendarDays,
   Compass,
   LayoutGrid,
+  LogIn,
   Search,
   Shuffle,
   User,
@@ -28,6 +29,7 @@ import { useActivityPublisher } from '@/hooks/useActivityPublisher';
 import { useInbox } from '@/hooks/useInbox';
 import { buildDemoSocial } from '@/lib/demoSocial';
 import { cn } from '@/lib/utils';
+import { isFirebaseConfigured } from '@/lib/firebase';
 
 // El Picker va al medio a propósito: es el botón destacado de la barra
 // inferior, y un destacado descentrado deja la barra despareja. El perfil no
@@ -226,10 +228,22 @@ export function AppLayout() {
                 Ajustes, y el header queda con lo que se usa todos los días. */}
             <ThemeToggle className="hidden sm:flex" />
 
-            {authState !== 'authenticated' && (
+            {authState === 'demo' && (
               <span className="hidden sm:flex items-center justify-center bg-border-card rounded-full px-3 py-1 text-xs font-medium text-text-muted">
-                {authState === 'demo' ? 'Demo' : 'Modo Invitado'}
+                Demo
               </span>
+            )}
+
+            {/* Sin cuenta, la app anda igual: entrar es para sincronizar, así
+                que es un botón chico y no un cartel. En el teléfono no entra;
+                ahí la entrada está en el perfil. */}
+            {authState === 'guest' && isFirebaseConfigured && (
+              <div className="hidden sm:block">
+                <Link to="/login" className="btn btn-secondary px-3 py-1.5 text-sm">
+                  <LogIn size={15} aria-hidden="true" />
+                  Ingresar
+                </Link>
+              </div>
             )}
 
             {/* La foto de perfil *es* la entrada al perfil: sacamos ese destino

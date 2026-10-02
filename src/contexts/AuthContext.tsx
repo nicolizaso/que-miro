@@ -23,12 +23,14 @@ import { releasePushDevice } from '@/lib/pushDevice';
 type AuthState =
   | 'loading'
   | 'authenticated'
+  /**
+   * Sin cuenta: la biblioteca vive en este dispositivo. Es como se entra a la
+   * app; iniciar sesión es algo que se hace después, para sincronizar.
+   */
   | 'guest'
   /** Biblioteca de ejemplo, sin cuenta y sin escribir en Firestore. */
-  | 'demo'
-  | 'unauthenticated';
+  | 'demo';
 
-const GUEST_STORAGE_KEY = 'que-miro-guest';
 const DEMO_STORAGE_KEY = 'que-miro-demo';
 
 interface AuthContextType {
@@ -37,17 +39,32 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
-  continueAsGuest: () => void;
   /** Carga la biblioteca de ejemplo para poder recorrer la app sin registrarse. */
   startDemo: () => void;
   /** Sale del demo y devuelve la biblioteca que hubiera antes. */
   stopDemo: () => void;
-  /** Sale del modo invitado para volver a la pantalla de login, sin borrar datos. */
-  exitGuestMode: () => void;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/**
+ * Saca del dispositivo la biblioteca de una cuenta que se quedó sin sesión.
+ *
+ * Sin sesión se sigue usando la app, así que lo que hubiera en pantalla queda
+ * a la vista de quien agarre el dispositivo. En Firestore sigue intacta...
+ * salvo que nunca haya llegado: si el servidor todavía no confirmó esta
+ * biblioteca, se guarda una copia de rescate antes de vaciar, porque si no,
+ * salir borraría la única que existe.
+ */
+function clearAccountLibrary() {
+  const { mediaList, collections, ownerUid, syncedUid, reset } =
+    useMediaStore.getState();
+  if (syncedUid !== ownerUid) {
+    saveRescue(mediaList, collections);
+  }
+  reset();
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -67,18 +84,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
       if (currentUser) {
         setAuthState('authenticated');
-        localStorage.removeItem(GUEST_STORAGE_KEY);
         localStorage.removeItem(DEMO_STORAGE_KEY);
         return;
       }
       // Se lee acá y no fuera del callback para no quedarse con un valor viejo
-      // si el usuario entra y sale del modo invitado en la misma sesión.
+      // si la persona entra y sale del demo en la misma sesión.
       if (localStorage.getItem(DEMO_STORAGE_KEY) === 'true') {
         setAuthState('demo');
         return;
       }
-      const isGuest = localStorage.getItem(GUEST_STORAGE_KEY) === 'true';
-      setAuthState(isGuest ? 'guest' : 'unauthenticated');
+      // La sesión se fue sin pasar por "Salir": venció, o se cerró en otra
+      // pestaña. Lo que es de una cuenta no se queda a la vista del invitado.
+      if (useMediaStore.getState().ownerUid) clearAccountLibrary();
+      setAuthState('guest');
     });
 
     return () => unsubscribe();
@@ -106,29 +124,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await createUserWithEmailAndPassword(auth, email, password);
     };
 
-    const continueAsGuest = () => {
-      localStorage.setItem(GUEST_STORAGE_KEY, 'true');
-      setAuthState('guest');
-    };
-
     const startDemo = () => {
       enterDemoMode();
       localStorage.setItem(DEMO_STORAGE_KEY, 'true');
-      localStorage.removeItem(GUEST_STORAGE_KEY);
       setAuthState('demo');
     };
 
     const stopDemo = () => {
       exitDemoMode();
       localStorage.removeItem(DEMO_STORAGE_KEY);
-      setAuthState('unauthenticated');
-    };
-
-    const exitGuestMode = () => {
-      // Los títulos guardados como invitado se conservan a propósito: si la
-      // persona después inicia sesión, SyncManager los migra a su cuenta.
-      localStorage.removeItem(GUEST_STORAGE_KEY);
-      setAuthState('unauthenticated');
+      setAuthState('guest');
     };
 
     const logout = async () => {
@@ -138,22 +143,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await releasePushDevice();
         await signOut(auth);
       }
-      localStorage.removeItem(GUEST_STORAGE_KEY);
       localStorage.removeItem(DEMO_STORAGE_KEY);
-
-      // Se limpia la biblioteca para que no quede visible en el dispositivo
-      // después de cerrar sesión. En Firestore sigue intacta... salvo que
-      // nunca haya llegado. Si el servidor todavía no confirmó esta
-      // biblioteca, se guarda una copia de rescate antes de vaciar: si no,
-      // salir borraría la única que existe.
-      const { mediaList, collections, ownerUid, syncedUid, reset } =
-        useMediaStore.getState();
-      if (syncedUid !== ownerUid) {
-        saveRescue(mediaList, collections);
-      }
-      reset();
+      clearAccountLibrary();
       setUser(null);
-      setAuthState('unauthenticated');
+      // Salir de la cuenta no saca de la app: se sigue usando sin cuenta, con
+      // la biblioteca vacía, como quien llega por primera vez.
+      setAuthState('guest');
     };
 
     return {
@@ -162,10 +157,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signInWithEmail,
       registerWithEmail,
-      continueAsGuest,
       startDemo,
       stopDemo,
-      exitGuestMode,
       logout,
     };
   }, [user, authState]);

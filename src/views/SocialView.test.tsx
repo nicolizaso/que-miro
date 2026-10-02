@@ -12,7 +12,7 @@ import { SavedMedia } from '@/types';
 const auth = { authState: 'demo' as string, user: null as null | { uid: string; displayName: string; email: string } };
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ ...auth, exitGuestMode: vi.fn(), logout: vi.fn() }),
+  useAuth: () => ({ ...auth, logout: vi.fn() }),
 }));
 vi.mock('@/hooks/usePublicProfile', () => ({
   usePublishProfile: () => ({ slug: null, isLoading: false, publish: vi.fn(), unpublish: vi.fn() }),

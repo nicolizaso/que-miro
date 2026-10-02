@@ -35,8 +35,12 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  // La primera vez se cae en Explorar, y el demo lleva a las listas.
   await page.getByRole('button', { name: /Ver una biblioteca de ejemplo/i }).click();
   await expect(page.getByText(/Estás viendo el demo/)).toBeVisible();
+  // Se espera a que lleguen: cambiar de página cierra el buscador, y un ⌘K
+  // apretado antes de que termine el cambio se cerraría solo.
+  await expect(page.getByRole('tablist')).toBeVisible();
 });
 
 test('el demo carga títulos en las tres listas', async ({ page }) => {
@@ -295,6 +299,24 @@ test('una lista compartida inexistente muestra su propia página, no el login', 
   await expect(page).toHaveURL(/\/l\/abcdefghijkl1234/);
 });
 
+test('sin cuenta se entra a la app, y la primera vez cae en Explorar', async ({ page }) => {
+  // Sin demo y sin nada guardado: como quien abre la app por primera vez.
+  await page.getByRole('button', { name: /Salir del demo/ }).click();
+  // Abrir la app de cero: el navegador conserva el estado del historial al
+  // recargar, y la llegada a Explorar es solo para quien recién la abre.
+  await page.evaluate(() => history.replaceState(null, '', '/'));
+  await page.reload();
+
+  await expect(page).toHaveURL(/\/explorar$/);
+  await expect(page.getByRole('heading', { name: 'Armá tu biblioteca, sin cuenta' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toHaveCount(0);
+
+  // Mis listas, tocado a propósito, no rebota a Explorar.
+  await page.getByRole('link', { name: 'Mis Listas', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText('No tenés títulos en esta lista.')).toBeVisible();
+});
+
 test('se navega con teclado desde el salto al contenido', async ({ page }) => {
   // Se recarga primero para que el foco arranque desde el principio del
   // documento: el botón del demo se desmontó al hacer clic, y el navegador
@@ -471,7 +493,6 @@ test('una novedad de plataforma se descarta y no vuelve', async ({ page }) => {
 test('importar el export de Letterboxd, revisando lo dudoso', async ({ page }) => {
   // Sin demo: importar es para una biblioteca propia.
   await page.getByRole('button', { name: /Salir del demo/ }).click();
-  await page.getByRole('button', { name: /Continuar como Invitado/ }).click();
 
   // TMDB contesta lo que diría para cada título del export.
   await page.route('**/api/tmdb/find**', (route) => {

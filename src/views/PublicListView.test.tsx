@@ -100,10 +100,33 @@ describe('PublicListView', () => {
 
   it('sin biblioteca donde guardar, solo se mira', () => {
     state.canSave = false;
-    state.authState = 'unauthenticated';
     renderView();
     expect(screen.queryByRole('button', { name: /Guardar/ })).not.toBeInTheDocument();
+  });
+
+  it('a quien llega sin cuenta y sin nada guardado, la invita a armar la suya', () => {
+    state.authState = 'guest';
+    renderView();
     expect(screen.getByRole('link', { name: 'Armá la tuya' })).toBeInTheDocument();
+  });
+
+  it('a quien ya guardó algo sin cuenta, la devuelve a su biblioteca', () => {
+    state.authState = 'guest';
+    useMediaStore.getState().setMediaList([
+      {
+        tmdbId: 99,
+        mediaType: 'movie',
+        title: 'Otra',
+        posterPath: null,
+        backdropPath: null,
+        releaseYear: '2020',
+        genres: [],
+        status: 'por_ver',
+        updatedAt: '',
+      },
+    ]);
+    renderView();
+    expect(screen.getByRole('link', { name: 'Mi biblioteca' })).toBeInTheDocument();
   });
 
   it('una lista que no existe tiene su propia página', () => {
