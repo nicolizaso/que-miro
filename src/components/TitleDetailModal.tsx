@@ -250,7 +250,8 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
     };
 
     setJustSaved(draft);
-    await addMedia(draft);
+    // Si quedó esperando al login, la ficha no puede mostrarlo como guardado.
+    if ((await addMedia(draft)) === 'pending') setJustSaved(null);
   };
 
   /**

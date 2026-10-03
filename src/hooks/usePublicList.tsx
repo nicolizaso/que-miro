@@ -258,8 +258,8 @@ export function useSaveFromList() {
 
   const saveOne = async (item: PublicList['items'][number]) => {
     const { updatedAt: _updatedAt, ...draft } = draftOf(item);
-    await addMedia(draft);
-    showToast(`"${item.title}" quedó en Por Ver.`);
+    // Si quedó esperando al login, lo anuncia el cartel, no esta lista.
+    if ((await addMedia(draft)) === 'saved') showToast(`"${item.title}" quedó en Por Ver.`);
   };
 
   /** Crea la colección con un nombre libre y le suma todo; lo nuevo entra a *Por Ver*. */

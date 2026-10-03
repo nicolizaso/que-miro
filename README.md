@@ -178,9 +178,12 @@ dispositivos.
   sincronizan solos cuando vuelve la red.
 - **Sin cuenta de entrada** — la app abre directo, sin pantalla de login. La
   primera vez cae en Explorar, con una bienvenida que ofrece el demo o entrar
-  a una cuenta; se va sola cuando guardás algo. Lo que guardes queda en el
-  dispositivo, y si después iniciás sesión —"Ingresar" en el header o en el
-  perfil— tu biblioteca se migra sola.
+  a una cuenta; se va sola cuando guardás algo. Al guardar el primer título
+  te sugiere crear una cuenta o entrar: si entrás, volvés a donde estabas con
+  el título ya guardado en la lista que elegiste; si seguís sin cuenta, se
+  guarda en el navegador y no te vuelve a preguntar en esa visita. Lo que
+  guardes así queda en el dispositivo, y si después iniciás sesión —"Ingresar"
+  en el header o en el perfil— tu biblioteca se migra sola.
 - **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.
 - **Tus datos son tuyos** — exportá a JSON o CSV, reimportá el JSON y eliminá tu
   cuenta con todos sus datos cuando quieras.

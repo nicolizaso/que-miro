@@ -22,6 +22,8 @@ import { newWatchId, toStoredMedia, toStoredPatch, withArchive } from '@/lib/sch
 import { isArchivedStatus } from '@/lib/archive';
 import { detectAvailabilityNews, markNewsSeen } from '@/lib/availability';
 import { hasSubscriptions, subscribedNames } from '@/lib/subscriptions';
+import { hasChosenGuest, shouldPromptSignIn } from '@/lib/pendingSave';
+import { useSignInPrompt } from '@/hooks/useSignInPrompt';
 
 /** Tope de operaciones por `writeBatch` en Firestore. */
 const BATCH_LIMIT = 400;
@@ -163,8 +165,21 @@ export function useMediaActions() {
    * título queda igual en la biblioteca y solo se pierde el filtro por
    * plataforma. Al revés —esperar la ficha antes de guardar— un TMDB caído
    * impediría agregar nada.
+   *
+   * Sin cuenta, el primer título de la visita no se guarda de una: se le
+   * sugiere a la persona entrar, y el cartel decide. Por eso devuelve
+   * `'pending'`, para que quien llamó no anuncie un guardado que no pasó.
    */
-  const addMedia = async (draft: Omit<SavedMedia, 'updatedAt'>) => {
+  const addMedia = async (
+    draft: Omit<SavedMedia, 'updatedAt'>,
+  ): Promise<'saved' | 'pending'> => {
+    if (
+      shouldPromptSignIn({ authState, isFirebaseConfigured, choseGuest: hasChosenGuest() })
+    ) {
+      useSignInPrompt.getState().open(draft);
+      return 'pending';
+    }
+
     // Una serie que entra directo a Completadas entra con todo visto. Si
     // todavía no trae sus temporadas, se marca cuando llegue la ficha.
     const isCompleted = draft.status === 'completada';
@@ -196,6 +211,7 @@ export function useMediaActions() {
     } catch (error) {
       console.warn('[media] No pudimos completar la ficha del título:', error);
     }
+    return 'saved';
   };
 
   /**
