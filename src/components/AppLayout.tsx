@@ -13,7 +13,6 @@ import {
 import { SearchModal } from '@/components/SearchModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
-import { DemoBanner } from '@/components/DemoBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { SyncIssueBanner } from '@/components/SyncIssueBanner';
 import { SyncManager } from '@/components/SyncManager';
@@ -27,7 +26,6 @@ import { ListAutoPublishers } from '@/hooks/usePublicList';
 import { useSocialSync } from '@/hooks/useSocial';
 import { useActivityPublisher } from '@/hooks/useActivityPublisher';
 import { useInbox } from '@/hooks/useInbox';
-import { buildDemoSocial } from '@/lib/demoSocial';
 import { cn } from '@/lib/utils';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
@@ -87,7 +85,7 @@ export function AppLayout() {
   usePushSnapshot();
   useCalendarFeedSync();
   useAutoPublishProfile();
-  useSocialSync(buildDemoSocial);
+  useSocialSync();
   useActivityPublisher();
   const { unread } = useInbox();
 
@@ -228,12 +226,6 @@ export function AppLayout() {
                 Ajustes, y el header queda con lo que se usa todos los días. */}
             <ThemeToggle className="hidden sm:flex" />
 
-            {authState === 'demo' && (
-              <span className="hidden sm:flex items-center justify-center bg-border-card rounded-full px-3 py-1 text-xs font-medium text-text-muted">
-                Demo
-              </span>
-            )}
-
             {/* Sin cuenta, la app anda igual: entrar es para sincronizar, así
                 que es un botón chico y no un cartel. En el teléfono no entra;
                 ahí la entrada está en el perfil. */}
@@ -285,8 +277,6 @@ export function AppLayout() {
       <OfflineBanner />
 
       <SyncIssueBanner />
-
-      <DemoBanner />
 
       {/* El hueco de abajo lo reserva el marco, que es quien sabe si hay barra
           inferior; las vistas no tienen por qué enterarse. */}

@@ -39,8 +39,7 @@ export function resetBackgroundRefresh(): void {
  * saliendo, después *Por Ver*—, con tope por visita; acá solo se decide
  * cuándo, y se hace de a uno, sin apurar a nadie.
  *
- * No corre en el demo, que ya trae su biblioteca completa de TMDB, ni con una
- * cuenta cuya biblioteca todavía no bajó del servidor: refrescar la copia del
+ * No corre con una cuenta cuya biblioteca todavía no bajó del servidor: refrescar la copia del
  * dispositivo antes de saber qué hay del otro lado sería escribir a ciegas.
  */
 export function useBackgroundRefresh(): void {

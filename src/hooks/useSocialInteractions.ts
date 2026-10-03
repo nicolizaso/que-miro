@@ -1,7 +1,7 @@
 import { deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/contexts/ToastContext';
-import { useSocialStore, patchDemo } from '@/hooks/useSocial';
+import { useSocialStore } from '@/hooks/useSocial';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useMediaStore } from '@/store';
 import { ActivityTitle } from '@/lib/activity';
@@ -31,7 +31,6 @@ export function useSocialInteractions() {
     const account = state.account;
     if (!me || !account) return;
     useSocialStore.setState({ myReactions: { ...state.myReactions, [`${ownerUid}:${eventId}`]: emoji } });
-    if (state.mode === 'demo') return;
 
     const ref = doc(db, `activity/${ownerUid}/reactions/${reactionId(me, eventId)}`);
     const write = emoji
@@ -68,15 +67,13 @@ export function useSocialInteractions() {
       note,
       at,
     };
-    if (state.mode !== 'demo') {
-      setDoc(
-        doc(db, `users/${toUid}/recommendations/${recommendationId(me, title.mediaType, title.tmdbId)}`),
-        recommendationToDocument(rec),
-      ).catch((error: unknown) => {
-        console.error('[social] No se pudo recomendar:', error);
-        showToast('No pudimos mandar la recomendación. Tienen que seguirse los dos.', 'error');
-      });
-    }
+    setDoc(
+      doc(db, `users/${toUid}/recommendations/${recommendationId(me, title.mediaType, title.tmdbId)}`),
+      recommendationToDocument(rec),
+    ).catch((error: unknown) => {
+      console.error('[social] No se pudo recomendar:', error);
+      showToast('No pudimos mandar la recomendación. Tienen que seguirse los dos.', 'error');
+    });
     showToast(`Le recomendaste "${title.title}" a ${toName}.`);
   };
 
@@ -84,10 +81,6 @@ export function useSocialInteractions() {
   const dismissRecommendation = (rec: Recommendation) => {
     const state = useSocialStore.getState();
     if (!state.uid) return;
-    if (state.mode === 'demo') {
-      patchDemo({ recommendations: state.recommendations.filter((item) => item.id !== rec.id) });
-      return;
-    }
     deleteDoc(doc(db, `users/${state.uid}/recommendations/${rec.id}`)).catch((error: unknown) =>
       console.warn('[social] No se pudo descartar la recomendación:', error),
     );

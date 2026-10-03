@@ -7,7 +7,7 @@
  */
 
 interface Visitor {
-  /** Usa la app sin cuenta (ni demo: el demo ya trae biblioteca). */
+  /** Usa la app sin cuenta. */
   isGuest: boolean;
   /** Cuántos títulos tiene guardados en este dispositivo. */
   librarySize: number;

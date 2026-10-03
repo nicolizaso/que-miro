@@ -5,11 +5,33 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { useMediaStore } from '@/store';
 import { useSocialStore } from '@/hooks/useSocial';
-import { buildDemoSocial } from '@/lib/demoSocial';
+import { SAMPLE_ME_UID, loadSampleSocial } from '@/test/fixtures/sampleSocial';
 import { emptySocialSettings } from '@/lib/social';
 import { SavedMedia } from '@/types';
 
-const auth = { authState: 'demo' as string, user: null as null | { uid: string; displayName: string; email: string } };
+type TestUser = { uid: string; displayName: string; email: string };
+const me: TestUser = { uid: SAMPLE_ME_UID, displayName: 'Vos', email: 'vos@example.com' };
+const auth = { authState: 'authenticated' as string, user: me as TestUser | null };
+
+/**
+ * Las escrituras de las acciones sociales, contra una Firestore de mentira
+ * que hace lo que hace la caché local de verdad: el cambio se ve al toque.
+ */
+const updateDoc = vi.fn(async (ref: { path: string }, data: Record<string, unknown>) => {
+  const { useSocialStore: store } = await import('@/hooks/useSocial');
+  const { follows } = store.getState();
+  store.setState({
+    follows: {
+      ...follows,
+      incoming: follows.incoming.map((f) => (ref.path === `follows/${f.follower}_${f.followed}` ? { ...f, ...data } : f)),
+    },
+  });
+});
+vi.mock('firebase/firestore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('firebase/firestore')>()),
+  doc: (_db: unknown, path: string) => ({ path }),
+  updateDoc: (ref: { path: string }, data: Record<string, unknown>) => updateDoc(ref, data),
+}));
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ ...auth, logout: vi.fn() }),
@@ -49,24 +71,6 @@ function severance(status: SavedMedia['status']): SavedMedia {
   };
 }
 
-function loadDemo() {
-  const demo = buildDemoSocial(NOW);
-  useSocialStore.setState({
-    mode: 'demo',
-    uid: demo.me.uid,
-    account: demo.me,
-    follows: demo.follows,
-    followsLoaded: true,
-    reactions: demo.reactions,
-    recommendations: demo.recommendations,
-    blocked: [],
-    myReactions: {},
-    people: {},
-    demo,
-    unavailable: false,
-  });
-}
-
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -85,10 +89,11 @@ function renderAt(path: string) {
 
 describe('SocialView — feed', () => {
   beforeEach(() => {
-    auth.authState = 'demo';
+    auth.authState = 'authenticated';
+    auth.user = me;
     useMediaStore.getState().setMediaList([severance('viendo')]);
     useMediaStore.getState().setSocialSettings(emptySocialSettings());
-    loadDemo();
+    loadSampleSocial(NOW);
   });
 
   it('mezcla la actividad de quienes seguís, con "Viendo ahora" arriba', () => {
@@ -124,9 +129,11 @@ describe('SocialView — feed', () => {
 
 describe('SocialView — notificaciones', () => {
   beforeEach(() => {
-    auth.authState = 'demo';
+    auth.authState = 'authenticated';
+    auth.user = me;
+    updateDoc.mockClear();
     useMediaStore.getState().setSocialSettings(emptySocialSettings());
-    loadDemo();
+    loadSampleSocial(NOW);
   });
 
   it('muestra la solicitud pendiente y aceptarla la vuelve un seguidor', async () => {
@@ -134,6 +141,10 @@ describe('SocialView — notificaciones', () => {
     expect(await screen.findByText(/quiere seguirte/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Aceptar/ }));
     expect(screen.queryByText(/quiere seguirte/)).not.toBeInTheDocument();
+    expect(updateDoc).toHaveBeenCalledWith(
+      { path: `follows/demo-dani_${SAMPLE_ME_UID}` },
+      expect.objectContaining({ status: 'accepted' }),
+    );
     expect(useSocialStore.getState().follows.incoming.find((f) => f.follower === 'demo-dani')?.status).toBe('accepted');
   });
 
@@ -148,7 +159,7 @@ describe('SocialView — sin usuario o sin cuenta', () => {
   it('con sesión y sin usuario, pide crearlo', () => {
     auth.authState = 'authenticated';
     auth.user = { uid: 'u1', displayName: 'Ana Pérez', email: 'ana@example.com' };
-    useSocialStore.setState({ mode: 'remote', uid: 'u1', account: null, demo: null, unavailable: false });
+    useSocialStore.setState({ mode: 'remote', uid: 'u1', account: null, unavailable: false });
     renderAt('/social');
     expect(screen.getByLabelText('Usuario')).toHaveValue('ana-perez');
     expect(screen.getByRole('button', { name: 'Crear mi usuario' })).toBeInTheDocument();
@@ -158,7 +169,7 @@ describe('SocialView — sin usuario o sin cuenta', () => {
   it('en modo invitado explica que hace falta una cuenta', () => {
     auth.authState = 'guest';
     auth.user = null;
-    useSocialStore.setState({ mode: 'off', uid: null, account: undefined, demo: null });
+    useSocialStore.setState({ mode: 'off', uid: null, account: undefined });
     renderAt('/social');
     expect(screen.getByText('Lo social necesita una cuenta')).toBeInTheDocument();
   });

@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSocialStore, patchDemo } from '@/hooks/useSocial';
+import { useSocialStore } from '@/hooks/useSocial';
 import { usePublishProfile } from '@/hooks/usePublicProfile';
 import { Account, accountToDocument, handleProblem } from '@/lib/social';
 import { PickedTitle } from '@/types';
@@ -34,8 +34,7 @@ export function useSocialAccount() {
 
   /** Si un usuario está libre. Solo orienta: el que decide es el lote de `create`. */
   const isAvailable = async (handle: string): Promise<boolean> => {
-    const { mode, uid, demo } = useSocialStore.getState();
-    if (mode === 'demo') return !demo?.people.some((person) => person.account.handle === handle);
+    const { uid } = useSocialStore.getState();
     const [taken, profile] = await Promise.all([
       getDoc(doc(db, `handles/${handle}`)),
       getDoc(doc(db, `public_profiles/${handle}`)),
@@ -64,18 +63,13 @@ export function useSocialAccount() {
    * @throws {SocialAccountError} si el usuario no sirve o ya es de otra persona.
    */
   const create = async (draft: ProfileDraft): Promise<Account> => {
-    const { mode, uid } = useSocialStore.getState();
+    const { uid } = useSocialStore.getState();
     const problem = handleProblem(draft.handle);
     if (problem) throw new SocialAccountError(problem);
     if (!uid) throw new SocialAccountError('Necesitás iniciar sesión.');
 
     const now = new Date().toISOString();
     const account: Account = { uid, ...draft, followers: 0, following: 0, createdAt: now, updatedAt: now };
-
-    if (mode === 'demo') {
-      patchDemo({ account });
-      return account;
-    }
 
     if (!(await isAvailable(draft.handle))) {
       throw new SocialAccountError('Ese usuario ya está tomado. Probá con otro.');
@@ -95,13 +89,9 @@ export function useSocialAccount() {
 
   /** Cambia nombre, bio, avatar, top 4 o privacidad. El usuario, con `changeHandle`. */
   const update = async (patch: Partial<Omit<ProfileDraft, 'handle'>>) => {
-    const { mode, uid, account } = useSocialStore.getState();
+    const { uid, account } = useSocialStore.getState();
     if (!uid || !account) return;
     const next: Account = { ...account, ...patch, updatedAt: new Date().toISOString() };
-    if (mode === 'demo') {
-      patchDemo({ account: next });
-      return;
-    }
     // Pasar a privada: primero se despublica, así el perfil no queda un
     // segundo a la vista con la cuenta ya cerrada. Pasar a pública, al revés:
     // las reglas no dejan publicar mientras la cuenta diga privada.
@@ -121,17 +111,13 @@ export function useSocialAccount() {
    * nueva; los links viejos dejan de andar, como en cualquier red.
    */
   const changeHandle = async (handle: string, patch: Partial<Omit<ProfileDraft, 'handle'>> = {}) => {
-    const { mode, uid, account } = useSocialStore.getState();
+    const { uid, account } = useSocialStore.getState();
     if (!uid || !account || handle === account.handle) return;
     const problem = handleProblem(handle);
     if (problem) throw new SocialAccountError(problem);
     // El resto de los cambios viaja en el mismo lote: escribirlos después
     // podría salir con el usuario viejo, que para entonces ya no es suyo.
     const next: Account = { ...account, ...patch, handle, updatedAt: new Date().toISOString() };
-    if (mode === 'demo') {
-      patchDemo({ account: next });
-      return;
-    }
     if (!(await isAvailable(handle))) throw new SocialAccountError('Ese usuario ya está tomado. Probá con otro.');
     try {
       const batch = writeBatch(db);

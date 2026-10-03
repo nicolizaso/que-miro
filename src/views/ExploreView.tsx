@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Compass, LogIn, Shuffle, Sparkles } from 'lucide-react';
 import { TitleCarousel } from '@/components/TitleCarousel';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,20 +65,11 @@ function FeedRow({
 /**
  * La bienvenida de quien abrió la app sin cuenta y sin nada guardado.
  *
- * Explorar es donde cae la primera vez, así que acá van las dos cosas que
- * antes eran la pantalla de login: el demo, para quien vino a ver de qué se
- * trata, y la cuenta, para quien ya tiene una. Se va sola cuando guarda algo.
+ * Explorar es donde cae la primera vez: cuenta que se puede guardar sin
+ * cuenta y le deja la puerta a quien ya tiene una. Se va sola cuando guarda
+ * algo.
  */
 function Welcome() {
-  const { startDemo } = useAuth();
-  const navigate = useNavigate();
-
-  const handleDemo = () => {
-    startDemo();
-    // El demo se luce en las listas, no en Explorar: es lo que viene a ver.
-    navigate('/');
-  };
-
   return (
     <section
       aria-labelledby="bienvenida"
@@ -93,18 +84,12 @@ function Welcome() {
           pasa solo a tu cuenta.
         </p>
       </div>
-      <div className="flex flex-wrap gap-2 shrink-0">
-        <button type="button" onClick={handleDemo} className="btn btn-secondary px-4 py-2 text-sm">
-          <Sparkles size={16} aria-hidden="true" />
-          Ver una biblioteca de ejemplo
-        </button>
-        {isFirebaseConfigured && (
-          <Link to="/login" className="btn btn-ghost px-4 py-2 text-sm">
-            <LogIn size={16} aria-hidden="true" />
-            Ya tengo cuenta
-          </Link>
-        )}
-      </div>
+      {isFirebaseConfigured && (
+        <Link to="/login" className="btn btn-secondary px-4 py-2 text-sm shrink-0">
+          <LogIn size={16} aria-hidden="true" />
+          Ya tengo cuenta
+        </Link>
+      )}
     </section>
   );
 }

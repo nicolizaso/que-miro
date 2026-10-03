@@ -75,7 +75,6 @@ export function DataSettings() {
   const [rescue, setRescue] = useState(() => readRescue());
 
   const isEmpty = mediaList.length === 0;
-  const isDemo = authState === 'demo';
 
   const handleExportJson = () => {
     downloadFile(
@@ -295,8 +294,6 @@ export function DataSettings() {
             <button
               type="button"
               onClick={restoreRescue}
-              disabled={isDemo}
-              title={isDemo ? 'No disponible mientras estás en el demo' : undefined}
               className="btn btn-primary flex-1 py-3 px-4 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Recuperar esos títulos
@@ -335,8 +332,6 @@ export function DataSettings() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isDemo}
-            title={isDemo ? 'No disponible mientras estás en el demo' : undefined}
             className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <FileUp size={16} aria-hidden="true" />
@@ -361,8 +356,6 @@ export function DataSettings() {
         <button
           type="button"
           onClick={() => setIsImportingOther(true)}
-          disabled={isDemo}
-          title={isDemo ? 'No disponible mientras estás en el demo' : undefined}
           className="flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium hover:bg-border-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <FileUp size={16} aria-hidden="true" />
@@ -378,7 +371,7 @@ export function DataSettings() {
         <button
           type="button"
           onClick={() => setDialog('clear')}
-          disabled={isEmpty || isDemo}
+          disabled={isEmpty}
           className="flex items-center justify-center gap-2 py-3 px-4 rounded-control border border-border-card text-sm font-medium text-text-muted hover:bg-border-card hover:text-text-main transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Trash2 size={16} aria-hidden="true" />

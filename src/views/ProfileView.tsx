@@ -19,13 +19,9 @@ import { cn } from '@/lib/utils';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { LogIn, LogOut, Repeat, Star } from 'lucide-react';
 
-/** Tarjeta de la sesión actual: cuenta, invitado o demo. */
+/** Tarjeta de la sesión actual: cuenta o invitado. */
 function SessionCard() {
   const { user, authState, logout } = useAuth();
-
-  // En demo no se muestra nada: el banner de arriba ya avisa y ya ofrece la
-  // salida. Dos carteles diciendo lo mismo en la misma pantalla es ruido.
-  if (authState === 'demo') return null;
 
   if (authState === 'guest') {
     // Sin Firebase no hay cuenta donde sincronizar: ofrecerla es un callejón.

@@ -1,10 +1,11 @@
 import { expect, test } from './fixtures';
+import { seedSampleLibrary, startEmpty } from './seed';
 
 /**
  * Los flujos que alguien realmente hace en la app, de punta a punta.
  *
- * Todos arrancan del modo demo, que carga una biblioteca de ejemplo sin
- * depender de TMDB ni de Firebase. Es lo que hace que estos tests corran igual
+ * Todos arrancan como un invitado con una biblioteca de ejemplo ya guardada
+ * (`seed.ts`), sin depender de TMDB ni de Firebase. Es lo que hace que estos tests corran igual
  * en CI que en una máquina sin credenciales.
  */
 /**
@@ -51,18 +52,14 @@ async function rate(scope: import('@playwright/test').Locator, label: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  // La primera vez se cae en Explorar, y el demo lleva a las listas.
-  await page.getByRole('button', { name: /Ver una biblioteca de ejemplo/i }).click();
-  await expect(page.getByText(/Estás viendo el demo/)).toBeVisible();
+  // Con biblioteca, abrir la app lleva a las listas.
+  await seedSampleLibrary(page);
   // Se espera a que lleguen: cambiar de página cierra el buscador, y un ⌘K
   // apretado antes de que termine el cambio se cerraría solo.
   await expect(page.getByRole('tablist')).toBeVisible();
 });
 
-test('el demo carga títulos en las tres listas', async ({ page }) => {
+test('la biblioteca tiene títulos en las tres listas', async ({ page }) => {
   await expect(page.getByRole('tab', { name: /Por Ver/ })).toContainText(/\d/);
   await expect(page.locator('article').first()).toBeVisible();
 
@@ -319,8 +316,8 @@ test('una lista compartida inexistente muestra su propia página, no el login', 
 });
 
 test('sin cuenta se entra a la app, y la primera vez cae en Explorar', async ({ page }) => {
-  // Sin demo y sin nada guardado: como quien abre la app por primera vez.
-  await page.getByRole('button', { name: /Salir del demo/ }).click();
+  // Sin nada guardado: como quien abre la app por primera vez.
+  await startEmpty(page);
   // Abrir la app de cero: el navegador conserva el estado del historial al
   // recargar, y la llegada a Explorar es solo para quien recién la abre.
   await page.evaluate(() => history.replaceState(null, '', '/'));
@@ -337,13 +334,9 @@ test('sin cuenta se entra a la app, y la primera vez cae en Explorar', async ({ 
 });
 
 test('se navega con teclado desde el salto al contenido', async ({ page }) => {
-  // Se recarga primero para que el foco arranque desde el principio del
-  // documento: el botón del demo se desmontó al hacer clic, y el navegador
-  // sigue tabulando desde donde estaba ese botón.
-  await page.reload();
   // Se tabula desde el `body` y no con `keyboard.press` suelto: eso fija el
-  // punto de partida de la navegación secuencial, que si no queda donde estaba
-  // el botón del demo antes de desmontarse.
+  // punto de partida de la navegación secuencial en el principio del
+  // documento.
   await page.locator('body').press('Tab');
 
   await expect(page.locator(':focus')).toHaveText('Saltar al contenido');
@@ -375,7 +368,7 @@ test('las respuestas de "Contanos de vos" se guardan y sobreviven a una recarga'
   await page.getByRole('link', { name: 'Contanos de vos' }).click();
   await expect(page).toHaveURL(/\/perfil\/gustos/);
 
-  // El demo viene con el cuestionario contestado: es lo que hace que Explorar
+  // La biblioteca de ejemplo viene con el cuestionario contestado: es lo que hace que Explorar
   // tenga filas personales apenas se entra.
   await expect(page.getByText(/de 7$/)).toBeVisible();
 
@@ -417,7 +410,7 @@ test('lo que no te interesa se guarda y sobrevive a una recarga', async ({ page 
 test('marcar el siguiente episodio desde el inicio', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Continuar viendo' })).toBeVisible();
 
-  // Severance va por T2E4 en el demo: el "+1" lo marca sin abrir la ficha.
+  // Severance va por T2E4 en la biblioteca de ejemplo: el "+1" lo marca sin abrir la ficha.
   await page
     .getByRole('button', { name: 'Marcar T2E4 de Severance como visto' })
     .click();
@@ -448,7 +441,7 @@ test('el calendario muestra lo que sale de lo que seguís', async ({ page }) => 
   await page.getByRole('link', { name: 'Calendario' }).click();
   await expect(page).toHaveURL(/\/calendario/);
 
-  // En el demo, The Bear está al día y ya anunció la temporada que viene.
+  // En la biblioteca de ejemplo, The Bear está al día y ya anunció la temporada que viene.
   await expect(page.getByRole('heading', { name: 'Calendario', level: 1 })).toBeVisible();
   await expect(page.getByText('The Bear')).toBeVisible();
   await expect(page.getByText('Estreno de la temporada 4')).toBeVisible();
@@ -474,7 +467,7 @@ test('abandonar una serie la manda a Archivadas, y retomarla la devuelve', async
   await expect(page.getByText(/Abandonaste "Arcane"/)).toBeVisible();
   await expect(page.getByRole('button', { name: /^Ver detalle de Arcane/ })).toHaveCount(0);
 
-  // El demo ya trae una en pausa y una abandonada: con Arcane son tres.
+  // La biblioteca de ejemplo ya trae una en pausa y una abandonada: con Arcane son tres.
   await page.getByRole('button', { name: /Archivadas\s*3/ }).click();
   await expect(page.getByRole('heading', { name: 'Archivadas' })).toBeVisible();
   await page.getByRole('button', { name: /Abandonadas/ }).click();
@@ -497,7 +490,7 @@ test('abandonar una serie la manda a Archivadas, y retomarla la devuelve', async
 });
 
 test('una novedad de plataforma se descarta y no vuelve', async ({ page }) => {
-  // En el demo, Duna llegó a Max.
+  // En la biblioteca de ejemplo, Duna llegó a Max.
   await expect(page.getByRole('heading', { name: 'Novedades' })).toBeVisible();
   await expect(page.getByText('ya está en Max.')).toBeVisible();
 
@@ -505,13 +498,13 @@ test('una novedad de plataforma se descarta y no vuelve', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Novedades' })).toHaveCount(0);
 
   await page.reload();
-  await expect(page.getByText(/Estás viendo el demo/)).toBeVisible();
+  await expect(page.getByRole('tablist')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Novedades' })).toHaveCount(0);
 });
 
 test('importar el export de Letterboxd, revisando lo dudoso', async ({ page }) => {
-  // Sin demo: importar es para una biblioteca propia.
-  await page.getByRole('button', { name: /Salir del demo/ }).click();
+  // Sobre una biblioteca vacía, para que se vea solo lo importado.
+  await startEmpty(page);
 
   // TMDB contesta lo que diría para cada título del export.
   await page.route('**/api/tmdb/find**', (route) => {
@@ -631,7 +624,7 @@ test('del reparto de una ficha a la página de la persona, y de vuelta', async (
   await expect(page).toHaveURL(/\/persona\/3810$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Javier Bardem' })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  // Duna está en el Por Ver del demo: no cuenta como vista ni como "te falta".
+  // Duna está en el Por Ver de la biblioteca de ejemplo: no cuenta como vista ni como "te falta".
   await expect(page.getByText('Viste 0 de 3')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Te faltan estas 2 bien puntuadas' })).toBeVisible();
   await expect(

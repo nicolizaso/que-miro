@@ -36,8 +36,8 @@ export function picksToDocument(picks: TastePicks): Record<string, unknown> {
  * queremos — con una sola respuesta Explorar ya cambia.
  *
  * Con sesión iniciada escribe el documento entero y deja que `SyncManager`
- * refresque el estado local, igual que la biblioteca. Sin sesión —invitado o
- * demo— escribe derecho en el store.
+ * refresque el estado local, igual que la biblioteca. Sin sesión escribe
+ * derecho en el store.
  */
 export function useTastePicks() {
   const picks = useMediaStore((state) => state.picks);

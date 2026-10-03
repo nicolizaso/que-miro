@@ -177,14 +177,13 @@ dispositivos.
 - **Offline de verdad** — sin conexión seguís usando la app, y los cambios se
   sincronizan solos cuando vuelve la red.
 - **Sin cuenta de entrada** — la app abre directo, sin pantalla de login. La
-  primera vez cae en Explorar, con una bienvenida que ofrece el demo o entrar
-  a una cuenta; se va sola cuando guardás algo. Al guardar el primer título
+  primera vez cae en Explorar, con una bienvenida que ofrece entrar a una
+  cuenta; se va sola cuando guardás algo. Al guardar el primer título
   te sugiere crear una cuenta o entrar: si entrás, volvés a donde estabas con
   el título ya guardado en la lista que elegiste; si seguís sin cuenta, se
   guarda en el navegador y no te vuelve a preguntar en esa visita. Lo que
   guardes así queda en el dispositivo, y si después iniciás sesión —"Ingresar"
   en el header o en el perfil— tu biblioteca se migra sola.
-- **Modo demo** — una biblioteca de ejemplo para recorrer la app sin registrarte.
 - **Tus datos son tuyos** — exportá a JSON o CSV, reimportá el JSON y eliminá tu
   cuenta con todos sus datos cuando quieras.
 - **Importar de Letterboxd, IMDb y Trakt** — subí el export de cada app (el
@@ -370,7 +369,7 @@ src/
                       useRestrictions (lo que no te interesa)
   lib/                Cliente HTTP del front, init de Firebase, tema, schema y
                       migraciones, progreso de series, estadísticas, picker,
-                      duelo, backup, filtros de la biblioteca, datos del demo
+                      duelo, backup, filtros de la biblioteca
   lib/taste.ts        Qué sabe la app de tu gusto, sacado de tu biblioteca
   lib/picks.ts        Qué contaste de vos, y sus topes por pregunta
   lib/restrictions.ts Lo que no te interesa, y cómo recorta Explorar
@@ -472,9 +471,7 @@ tiene el tema claro ve un fogonazo oscuro en cada carga.
 **Los datos tienen dueño explícito.** El store guarda un `ownerUid` junto a la
 biblioteca. Al iniciar sesión, si los datos locales eran de invitado se migran a
 la cuenta; si eran de *otra* cuenta, se descartan antes de sincronizar. Sin eso,
-la biblioteca de quien usó el dispositivo antes se le filtraría al siguiente. El
-modo demo se apoya en la misma regla: sus datos llevan un `ownerUid` ficticio,
-así que nunca terminan mezclados con los de una cuenta real.
+la biblioteca de quien usó el dispositivo antes se le filtraría al siguiente.
 
 **Lo social también es una copia.** Seguir a alguien no abre su biblioteca: su
 app publica en `activity/{uid}` una instantánea curada —los últimos eventos,

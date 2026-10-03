@@ -21,9 +21,9 @@ export function goalsPath(uid: string): string {
  * Leer y escribir las metas del año.
  *
  * Igual que el cuestionario: con sesión se escribe el documento entero y
- * `SyncManager` trae el cambio de vuelta; sin sesión —invitado o demo— va
- * derecho al store. Entero y no con `merge`, porque vaciar una meta es sacar
- * un año del mapa, y eso con `merge` no viaja.
+ * `SyncManager` trae el cambio de vuelta; sin sesión va derecho al store.
+ * Entero y no con `merge`, porque vaciar una meta es sacar un año del mapa, y
+ * eso con `merge` no viaja.
  */
 export function useGoals() {
   const goals = useMediaStore((state) => state.goals);

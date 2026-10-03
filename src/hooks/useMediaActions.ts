@@ -51,8 +51,8 @@ function sanitizeData<T>(obj: T): T {
  * Punto único para modificar la biblioteca.
  *
  * Con sesión iniciada escribe en Firestore y deja que `SyncManager` refresque
- * el estado local; sin sesión escribe directo en el store local (modo invitado
- * y demo).
+ * el estado local; sin sesión escribe directo en el store local (modo
+ * invitado).
  */
 export function useMediaActions() {
   const { user, authState } = useAuth();

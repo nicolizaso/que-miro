@@ -170,7 +170,7 @@ describe('ExploreView', () => {
   it('a quien llega sin nada guardado le da la bienvenida, y se va al guardar algo', async () => {
     await renderExplore();
     expect(screen.getByRole('heading', { name: 'Armá tu biblioteca, sin cuenta' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Ver una biblioteca de ejemplo/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ver una biblioteca de ejemplo/ })).not.toBeInTheDocument();
     // Sin Firebase no hay cuenta a la que entrar: no se la ofrece.
     expect(screen.queryByRole('link', { name: /Ya tengo cuenta/ })).not.toBeInTheDocument();
 

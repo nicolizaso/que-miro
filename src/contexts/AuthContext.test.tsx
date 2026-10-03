@@ -22,7 +22,6 @@ vi.mock('firebase/auth', () => ({
   createUserWithEmailAndPassword: vi.fn(),
 }));
 
-vi.mock('@/lib/demo', () => ({ enterDemoMode: vi.fn(), exitDemoMode: vi.fn() }));
 vi.mock('@/lib/pushDevice', () => ({ releasePushDevice: vi.fn(async () => {}) }));
 vi.mock('@/lib/rescue', () => ({ saveRescue: vi.fn() }));
 
@@ -72,20 +71,14 @@ describe('AuthProvider', () => {
     expect(estado()).toBe('guest');
   });
 
-  it('el demo que quedó abierto sigue siendo el demo', () => {
+  it('quien había quedado en el demo, que ya no existe, entra como invitado con lo suyo', () => {
     localStorage.setItem('que-miro-demo', 'true');
+    useMediaStore.setState({ ownerUid: 'demo', mediaList: [] });
     renderProvider();
     act(() => emitAuth(null));
-    expect(estado()).toBe('demo');
-  });
-
-  it('salir del demo deja la app sin cuenta, no en el login', () => {
-    renderProvider();
-    act(() => emitAuth(null));
-    act(() => actions.startDemo());
-    expect(estado()).toBe('demo');
-    act(() => actions.stopDemo());
     expect(estado()).toBe('guest');
+    expect(useMediaStore.getState().ownerUid).toBeNull();
+    expect(localStorage.getItem('que-miro-demo')).toBeNull();
   });
 
   it('si la sesión se va sola, la biblioteca de la cuenta no queda a la vista', () => {

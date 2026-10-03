@@ -5,13 +5,13 @@ import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { useMediaStore } from '@/store';
 import { useSocialStore } from '@/hooks/useSocial';
-import { buildDemoSocial } from '@/lib/demoSocial';
+import { SAMPLE_ME_UID, loadSampleSocial } from '@/test/fixtures/sampleSocial';
 import { emptySocialSettings } from '@/lib/social';
 import { SavedMedia } from '@/types';
 
 const patchMedia = vi.fn();
 vi.mock('@/hooks/useMediaActions', () => ({ useMediaActions: () => ({ addMedia: vi.fn(), patchMedia }) }));
-vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ authState: 'demo', user: null }) }));
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ authState: 'authenticated', user: { uid: SAMPLE_ME_UID } }) }));
 
 const { SocialOnTitle } = await import('./SocialOnTitle');
 
@@ -32,16 +32,7 @@ describe('SocialOnTitle', () => {
   beforeEach(() => {
     patchMedia.mockClear();
     useMediaStore.getState().setSocialSettings(emptySocialSettings());
-    const demo = buildDemoSocial(new Date());
-    useSocialStore.setState({
-      mode: 'demo',
-      uid: demo.me.uid,
-      account: demo.me,
-      follows: demo.follows,
-      followsLoaded: true,
-      demo,
-      people: {},
-    });
+    loadSampleSocial(new Date());
   });
 
   it('dice quiénes de los que seguís lo vieron y qué le pusieron', () => {

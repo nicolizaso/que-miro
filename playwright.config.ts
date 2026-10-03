@@ -5,8 +5,8 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Corren contra el server de desarrollo, que monta las mismas rutas `/api` que
  * las funciones serverless de producción. No hace falta una `TMDB_API_KEY`: los
- * flujos que se prueban acá son los que no dependen de TMDB —modo demo,
- * progreso, reseñas, filtros, navegación— y los que sí dependen se cubren en
+ * flujos que se prueban acá son los que no dependen de TMDB —progreso,
+ * reseñas, filtros, navegación, sobre una biblioteca de ejemplo— y los que sí dependen se cubren en
  * los tests unitarios de `api/`.
  */
 export default defineConfig({

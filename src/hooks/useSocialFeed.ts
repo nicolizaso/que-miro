@@ -141,7 +141,6 @@ export function personOf(activity: Activity): FeedPerson {
  */
 export function useSocialFeed({ filter = 'todo' }: { filter?: FeedFilter } = {}) {
   const { mode, uid, follows, followsLoaded, isReady } = useSocial();
-  const demo = useSocialStore((state) => state.demo);
   const legacyFollowing = useMediaStore((state) => state.following);
   const muted = useMediaStore((state) => state.socialSettings.muted);
   const cache = useSocialCache();
@@ -198,18 +197,12 @@ export function useSocialFeed({ filter = 'todo' }: { filter?: FeedFilter } = {})
   }, [mode, uid, isReady, followsLoaded, followedKey, legacyFollowing, forceKey]);
 
   const sources: FeedSource[] = useMemo(() => {
-    if (mode === 'demo' && demo) {
-      const set = new Set(followed);
-      return demo.people
-        .filter((person) => set.has(person.account.uid))
-        .map((person) => ({ person: personOf(person.activity), activity: person.activity }));
-    }
     if (cache.owner !== uid) return [];
     return followed.flatMap((f) => {
       const read = cache.activities[f];
       return read && read !== 'locked' ? [{ person: personOf(read), activity: read }] : [];
     });
-  }, [mode, demo, followed, cache.owner, cache.activities, uid]);
+  }, [followed, cache.owner, cache.activities, uid]);
 
   const legacy: LegacySource[] = useMemo(() => {
     if (mode !== 'remote' || cache.owner !== uid) return [];
