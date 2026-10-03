@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Compass, LogIn, Shuffle, Sparkles } from 'lucide-react';
 import { TitleCarousel } from '@/components/TitleCarousel';
+import { InstallCard } from '@/components/install/InstallCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTmdbList } from '@/hooks/useTmdbList';
 import { useExploreFeed } from '@/hooks/useExploreFeed';
@@ -199,6 +200,7 @@ export function ExploreView() {
       </header>
 
       {isNew && <Welcome />}
+      <InstallCard />
 
       {everythingFailed && (
         <div

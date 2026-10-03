@@ -7,7 +7,6 @@ import {
   alertSeries,
   canAlert,
   deviceCheck,
-  isIOSDevice,
   parsePushSnapshot,
   pushPath,
   pushSupport,
@@ -59,15 +58,6 @@ describe('pushSupport', () => {
   it('sin service worker o sin PushManager, no puede', () => {
     expect(pushSupport({ ...DESKTOP, hasServiceWorker: false })).toBe('unsupported');
     expect(pushSupport({ ...DESKTOP, hasPushManager: false })).toBe('unsupported');
-  });
-});
-
-describe('isIOSDevice', () => {
-  it('reconoce el iPhone y el iPad que se hace pasar por Mac', () => {
-    expect(isIOSDevice('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5)).toBe(true);
-    expect(isIOSDevice('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5)).toBe(true);
-    expect(isIOSDevice('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0)).toBe(false);
-    expect(isIOSDevice('Mozilla/5.0 (Linux; Android 15)', 5)).toBe(false);
   });
 });
 

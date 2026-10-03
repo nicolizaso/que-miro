@@ -12,9 +12,12 @@ import { SocialAccountSettings } from '@/components/social/SocialAccountSettings
 import { NotificationsSettings } from '@/components/NotificationsSettings';
 import { CalendarFeedSettings } from '@/components/CalendarFeedSettings';
 import { AboutSettings } from '@/components/Attribution';
+import { InstallButton } from '@/components/install/InstallButton';
+import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { REGIONS, RegionCode, usePreferences } from '@/preferences';
 import { formatWatchDate } from '@/lib/dates';
 import { allWatches } from '@/lib/stats';
+import { canOfferInstall } from '@/lib/install';
 import { cn } from '@/lib/utils';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { LogIn, LogOut, Repeat, Star } from 'lucide-react';
@@ -68,9 +71,10 @@ function SessionCard() {
   );
 }
 
-/** Preferencias del dispositivo: tema y región de las plataformas. */
+/** Preferencias del dispositivo: tema, región de las plataformas e instalarla. */
 function AppSettings() {
   const { region, setRegion } = usePreferences();
+  const { platform } = useInstallPrompt();
 
   return (
     <section className="flex flex-col gap-4">
@@ -107,6 +111,19 @@ function AppSettings() {
             Define en qué servicios te decimos que está disponible cada título.
           </p>
         </div>
+
+        {/* El lugar fijo para instalarla, aunque se haya cerrado la tarjeta de
+            Explorar. Ya instalada, o donde no se puede, no aparece. */}
+        {canOfferInstall(platform) && (
+          <div className="flex flex-col items-start gap-2">
+            <span className="text-sm font-medium">Instalar la app</span>
+            <p className="text-xs text-text-subtle">
+              Se abre desde la pantalla de inicio, sin la barra del navegador, y anda sin
+              conexión.
+            </p>
+            <InstallButton variant="secondary" label="Instalar" />
+          </div>
+        )}
       </div>
     </section>
   );

@@ -198,6 +198,12 @@ dispositivos.
   Se instala con su propio ícono —un signo de pregunta con un "play" como
   punto—, que Android adapta a la forma de cada launcher y que también es el
   favicon y la silueta de los avisos.
+- **Instalala a un toque** — en el celular, una tarjeta en Explorar (también
+  en Ajustes y donde se activan los avisos) ofrece instalarla. En Android
+  instala directo; en iPhone, donde ningún navegador deja instalar desde la
+  página, abre una guía con los pasos de Safari, y desde el navegador de
+  Instagram o WhatsApp explica cómo abrirla en Safari. Ya instalada, no
+  aparece.
 
 <div align="center">
   <img src="docs/screenshots/login.png" alt="Pantalla de inicio de sesión" width="440" />
