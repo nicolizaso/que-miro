@@ -1,16 +1,26 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMediaStore } from '@/store';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
-import { Search, Tv, Film, AlertCircle, X } from 'lucide-react';
-import { searchMulti, getGenreNames, TMDB_IMAGE_BASE_URL } from '@/lib/tmdb';
+import { Search, Tv, Film, AlertCircle, X, User } from 'lucide-react';
+import {
+  searchTitlesAndPeople,
+  getGenreNames,
+  TMDB_AVATAR_URL,
+  TMDB_IMAGE_BASE_URL,
+  TitleAndPeopleSearch,
+} from '@/lib/tmdb';
+import { personSearchCaption } from '@/lib/person';
 import { Dialog } from '@/components/ui/Dialog';
 import { TitleDetailModal } from '@/components/TitleDetailModal';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { QuickStatusButtons } from '@/components/QuickStatusButtons';
-import { MediaStatus, SavedMedia, TMDbResult } from '@/types';
+import { MediaStatus, SavedMedia, TMDbPerson, TMDbResult } from '@/types';
 
 const DEBOUNCE_MS = 400;
+
+const NO_RESULTS: TitleAndPeopleSearch = { titles: [], people: [], peopleFirst: false };
 
 /** Placeholder que ocupa el mismo alto que un resultado, para que no salte la UI. */
 function ResultSkeleton() {
@@ -193,6 +203,73 @@ function ResultRow({
   );
 }
 
+/**
+ * Una persona encontrada: lleva a su página, que es donde está lo que se
+ * puede hacer con ella —su filmografía, qué viste, qué te falta—.
+ *
+ * El marco ya cierra el buscador cuando cambia la página, pero si ya estás en
+ * la de esa persona la ruta no cambia y quedaría abierto encima: por eso la
+ * fila también lo cierra.
+ */
+function PersonRow({ person, onOpen }: { person: TMDbPerson; onOpen: () => void }) {
+  const caption = personSearchCaption(person);
+
+  return (
+    <Link
+      to={`/persona/${person.id}`}
+      onClick={onOpen}
+      className="flex gap-4 p-3 surface items-center transition-colors hover:border-text-subtle"
+    >
+      <span className="w-12 h-12 rounded-full bg-border-card shrink-0 overflow-hidden grid place-items-center text-text-subtle">
+        {person.profile_path ? (
+          <img
+            src={`${TMDB_AVATAR_URL}${person.profile_path}`}
+            alt=""
+            loading="lazy"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <User aria-hidden="true" />
+        )}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="block font-bold text-text-main truncate">{person.name}</span>
+        {caption && (
+          <span className="block text-sm text-text-muted truncate">{caption}</span>
+        )}
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * Un grupo de resultados. El título solo aparece cuando hay dos grupos: con
+ * películas y series nada más, la lista es la de siempre y no hace falta
+ * decir de qué es.
+ */
+function ResultGroup({
+  heading,
+  showHeading,
+  children,
+}: {
+  heading: string;
+  showHeading: boolean;
+  children: React.ReactNode;
+}) {
+  const headingId = useId();
+
+  return (
+    <section aria-labelledby={showHeading ? headingId : undefined} className="flex flex-col gap-3">
+      {showHeading && (
+        <h2 id={headingId} className="text-eyebrow text-text-subtle">
+          {heading}
+        </h2>
+      )}
+      {children}
+    </section>
+  );
+}
+
 export function SearchModal({
   isOpen,
   onClose,
@@ -201,7 +278,7 @@ export function SearchModal({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<TMDbResult[]>([]);
+  const [results, setResults] = useState<TitleAndPeopleSearch>(NO_RESULTS);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -211,7 +288,7 @@ export function SearchModal({
 
   useEffect(() => {
     if (!trimmedQuery) {
-      setResults([]);
+      setResults(NO_RESULTS);
       setError('');
       setIsSearching(false);
       return;
@@ -224,11 +301,11 @@ export function SearchModal({
 
     const timer = setTimeout(async () => {
       try {
-        const res = await searchMulti(trimmedQuery);
+        const res = await searchTitlesAndPeople(trimmedQuery);
         if (!cancelled) setResults(res);
       } catch (err) {
         if (!cancelled) {
-          setResults([]);
+          setResults(NO_RESULTS);
           setError(
             err instanceof Error
               ? err.message
@@ -251,14 +328,36 @@ export function SearchModal({
     if (!isOpen) setQuery('');
   }, [isOpen]);
 
+  const { titles, people, peopleFirst } = results;
+  const resultCount = titles.length + people.length;
   const showEmptyState =
-    !isSearching && !error && trimmedQuery !== '' && results.length === 0;
+    !isSearching && !error && trimmedQuery !== '' && resultCount === 0;
+  const showHeadings = titles.length > 0 && people.length > 0;
+
+  const titleGroup = titles.length > 0 && (
+    <ResultGroup key="titles" heading="Películas y series" showHeading={showHeadings}>
+      {titles.map((result) => (
+        <ResultRow
+          key={`${result.media_type}-${result.id}`}
+          result={result}
+          onSaved={onClose}
+        />
+      ))}
+    </ResultGroup>
+  );
+  const peopleGroup = people.length > 0 && (
+    <ResultGroup key="people" heading="Personas" showHeading={showHeadings}>
+      {people.map((person) => (
+        <PersonRow key={person.id} person={person} onOpen={onClose} />
+      ))}
+    </ResultGroup>
+  );
 
   return (
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      label="Buscar títulos"
+      label="Buscar"
       initialFocusRef={inputRef}
       className="bg-overlay backdrop-blur-sm p-4 flex flex-col pt-16"
     >
@@ -279,8 +378,8 @@ export function SearchModal({
           <input
             ref={inputRef}
             type="search"
-            placeholder="Buscar películas o series..."
-            aria-label="Buscar películas o series"
+            placeholder="Buscar películas, series o personas..."
+            aria-label="Buscar películas, series o personas"
             aria-describedby={statusId}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -295,12 +394,15 @@ export function SearchModal({
             ? 'Buscando...'
             : error
               ? error
-              : trimmedQuery && `${results.length} resultados`}
+              : trimmedQuery && `${resultCount} resultados`}
         </p>
 
-        <div className="flex-1 overflow-y-auto flex flex-col gap-3 pb-20">
-          {isSearching &&
-            Array.from({ length: 3 }, (_, i) => <ResultSkeleton key={i} />)}
+        <div className="flex-1 overflow-y-auto flex flex-col gap-6 pb-20">
+          {isSearching && (
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 3 }, (_, i) => <ResultSkeleton key={i} />)}
+            </div>
+          )}
 
           {error && (
             <div
@@ -315,19 +417,15 @@ export function SearchModal({
           {showEmptyState && (
             <div className="text-center text-text-muted py-12">
               <p>No encontramos nada para "{trimmedQuery}".</p>
-              <p className="text-sm mt-2">Probá con otro título.</p>
+              <p className="text-sm mt-2">Probá con otro título o nombre.</p>
             </div>
           )}
 
+          {/* Primero lo que TMDB rankeó más alto: quien escribe "darín" busca a
+              alguien, y quien escribe "matrix", la película. */}
           {!isSearching &&
             !error &&
-            results.map((result) => (
-              <ResultRow
-                key={`${result.media_type}-${result.id}`}
-                result={result}
-                onSaved={onClose}
-              />
-            ))}
+            (peopleFirst ? [peopleGroup, titleGroup] : [titleGroup, peopleGroup])}
         </div>
       </div>
     </Dialog>

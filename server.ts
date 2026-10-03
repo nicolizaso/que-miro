@@ -67,14 +67,14 @@ async function startServer() {
     try {
       const kind = parseSearchKind(req.query.kind);
       const lang = parseLanguage(req.query.lang);
-      const results =
+      const body =
         kind === 'person'
-          ? await searchPeople(query)
+          ? { results: await searchPeople(query) }
           : kind === 'company'
-            ? await searchCompanies(query)
+            ? { results: await searchCompanies(query) }
             : await searchMulti(query, lang);
 
-      return res.status(200).json({ results });
+      return res.status(200).json(body);
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);

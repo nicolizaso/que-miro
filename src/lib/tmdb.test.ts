@@ -5,6 +5,7 @@ import {
   getMediaDetail,
   getPersonCredits,
   searchMulti,
+  searchTitlesAndPeople,
   searchPeople,
 } from './tmdb';
 import { usePreferences } from '@/preferences';
@@ -80,6 +81,39 @@ describe('searchMulti', () => {
     await expect(searchMulti('matrix')).rejects.toBeInstanceOf(
       TMDbRequestError,
     );
+  });
+});
+
+describe('searchTitlesAndPeople', () => {
+  it('pega contra la misma URL que searchMulti, para compartir el caché', async () => {
+    const fetchMock = stubFetch({ json: async () => ({ results: [] }) });
+
+    await searchTitlesAndPeople('nolan');
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/tmdb/search?query=nolan');
+  });
+
+  it('separa los títulos de las personas', async () => {
+    const nolan = { id: 525, name: 'Christopher Nolan', profile_path: null };
+    stubFetch({
+      json: async () => ({ results: [{ id: 603 }], people: [nolan], people_first: true }),
+    });
+
+    await expect(searchTitlesAndPeople('nolan')).resolves.toEqual({
+      titles: [{ id: 603 }],
+      people: [nolan],
+      peopleFirst: true,
+    });
+  });
+
+  it('una respuesta vieja, sin personas, cuenta como que no encontró a nadie', async () => {
+    stubFetch({ json: async () => ({ results: [{ id: 603 }] }) });
+
+    await expect(searchTitlesAndPeople('matrix')).resolves.toEqual({
+      titles: [{ id: 603 }],
+      people: [],
+      peopleFirst: false,
+    });
   });
 });
 

@@ -182,7 +182,7 @@ export function AppLayout() {
 
             <button
               onClick={() => setIsSearchOpen(true)}
-              aria-label="Buscar títulos"
+              aria-label="Buscar"
               className="btn-icon w-10 h-10 sm:hidden rounded-full text-text-main hover:bg-border-card"
             >
               <Search size={22} aria-hidden="true" />

@@ -86,25 +86,73 @@ describe('searchMulti', () => {
     vi.unstubAllGlobals();
   });
 
-  it('descarta los resultados que no son película ni serie', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          results: [
-            { id: 1, media_type: 'movie' },
-            { id: 2, media_type: 'person' },
-            { id: 3, media_type: 'tv' },
-          ],
-        }),
-      }),
+  it('en los resultados deja solo películas y series', async () => {
+    // Una PWA vieja solo lee `results`: una persona ahí se dibujaría como
+    // una película sin título.
+    stubFetch([
+      { id: 1, media_type: 'movie' },
+      { id: 2, media_type: 'person', name: 'Alguien', profile_path: null },
+      { id: 3, media_type: 'tv' },
+      { id: 4, media_type: 'collection' },
+    ]);
+
+    const { results } = await searchMulti('matrix');
+
+    expect(results.map((r) => r.id)).toEqual([1, 3]);
+  });
+
+  it('manda las personas aparte, con lo que la app dibuja y nada más', async () => {
+    stubFetch([
+      { id: 1, media_type: 'movie' },
+      {
+        id: 525,
+        media_type: 'person',
+        name: 'Christopher Nolan',
+        profile_path: '/nolan.jpg',
+        known_for_department: 'Directing',
+        known_for: [{ title: 'Interestelar', overview: 'Larguísima' }, { title: 'El origen' }, { title: 'Tenet' }],
+        popularity: 30,
+      },
+    ]);
+
+    const { people } = await searchMulti('nolan');
+
+    expect(people).toEqual([
+      {
+        id: 525,
+        name: 'Christopher Nolan',
+        profile_path: '/nolan.jpg',
+        known_for_department: 'Directing',
+        known_for: ['Interestelar', 'El origen'],
+      },
+    ]);
+  });
+
+  it('trae como mucho cuatro personas', async () => {
+    stubFetch(
+      Array.from({ length: 6 }, (_, i) => ({ id: i + 1, media_type: 'person', name: `P${i}`, profile_path: null })),
     );
 
-    const results = await searchMulti('matrix');
+    const { people } = await searchMulti('garcía');
 
-    expect(results.map((r) => (r as { id: number }).id)).toEqual([1, 3]);
+    expect(people.map((p) => p.id)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('dice si lo que TMDB rankeó primero es una persona', async () => {
+    stubFetch([
+      { id: 2, media_type: 'person', name: 'Ricardo Darín', profile_path: null },
+      { id: 1, media_type: 'movie' },
+    ]);
+    expect((await searchMulti('darín')).people_first).toBe(true);
+
+    stubFetch([
+      { id: 1, media_type: 'movie' },
+      { id: 2, media_type: 'person', name: 'Alguien', profile_path: null },
+    ]);
+    expect((await searchMulti('matrix')).people_first).toBe(false);
+
+    stubFetch([]);
+    expect((await searchMulti('xyzzy')).people_first).toBe(false);
   });
 
   it('falla con 500 si el servidor no tiene la API key configurada', async () => {

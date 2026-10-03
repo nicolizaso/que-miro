@@ -122,17 +122,38 @@ function onlyMoviesAndShows<T extends { media_type?: string }>(results: T[]): T[
   );
 }
 
-/** Busca películas y series por texto, descartando personas y otros tipos. */
+/** Cuántas personas trae la búsqueda de títulos: las que entran en el buscador. */
+const MAX_PEOPLE_IN_SEARCH = 4;
+
+/**
+ * Busca películas, series y personas por texto, en un solo pedido a TMDB.
+ *
+ * Los títulos siguen yendo en `results`, como siempre; las personas van
+ * aparte, en `people`, para que una PWA vieja que solo lee `results` no se
+ * encuentre con un actor dibujado como si fuera una película.
+ *
+ * `people_first` dice si lo que TMDB rankeó más alto es una persona: quien
+ * escribe "darín" busca a alguien, y quien escribe "matrix", una película.
+ * Ese orden se pierde al separar las dos listas, así que viaja aparte.
+ */
 export async function searchMulti(
   query: string,
   language: Language = DEFAULT_LANGUAGE,
 ) {
-  const data = await fetchTMDB<{ results?: { media_type?: string }[] }>(
+  const data = await fetchTMDB<{ results?: ({ media_type?: string } & RawPerson)[] }>(
     '/search/multi',
     { query },
     language,
   );
-  return onlyMoviesAndShows(data.results ?? []);
+  const results = data.results ?? [];
+  return {
+    results: onlyMoviesAndShows(results),
+    people: results
+      .filter((result) => result.media_type === 'person')
+      .slice(0, MAX_PEOPLE_IN_SEARCH)
+      .map(trimPerson),
+    people_first: results[0]?.media_type === 'person',
+  };
 }
 
 /**
@@ -167,17 +188,25 @@ const MAX_SEARCH_RESULTS = 12;
  * pedirlos en latino y en castellano de España sería pagar dos veces lo mismo.
  */
 export async function searchPeople(query: string) {
-  const data = await fetchTMDB<{
-    results?: {
-      id: number;
-      name: string;
-      profile_path: string | null;
-      known_for_department?: string;
-      known_for?: { title?: string; name?: string }[];
-    }[];
-  }>('/search/person', { query, include_adult: 'false' });
+  const data = await fetchTMDB<{ results?: RawPerson[] }>('/search/person', {
+    query,
+    include_adult: 'false',
+  });
 
-  return (data.results ?? []).slice(0, MAX_SEARCH_RESULTS).map((person) => ({
+  return (data.results ?? []).slice(0, MAX_SEARCH_RESULTS).map(trimPerson);
+}
+
+/** Una persona como la manda TMDB, con lo único que se lee de ella. */
+interface RawPerson {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  known_for_department?: string;
+  known_for?: { title?: string; name?: string }[];
+}
+
+function trimPerson(person: RawPerson) {
+  return {
     id: person.id,
     name: person.name,
     profile_path: person.profile_path,
@@ -188,7 +217,7 @@ export async function searchPeople(query: string) {
       .map((credit) => credit.title ?? credit.name ?? '')
       .filter(Boolean)
       .slice(0, 2),
-  }));
+  };
 }
 
 /** Busca productoras por nombre: A24, Ghibli, Pixar. */
