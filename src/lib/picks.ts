@@ -23,6 +23,8 @@ import {
 export const MAX_GENRES = 3;
 export const MAX_PEOPLE = 5;
 export const MAX_STUDIOS = 3;
+/** Películas favoritas y series favoritas, cada una por su lado, contando la primera. */
+export const MAX_FAVORITE_TITLES = 5;
 
 /** Largo máximo de un nombre guardado, por las dudas de lo que mande TMDB. */
 const MAX_NAME = 80;
@@ -101,6 +103,30 @@ function parsePickedTitle(
   };
 }
 
+/**
+ * La favorita y las que la siguen, como una sola lista.
+ *
+ * Se arman juntas para que la primera nunca quede vacía con otras detrás: si
+ * el documento trae extras sin principal, la primera de las extras sube. Y una
+ * extra repetida con la principal se cae, porque contarla dos veces sería
+ * sembrar dos filas iguales en Explorar.
+ */
+function parseFavoriteTitles(
+  first: unknown,
+  more: unknown,
+  mediaType: MediaType,
+): PickedTitle[] {
+  const candidates = [first, ...(Array.isArray(more) ? more : [])];
+
+  const titles = new Map<number, PickedTitle>();
+  for (const item of candidates) {
+    const title = parsePickedTitle(item, mediaType);
+    if (title && !titles.has(title.tmdbId)) titles.set(title.tmdbId, title);
+  }
+
+  return Array.from(titles.values()).slice(0, MAX_FAVORITE_TITLES);
+}
+
 /** Deduplica por id conservando el orden en que se eligieron. */
 function parsePeople(value: unknown, limit: number): PickedPerson[] {
   if (!Array.isArray(value)) return [];
@@ -159,8 +185,11 @@ export function parsePicks(value: unknown): TastePicks {
   if (!isRecord(value)) return emptyPicks();
 
   return {
-    movie: parsePickedTitle(value.movie, 'movie'),
-    series: parsePickedTitle(value.series, 'tv'),
+    ...favoritesPatch(
+      'movie',
+      parseFavoriteTitles(value.movie, value.moreMovies, 'movie'),
+    ),
+    ...favoritesPatch('tv', parseFavoriteTitles(value.series, value.moreSeries, 'tv')),
     genres: parseGenres(value.genres),
     actors: parsePeople(value.actors, MAX_PEOPLE),
     directors: parsePeople(value.directors, MAX_PEOPLE),
@@ -199,7 +228,60 @@ export function hasPicks(picks: TastePicks): boolean {
  * seguro ya vio.
  */
 export function pickedTitleIds(picks: TastePicks): number[] {
-  return [picks.movie?.tmdbId, picks.series?.tmdbId].filter(
-    (id): id is number => id !== undefined,
+  return [...favoriteTitles(picks, 'movie'), ...favoriteTitles(picks, 'tv')].map(
+    (title) => title.tmdbId,
+  );
+}
+
+/** Las películas o las series favoritas, en el orden en que se eligieron. */
+export function favoriteTitles(picks: TastePicks, mediaType: MediaType): PickedTitle[] {
+  const first = mediaType === 'movie' ? picks.movie : picks.series;
+  const more = (mediaType === 'movie' ? picks.moreMovies : picks.moreSeries) ?? [];
+  return first ? [first, ...more] : [];
+}
+
+/**
+ * Una lista de favoritas partida como se guarda: la primera en `movie` o
+ * `series`, el resto aparte.
+ *
+ * La primera sigue en su campo de siempre para que una versión vieja de la app
+ * que lea el mismo documento encuentre al menos esa.
+ */
+function favoritesPatch(
+  mediaType: MediaType,
+  titles: PickedTitle[],
+): Partial<TastePicks> {
+  const [first, ...rest] = titles.slice(0, MAX_FAVORITE_TITLES);
+  const more = rest.length > 0 ? rest : undefined;
+  return mediaType === 'movie'
+    ? { movie: first, moreMovies: more }
+    : { series: first, moreSeries: more };
+}
+
+/**
+ * Suma una favorita al final de su lista.
+ *
+ * Devuelve `null` si no hay nada que guardar —ya estaba o la lista está
+ * llena—, para no escribir un documento idéntico al que hay.
+ */
+export function addFavoriteTitle(
+  picks: TastePicks,
+  title: PickedTitle,
+): Partial<TastePicks> | null {
+  const current = favoriteTitles(picks, title.mediaType);
+  if (current.length >= MAX_FAVORITE_TITLES) return null;
+  if (current.some((saved) => saved.tmdbId === title.tmdbId)) return null;
+  return favoritesPatch(title.mediaType, [...current, title]);
+}
+
+/** Saca una favorita. Si era la primera, la siguiente ocupa su lugar. */
+export function removeFavoriteTitle(
+  picks: TastePicks,
+  mediaType: MediaType,
+  tmdbId: number,
+): Partial<TastePicks> {
+  return favoritesPatch(
+    mediaType,
+    favoriteTitles(picks, mediaType).filter((title) => title.tmdbId !== tmdbId),
   );
 }

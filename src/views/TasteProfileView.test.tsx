@@ -206,7 +206,7 @@ describe('Contanos de vos', () => {
     expect(searchMulti).not.toHaveBeenCalled();
   });
 
-  it('deja cambiar la película ya elegida', async () => {
+  it('deja sacar la película ya elegida', async () => {
     renderForm();
 
     await userEvent.type(
@@ -218,13 +218,62 @@ describe('Contanos de vos', () => {
     );
 
     await userEvent.click(
-      screen.getByRole('button', { name: 'Cambiar Volver al futuro' }),
+      screen.getByRole('button', { name: 'Sacar Volver al futuro' }),
     );
 
     expect(saved().movie).toBeUndefined();
     expect(
       screen.getByRole('searchbox', { name: 'Buscar tu película favorita' }),
     ).toBeInTheDocument();
+  });
+
+  it('suma otra película favorita con el botón, hasta cinco', async () => {
+    const movie = (tmdbId: number) => ({
+      tmdbId,
+      mediaType: 'movie' as const,
+      title: `Película ${tmdbId}`,
+      posterPath: null,
+      releaseYear: '2000',
+    });
+    act(() => {
+      useMediaStore.getState().setPicks({
+        ...saved(),
+        movie: movie(1),
+        moreMovies: [movie(2), movie(3)],
+      });
+    });
+    renderForm();
+
+    // Con favoritas ya elegidas el buscador queda detrás del botón.
+    expect(
+      screen.queryByRole('searchbox', { name: /película favorita/ }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Agregar otra película' }),
+    );
+    await userEvent.type(
+      screen.getByRole('searchbox', { name: 'Buscar otra película favorita' }),
+      'volver',
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Elegir Volver al futuro' }),
+    );
+
+    expect(saved().movie?.tmdbId).toBe(1);
+    expect(saved().moreMovies?.map((title) => title.tmdbId)).toEqual([2, 3, 105]);
+    expect(screen.getByRole('button', { name: 'Agregar otra película' })).toBeInTheDocument();
+
+    act(() => {
+      useMediaStore.getState().setPicks({
+        ...saved(),
+        moreMovies: [...saved().moreMovies!, movie(4)],
+      });
+    });
+
+    expect(
+      screen.queryByRole('button', { name: 'Agregar otra película' }),
+    ).not.toBeInTheDocument();
   });
 
   it('suma gente a la lista y la saca', async () => {

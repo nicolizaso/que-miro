@@ -668,8 +668,20 @@ export interface Goals {
 }
 
 export interface TastePicks {
+  /** La primera película favorita. */
   movie?: PickedTitle;
+  /** La primera serie favorita. */
   series?: PickedTitle;
+  /**
+   * Las películas favoritas que siguen a la primera, en el orden en que se
+   * eligieron. Aparte de `movie` y opcionales para que el documento siga
+   * siendo legible por una versión de la app que conoce una sola. Esa versión,
+   * si guarda una respuesta, reescribe el documento sin estas: se pierden las
+   * que siguen, nunca la primera.
+   */
+  moreMovies?: PickedTitle[];
+  /** Lo mismo con las series. */
+  moreSeries?: PickedTitle[];
   /** Nombres de género, como los guarda la biblioteca: "Terror", "Comedia". */
   genres: string[];
   actors: PickedPerson[];

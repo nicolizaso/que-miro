@@ -291,6 +291,23 @@ describe('las filas que salen de "Contanos de vos"', () => {
     expect(getSimilar).toHaveBeenCalledWith(550, 'movie');
   });
 
+  it('arma una fila por cada película favorita, la primera adelante', () => {
+    const blocks = blocksForPicks({
+      movie: favoriteMovie,
+      moreMovies: [{ ...favoriteMovie, tmdbId: 680, title: 'Tiempos violentos' }],
+    });
+
+    const first = blocks.find((block) => block.id === 'favorita-pelicula-550');
+    const second = blocks.find((block) => block.id === 'favorita-pelicula-680');
+    expect(second?.title).toBe('Porque Tiempos violentos está entre tus favoritas');
+    expect(first!.weight).toBeGreaterThan(second!.weight);
+
+    second?.fetch();
+    expect(getRecommendations).toHaveBeenCalledWith(680, 'movie');
+    // La segunda puerta queda para la primera: con todas serían demasiadas filas.
+    expect(blocks.some((block) => block.id === 'favorita-similar-movie-680')).toBe(false);
+  });
+
   it('pide recomendaciones de series para la serie favorita', () => {
     const blocks = blocksForPicks({
       series: {

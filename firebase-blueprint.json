@@ -94,6 +94,8 @@
         "fields": [
           { "name": "movie", "type": "map", "required": false },
           { "name": "series", "type": "map", "required": false },
+          { "name": "moreMovies", "type": "list", "required": false },
+          { "name": "moreSeries", "type": "list", "required": false },
           { "name": "genres", "type": "list", "required": true },
           { "name": "actors", "type": "list", "required": true },
           { "name": "directors", "type": "list", "required": true },

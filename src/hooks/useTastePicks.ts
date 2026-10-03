@@ -18,6 +18,8 @@ export function picksToDocument(picks: TastePicks): Record<string, unknown> {
   return {
     movie: picks.movie ?? null,
     series: picks.series ?? null,
+    moreMovies: picks.moreMovies ?? [],
+    moreSeries: picks.moreSeries ?? [],
     genres: picks.genres,
     actors: picks.actors,
     directors: picks.directors,
