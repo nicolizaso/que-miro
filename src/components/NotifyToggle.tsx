@@ -1,12 +1,13 @@
 import { Bell, BellRing, Loader2 } from 'lucide-react';
 import { SavedMedia } from '@/types';
+import { InstallButton } from '@/components/install/InstallButton';
 import { usePush } from '@/hooks/usePush';
 import { canAlert } from '@/lib/push';
 import { cn } from '@/lib/utils';
 
 /** El texto de iPhone y iPad, igual en la ficha y en Ajustes. */
 export const INSTALL_FIRST_HINT =
-  'En iPhone y iPad, los avisos llegan solo a la app instalada: en Safari, tocá Compartir → Agregar a inicio, y abrila desde ahí.';
+  'En iPhone y iPad, los avisos llegan solo a la app instalada. Instalala y activalos desde ahí.';
 
 /** Prender o apagar el aviso, con el mismo aspecto que los otros interruptores. */
 export function NotifyChip({
@@ -56,7 +57,7 @@ export function NotifyChip({
  * No aparece donde no puede andar —sin cuenta, en una serie terminada, en un
  * navegador sin avisos—, salvo para apagar uno que ya está prendido: la marca
  * es de la cuenta y se puede sacar desde cualquier lado. En iPhone y iPad con
- * la app abierta en Safari, en lugar del botón se explica cómo instalarla.
+ * la app abierta en Safari, en lugar del interruptor va el botón para instalarla.
  */
 export function NotifyToggle({ media }: { media: SavedMedia }) {
   const { available, support, busy, toggleSeries } = usePush();
@@ -67,10 +68,13 @@ export function NotifyToggle({ media }: { media: SavedMedia }) {
     if (!canAlert(media)) return null;
     if (support === 'install-first') {
       return (
-        <p className="flex items-start gap-2 text-sm text-text-muted">
-          <Bell size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{INSTALL_FIRST_HINT}</span>
-        </p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="flex items-start gap-2 text-sm text-text-muted">
+            <Bell size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>{INSTALL_FIRST_HINT}</span>
+          </p>
+          <InstallButton variant="secondary" />
+        </div>
       );
     }
     if (support !== 'supported') return null;

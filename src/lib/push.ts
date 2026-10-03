@@ -1,4 +1,5 @@
 import { SavedMedia } from '@/types';
+import { isIOSDevice, isRunningStandalone } from '@/lib/install';
 
 /**
  * Avisos de episodios nuevos: lo que decide el cliente.
@@ -53,15 +54,6 @@ export function pushSupport(env: PushEnvironment): PushSupport {
   return 'supported';
 }
 
-/**
- * Si es un iPhone o un iPad. El iPad de ahora se presenta como Mac, así que
- * además se mira que tenga pantalla táctil.
- */
-export function isIOSDevice(userAgent: string, maxTouchPoints: number): boolean {
-  if (/iPhone|iPad|iPod/.test(userAgent)) return true;
-  return /Macintosh/.test(userAgent) && maxTouchPoints > 1;
-}
-
 /** El entorno real, leído del navegador. */
 export function currentPushEnvironment(isConfigured: boolean): PushEnvironment {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') {
@@ -74,16 +66,13 @@ export function currentPushEnvironment(isConfigured: boolean): PushEnvironment {
       isStandalone: false,
     };
   }
-  const standalone =
-    window.matchMedia?.('(display-mode: standalone)').matches === true ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true;
   return {
     isConfigured,
     hasServiceWorker: 'serviceWorker' in navigator,
     hasPushManager: 'PushManager' in window,
     hasNotification: 'Notification' in window,
     isIOS: isIOSDevice(navigator.userAgent, navigator.maxTouchPoints ?? 0),
-    isStandalone: standalone,
+    isStandalone: isRunningStandalone(),
   };
 }
 

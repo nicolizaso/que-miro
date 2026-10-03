@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SavedMedia } from '@/types';
 import type { PushSupport } from '@/lib/push';
+import { ToastProvider } from '@/contexts/ToastContext';
 import { NotifyToggle } from './NotifyToggle';
 
 const push = {
@@ -13,6 +14,9 @@ const push = {
 };
 
 vi.mock('@/hooks/usePush', () => ({ usePush: () => push }));
+vi.mock('@/hooks/useInstallPrompt', () => ({
+  useInstallPrompt: () => ({ platform: 'ios-safari', isMobile: true, promptInstall: vi.fn() }),
+}));
 
 function show(overrides: Partial<SavedMedia> = {}): SavedMedia {
   return {
@@ -52,12 +56,19 @@ describe('NotifyToggle', () => {
     );
   });
 
-  it('en iPhone con Safari explica cómo instalarla en vez de mostrar un botón que no anda', () => {
+  it('en iPhone con Safari ofrece instalarla en vez de un interruptor que no anda', async () => {
     push.support = 'install-first';
-    render(<NotifyToggle media={show()} />);
+    render(
+      <ToastProvider>
+        <NotifyToggle media={show()} />
+      </ToastProvider>,
+    );
 
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-    expect(screen.getByText(/Agregar a inicio/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { pressed: false })).not.toBeInTheDocument();
+    expect(screen.getByText(/llegan solo a la app instalada/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Instalar la app' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Agregar a inicio');
   });
 
   it('no aparece donde no puede andar', () => {

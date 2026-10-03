@@ -4,6 +4,7 @@ import { useMediaStore } from '@/store';
 import { usePush } from '@/hooks/usePush';
 import { alertCandidates } from '@/lib/push';
 import { INSTALL_FIRST_HINT, NotifyChip } from '@/components/NotifyToggle';
+import { InstallButton } from '@/components/install/InstallButton';
 
 /**
  * "Avisos de episodios", en Ajustes: activarlos en este dispositivo y elegir
@@ -34,7 +35,10 @@ export function NotificationsSettings() {
       </div>
 
       {support === 'install-first' ? (
-        <p className="text-sm text-text-muted">{INSTALL_FIRST_HINT}</p>
+        <div className="flex flex-col items-start gap-3">
+          <p className="text-sm text-text-muted">{INSTALL_FIRST_HINT}</p>
+          <InstallButton />
+        </div>
       ) : permission === 'denied' ? (
         <p className="text-sm text-text-muted">
           Los avisos están bloqueados para Qué Miro? en este navegador. Se

@@ -67,10 +67,17 @@ interface PreferencesState {
    * permite decir "acá sí recibís avisos" y sacarlo de la cuenta al salir.
    */
   pushDevice: PushDeviceRecord | null;
+  /**
+   * Cuándo se cerró la tarjeta que ofrece instalar la app. Es del dispositivo:
+   * instalarla es de cada celular, y haberla cerrado en uno no dice nada del
+   * otro.
+   */
+  installCardDismissedAt: string | null;
   setTheme: (theme: ThemePreference) => void;
   setRegion: (region: RegionCode) => void;
   dismissPauseHint: (tmdbId: number) => void;
   setPushDevice: (device: PushDeviceRecord | null) => void;
+  dismissInstallCard: () => void;
 }
 
 /**
@@ -86,9 +93,11 @@ export const usePreferences = create<PreferencesState>()(
       region: detectRegion(),
       pauseHintsDismissed: {},
       pushDevice: null,
+      installCardDismissedAt: null,
       setTheme: (theme) => set({ theme }),
       setRegion: (region) => set({ region }),
       setPushDevice: (pushDevice) => set({ pushDevice }),
+      dismissInstallCard: () => set({ installCardDismissedAt: new Date().toISOString() }),
       dismissPauseHint: (tmdbId) =>
         set((state) => {
           // Se queda con las más recientes: una respuesta de hace un año ya no
