@@ -1,4 +1,4 @@
-import { MediaType, SavedMedia } from '@/types';
+import { MediaType, SavedMedia, TMDbPerson } from '@/types';
 import type { PersonPageCredit } from '@/lib/tmdb';
 import { formatDay, isDayKey } from '@/lib/dates';
 
@@ -170,6 +170,19 @@ const DEPARTMENTS: Record<string, string> = {
 
 export function departmentLabel(department: string | null): string | null {
   return department ? (DEPARTMENTS[department] ?? null) : null;
+}
+
+/**
+ * La línea bajo el nombre de una persona en el buscador: de qué trabaja y con
+ * qué se la conoce —"Dirección · Interestelar, El origen"—, que es lo que
+ * separa a dos homónimos sin abrir nada. Sin ninguna de las dos cosas, `null`.
+ */
+export function personSearchCaption(person: TMDbPerson): string | null {
+  const parts = [
+    departmentLabel(person.known_for_department ?? null),
+    person.known_for?.join(', '),
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 /** Los años cumplidos entre dos días `YYYY-MM-DD`. */

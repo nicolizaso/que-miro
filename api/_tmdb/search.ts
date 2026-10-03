@@ -11,7 +11,8 @@ import {
 /**
  * GET /api/tmdb/search?query=matrix[&kind=multi|person|company][&lang=es-MX]
  *
- * Sin `kind` busca títulos, que es lo que hace la búsqueda de siempre. Con
+ * Sin `kind` busca títulos, que es lo que hace la búsqueda de siempre, y de
+ * paso manda las personas que encontró en `people`, para el buscador. Con
  * `person` o `company` busca gente y productoras: lo que necesita el
  * cuestionario de "Contanos de vos" para que alguien pueda nombrar a su
  * directora favorita aunque no tenga ninguna película suya anotada.
@@ -27,11 +28,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const kind = parseSearchKind(req.query.kind);
     const lang = parseLanguage(req.query.lang);
     // Gente y productoras no llevan idioma: TMDB no traduce los nombres.
-    const results =
+    const body =
       kind === 'person'
-        ? await searchPeople(query)
+        ? { results: await searchPeople(query) }
         : kind === 'company'
-          ? await searchCompanies(query)
+          ? { results: await searchCompanies(query) }
           : await searchMulti(query, lang);
 
     // Los resultados de búsqueda cambian poco: cacheamos en el CDN 5 minutos
@@ -40,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       'Cache-Control',
       'public, s-maxage=300, stale-while-revalidate=600',
     );
-    return res.status(200).json({ results });
+    return res.status(200).json(body);
   } catch (error) {
     const { status, body } = toErrorResponse(error);
     return res.status(status).json(body);

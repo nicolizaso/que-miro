@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SavedMedia, TMDbDetail, TMDbResult } from '@/types';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { SavedMedia, TMDbDetail, TMDbPerson, TMDbResult } from '@/types';
 
 /** Sin sesión: la biblioteca es el store local, que es lo que miran los tests. */
 vi.mock('@/contexts/AuthContext', () => ({
@@ -46,14 +47,29 @@ const detail: TMDbDetail = {
   seasons: [{ season_number: 1, name: 'Temporada 1', episode_count: 10 }],
 };
 
-const searchMulti = vi.fn(async () => [result]);
+const nolan: TMDbPerson = {
+  id: 525,
+  name: 'Christopher Nolan',
+  profile_path: '/nolan.jpg',
+  known_for_department: 'Directing',
+  known_for: ['Interestelar', 'El origen'],
+};
+
+const searchTitlesAndPeople = vi.fn(
+  async (): Promise<{ titles: TMDbResult[]; people: TMDbPerson[]; peopleFirst: boolean }> => ({
+    titles: [result],
+    people: [],
+    peopleFirst: false,
+  }),
+);
 
 vi.mock('@/lib/tmdb', () => ({
-  searchMulti: (...args: unknown[]) => searchMulti(...(args as [])),
+  searchTitlesAndPeople: (...args: unknown[]) => searchTitlesAndPeople(...(args as [])),
   getMediaDetail: async () => detail,
   getGenreNames: (ids: number[]) =>
     ids.map((id) => (id === 10765 ? 'Sci-Fi y Fantasía' : '')).filter(Boolean),
   TMDB_IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',
+  TMDB_AVATAR_URL: 'https://image.tmdb.org/t/p/w185',
   TMDB_LOGO_URL: 'https://image.tmdb.org/t/p/w92',
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
 }));
@@ -77,17 +93,27 @@ function savedThrones(overrides: Partial<SavedMedia> = {}): SavedMedia {
   };
 }
 
-/** Abre el buscador y escribe, hasta que el resultado está en pantalla. */
+/**
+ * Abre el buscador y escribe, hasta que el resultado está en pantalla.
+ *
+ * Va adentro de un router porque las personas son enlaces; la ruta de la
+ * persona dice a dónde llevó el enlace.
+ */
 async function search(onClose = () => {}) {
   const user = userEvent.setup();
   render(
-    <ToastProvider>
-      <SearchModal isOpen onClose={onClose} />
-    </ToastProvider>,
+    <MemoryRouter>
+      <ToastProvider>
+        <Routes>
+          <Route path="/" element={<SearchModal isOpen onClose={onClose} />} />
+          <Route path="/persona/:id" element={<p>Página de persona</p>} />
+        </Routes>
+      </ToastProvider>
+    </MemoryRouter>,
   );
 
   await user.type(
-    screen.getByLabelText('Buscar películas o series'),
+    screen.getByLabelText('Buscar películas, series o personas'),
     'juego de tronos',
   );
   // La búsqueda va con debounce: sin esperar al resultado, lo que hay en
@@ -98,7 +124,7 @@ async function search(onClose = () => {}) {
 }
 
 beforeEach(() => {
-  searchMulti.mockClear();
+  searchTitlesAndPeople.mockClear();
   act(() => useMediaStore.getState().reset());
 });
 
@@ -250,5 +276,49 @@ describe('SearchModal', () => {
     expect(
       screen.queryByRole('button', { name: 'Agregar "Juego de tronos" a Por Ver' }),
     ).not.toBeInTheDocument();
+  });
+
+  describe('personas', () => {
+    it('sin personas, la lista es la de siempre: sin títulos de grupo', async () => {
+      await search();
+
+      expect(screen.queryByRole('heading', { name: 'Personas' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Películas y series' })).not.toBeInTheDocument();
+    });
+
+    it('una persona lleva a su página y cierra el buscador', async () => {
+      searchTitlesAndPeople.mockResolvedValueOnce({ titles: [result], people: [nolan], peopleFirst: false });
+      const onClose = vi.fn();
+      const user = await search(onClose);
+
+      const link = screen.getByRole('link', { name: /Christopher Nolan/ });
+      expect(link).toHaveAttribute('href', '/persona/525');
+      expect(link).toHaveTextContent('Dirección · Interestelar, El origen');
+
+      await user.click(link);
+
+      expect(screen.getByText('Página de persona')).toBeInTheDocument();
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it('va arriba cuando lo que TMDB rankeó primero es una persona', async () => {
+      searchTitlesAndPeople.mockResolvedValueOnce({ titles: [result], people: [nolan], peopleFirst: true });
+      await search();
+
+      expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
+        'Personas',
+        'Películas y series',
+      ]);
+    });
+
+    it('va abajo cuando lo que más se parece es un título', async () => {
+      searchTitlesAndPeople.mockResolvedValueOnce({ titles: [result], people: [nolan], peopleFirst: false });
+      await search();
+
+      expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
+        'Películas y series',
+        'Personas',
+      ]);
+    });
   });
 });

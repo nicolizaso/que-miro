@@ -616,8 +616,8 @@ test('del reparto de una ficha a la página de la persona, y de vuelta', async (
   // Desde el buscador, que vive en el marco y no en la página: tiene que
   // cerrarse solo al irse a otra.
   await page.keyboard.press('Control+k');
-  const search = page.getByRole('dialog', { name: 'Buscar títulos' });
-  await search.getByRole('searchbox', { name: 'Buscar películas o series' }).fill('duna');
+  const search = page.getByRole('dialog', { name: 'Buscar' });
+  await search.getByRole('searchbox', { name: 'Buscar películas, series o personas' }).fill('duna');
   await search.getByRole('button', { name: 'Ver detalle de Duna', exact: true }).click();
   await page.getByRole('link', { name: 'Javier Bardem' }).click();
 
@@ -634,6 +634,57 @@ test('del reparto de una ficha a la página de la persona, y de vuelta', async (
   // "Atrás" vuelve a la lista, sin ficha ni buscador encima.
   await page.goBack();
   await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('buscar un nombre lleva a la página de la persona', async ({ page }) => {
+  // TMDB rankea primero a la persona: quien escribe "bardem" la busca a ella.
+  await page.route('**/api/tmdb/search**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        results: [],
+        people: [
+          {
+            id: 3810,
+            name: 'Javier Bardem',
+            profile_path: null,
+            known_for_department: 'Acting',
+            known_for: ['Sin lugar para los débiles', 'Duna'],
+          },
+        ],
+        people_first: true,
+      }),
+    }),
+  );
+  await page.route('**/api/tmdb/person-page**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        person: {
+          id: 3810,
+          name: 'Javier Bardem',
+          profile_path: null,
+          biography: '',
+          birthday: null,
+          deathday: null,
+          place_of_birth: null,
+          known_for_department: 'Acting',
+        },
+        credits: [],
+      }),
+    }),
+  );
+
+  await page.keyboard.press('Control+k');
+  const search = page.getByRole('dialog', { name: 'Buscar' });
+  await search.getByRole('searchbox', { name: 'Buscar películas, series o personas' }).fill('bardem');
+  await search.getByRole('link', { name: /Javier Bardem/ }).click();
+
+  await expect(page).toHaveURL(/\/persona\/3810$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Javier Bardem' })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 

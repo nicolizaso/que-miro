@@ -83,15 +83,36 @@ async function fetchApi<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** Lo que encuentra el buscador: títulos y, aparte, personas. */
+export interface TitleAndPeopleSearch {
+  titles: TMDbResult[];
+  people: TMDbPerson[];
+  /** Si lo que TMDB rankeó más alto es una persona: "darín" y no "matrix". */
+  peopleFirst: boolean;
+}
+
+/**
+ * Busca películas, series y personas por texto, en un solo pedido.
+ *
+ * Una respuesta que el CDN guardó antes de que el servidor mandara personas
+ * no trae `people`: cuenta como que no encontró a nadie.
+ * @throws {TMDbRequestError} si la búsqueda falla, para que la UI pueda avisar.
+ */
+export async function searchTitlesAndPeople(query: string): Promise<TitleAndPeopleSearch> {
+  const { results, people, people_first } = await fetchApi<{
+    results: TMDbResult[];
+    people?: TMDbPerson[];
+    people_first?: boolean;
+  }>(withLanguage(`/api/tmdb/search?query=${encodeURIComponent(query)}`));
+  return { titles: results, people: people ?? [], peopleFirst: people_first ?? false };
+}
+
 /**
  * Busca películas y series por texto.
  * @throws {TMDbRequestError} si la búsqueda falla, para que la UI pueda avisar.
  */
 export async function searchMulti(query: string): Promise<TMDbResult[]> {
-  const { results } = await fetchApi<{ results: TMDbResult[] }>(
-    withLanguage(`/api/tmdb/search?query=${encodeURIComponent(query)}`),
-  );
-  return results;
+  return (await searchTitlesAndPeople(query)).titles;
 }
 
 /**

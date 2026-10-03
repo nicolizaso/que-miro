@@ -27,10 +27,12 @@ dispositivos.
 - **Continuar viendo** — arriba de todo, las series para retomar con el
   episodio que toca y un "+1" para marcarlo sin abrir la ficha, con su
   "Deshacer". Si era el último, ofrece la reseña.
-- **Búsqueda en TMDB** — películas y series, con atajo `⌘K` / `Ctrl+K`. Cada
-  resultado abre su ficha de un toque, o va directo a *Por Ver* o a
-  *Completadas* desde los dos botones de al lado. Marcar algo como completado
-  abre la reseña ahí mismo.
+- **Búsqueda en TMDB** — películas, series y personas, con atajo `⌘K` /
+  `Ctrl+K`. Cada título abre su ficha de un toque, o va directo a *Por Ver* o
+  a *Completadas* desde los dos botones de al lado. Marcar algo como
+  completado abre la reseña ahí mismo. Actores, actrices y directores llevan
+  a su página, con de qué trabajan y un par de títulos para no confundir
+  homónimos; si escribiste un nombre, aparecen arriba de todo.
 - **En tu castellano** — títulos y sinopsis en latino o en castellano de
   España, según el país que elijas: desde Buenos Aires es *Duro de matar*, no
   *La jungla de cristal*. Lo que ya tenías guardado se corrige solo, de a poco.
@@ -55,12 +57,12 @@ dispositivos.
   página que lleva directo a cada una. En la línea de la sinopsis están los mismos atajos del
   buscador: *Por Ver* y *Completada* de un toque, o dónde quedó si ya está
   guardado.
-- **Página de persona** — desde el reparto de una ficha, las filas de Explorar
-  que hablan de alguien o lo que elegiste en "Contanos de vos", su página
-  (`/persona/…`): quién es, su filmografía sin repetidos —con filtro reparto /
-  dirección— y cada título marcado según tu biblioteca. Arriba, "Viste 7 de 23"
-  y las mejor puntuadas que te faltan, con un mínimo de votos para que no gane
-  algo con tres.
+- **Página de persona** — desde el buscador, el reparto de una ficha, las
+  filas de Explorar que hablan de alguien o lo que elegiste en "Contanos de
+  vos", su página (`/persona/…`): quién es, su filmografía sin repetidos —con
+  filtro reparto / dirección— y cada título marcado según tu biblioteca.
+  Arriba, "Viste 7 de 23" y las mejor puntuadas que te faltan, con un mínimo
+  de votos para que no gane algo con tres.
 - **Progreso de series** — marcá episodios de a uno o por temporada entera, con
   barra de progreso y un "vas por T2E5" para retomar donde dejaste. Cada
   temporada muestra sus episodios con nombre, fecha, duración e imagen; lo que

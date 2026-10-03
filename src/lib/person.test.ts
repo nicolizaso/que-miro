@@ -9,6 +9,7 @@ import {
   filterByRole,
   lifeFacts,
   markOf,
+  personSearchCaption,
   personSummary,
   rolesIn,
 } from './person';
@@ -154,6 +155,26 @@ describe('los datos de la persona', () => {
       'Nació en Lima, Perú',
     );
     expect(lifeFacts({ birthday: null, deathday: null, place_of_birth: null }, '2026-09-29')).toBeNull();
+  });
+});
+
+describe('personSearchCaption', () => {
+  const person = { id: 525, name: 'Christopher Nolan', profile_path: null };
+
+  it('de qué trabaja y con qué se la conoce', () => {
+    expect(
+      personSearchCaption({ ...person, known_for_department: 'Directing', known_for: ['Interestelar', 'El origen'] }),
+    ).toBe('Dirección · Interestelar, El origen');
+  });
+
+  it('con una sola de las dos cosas, esa', () => {
+    expect(personSearchCaption({ ...person, known_for_department: 'Acting', known_for: [] })).toBe('Actuación');
+    expect(personSearchCaption({ ...person, known_for_department: 'Crew', known_for: ['Tenet'] })).toBe('Tenet');
+  });
+
+  it('sin nada que decir, nada', () => {
+    expect(personSearchCaption(person)).toBeNull();
+    expect(personSearchCaption({ ...person, known_for_department: null, known_for: [] })).toBeNull();
   });
 });
 
