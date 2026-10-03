@@ -119,6 +119,29 @@ describe('SyncManager', () => {
     expect(useMediaStore.getState().mediaList).toHaveLength(2);
   });
 
+  it('lo que guardó sin cuenta pasa a la cuenta al entrar, sin pisar lo que ya tenía', async () => {
+    // Exploró como invitado, siguió sin cuenta un rato y después se registró
+    // (o entró a una cuenta que ya tenía títulos).
+    act(() => {
+      useMediaStore.setState({
+        mediaList: [makeMedia(1), makeMedia(2)],
+        ownerUid: null,
+        syncedUid: null,
+      });
+    });
+
+    renderSync();
+    expect(useMediaStore.getState().ownerUid).toBe('u1');
+    await act(async () => {
+      listeners[0](snapshot([{ ...makeMedia(2), status: 'completada' }]));
+    });
+
+    await waitFor(() => expect(batchCommit).toHaveBeenCalled());
+    // Solo sube el que la cuenta no tenía.
+    expect(batchSet).toHaveBeenCalledTimes(1);
+    expect(batchSet.mock.calls[0][0]).toEqual({ path: 'users/u1/saved_media/1' });
+  });
+
   it('conserva lo local si la subida falla', async () => {
     batchCommit.mockImplementation(async () => {
       throw new Error('permission-denied');

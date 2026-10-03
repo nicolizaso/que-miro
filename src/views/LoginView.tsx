@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+import { useMediaActions } from '@/hooks/useMediaActions';
+import { STATUS_LABELS } from '@/lib/archive';
+import { chooseGuest, clearPendingSave, readPendingSave } from '@/lib/pendingSave';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
@@ -9,7 +13,14 @@ import { getAuthErrorMessage } from '@/lib/authErrors';
 
 export function LoginView() {
   const { signInWithGoogle, signInWithEmail, registerWithEmail } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const { addMedia } = useMediaActions();
+  const { showToast } = useToast();
+  const [params] = useSearchParams();
+  // `?guardar=1` dice que se llegó desde el cartel de "guardalo con una
+  // cuenta": solo ahí vale el guardado pendiente.
+  const cameToSave = params.get('guardar') === '1';
+  const [pending] = useState(() => (cameToSave ? readPendingSave() : null));
+  const [isLogin, setIsLogin] = useState(params.get('modo') !== 'registro');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,6 +29,27 @@ export function LoginView() {
   );
 
   const isBusy = pendingAction !== null;
+
+  // Quien entra al login por otro camino no está retomando nada: un guardado
+  // que quedó de una vuelta anterior no se le aplica a escondidas.
+  useEffect(() => {
+    if (!cameToSave) clearPendingSave();
+  }, [cameToSave]);
+
+  /**
+   * Volvió sin entrar: lo que quería guardar se guarda igual, en este
+   * navegador, y ya no se le vuelve a preguntar en esta visita.
+   */
+  const continueAsGuest = async () => {
+    if (!pending) return;
+    clearPendingSave();
+    chooseGuest();
+    if ((await addMedia(pending.draft)) === 'saved') {
+      showToast(
+        `"${pending.draft.title}" quedó en ${STATUS_LABELS[pending.draft.status]}, en este navegador.`,
+      );
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     setError('');
@@ -64,7 +96,8 @@ export function LoginView() {
       {/* Se llega acá desde la app, así que la salida va arriba, donde se
           busca un "atrás": entrar a la cuenta es opcional. */}
       <Link
-        to="/"
+        to={pending?.returnTo ?? '/'}
+        onClick={() => void continueAsGuest()}
         className="absolute top-4 left-4 btn btn-ghost px-3 py-2 text-sm"
       >
         <ArrowLeft size={16} aria-hidden="true" />
@@ -81,8 +114,9 @@ export function LoginView() {
           Qué Miro?
         </h1>
         <p className="text-text-muted text-center mb-8">
-          Con una cuenta, tu biblioteca se sincroniza entre el celular y la
-          compu.
+          {pending
+            ? `${isLogin ? 'Entrá' : 'Creá tu cuenta'} y guardamos "${pending.draft.title}" en ${STATUS_LABELS[pending.draft.status]}.`
+            : 'Con una cuenta, tu biblioteca se sincroniza entre el celular y la compu.'}
         </p>
 
         <div className="w-full surface p-6">

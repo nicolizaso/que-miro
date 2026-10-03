@@ -43,7 +43,7 @@ function ResultCard({ result }: { result: TMDbResult }) {
 
     setIsAdding(true);
     try {
-      await addMedia({
+      const outcome = await addMedia({
         tmdbId: result.id,
         mediaType: result.media_type,
         title,
@@ -53,7 +53,7 @@ function ResultCard({ result }: { result: TMDbResult }) {
         genres: getGenreNames(result.genre_ids ?? []),
         status: 'por_ver',
       });
-      showToast(`"${title}" se agregó a Por Ver.`);
+      if (outcome === 'saved') showToast(`"${title}" se agregó a Por Ver.`);
     } finally {
       setIsAdding(false);
     }

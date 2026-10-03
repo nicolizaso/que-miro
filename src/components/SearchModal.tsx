@@ -92,7 +92,8 @@ function ResultRow({
           updatedAt: new Date().toISOString(),
         };
         setJustSaved(draft);
-        await addMedia(draft);
+        // Si quedó esperando al login, todavía no está en ninguna lista.
+        if ((await addMedia(draft)) === 'pending') setJustSaved(null);
       }
     } finally {
       setSavingStatus(null);
