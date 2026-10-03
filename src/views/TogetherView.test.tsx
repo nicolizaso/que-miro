@@ -21,6 +21,15 @@ vi.mock('motion/react', async (importOriginal) => ({
   useReducedMotion: () => true,
 }));
 
+// jsdom no trae `ResizeObserver`, que las filas de filtros usan para sus flechas.
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    disconnect() {}
+  },
+);
+
 const { TogetherView } = await import('./TogetherView');
 
 function media(tmdbId: number, title: string, overrides: Partial<SavedMedia> = {}): SavedMedia {

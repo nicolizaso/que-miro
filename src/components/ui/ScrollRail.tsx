@@ -1,16 +1,7 @@
-import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useReducedMotion } from 'motion/react';
 import { cn } from '@/lib/utils';
-
-interface RailEdges {
-  atStart: boolean;
-  atEnd: boolean;
-  /** Si hay más contenido del que entra. Sin esto no hace falta ningún control. */
-  overflows: boolean;
-}
-
-const INITIAL: RailEdges = { atStart: true, atEnd: true, overflows: false };
+import { useRailEdges } from '@/hooks/useRailEdges';
 
 /**
  * Una fila de tarjetas que se desplaza en horizontal.
@@ -49,65 +40,7 @@ export function ScrollRail({
   /** Los `<li>` de la fila. */
   children: ReactNode;
 }) {
-  const scrollerRef = useRef<HTMLUListElement>(null);
-  const [edges, setEdges] = useState<RailEdges>(INITIAL);
-  const reduceMotion = useReducedMotion();
-
-  const measure = useCallback(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-
-    const max = el.scrollWidth - el.clientWidth;
-    // El margen de 1px es por los anchos fraccionarios: con zoom del navegador
-    // `scrollLeft` llega a 248.5 sobre un máximo de 249 y la flecha quedaría
-    // habilitada para siempre.
-    const next: RailEdges = {
-      atStart: el.scrollLeft <= 1,
-      atEnd: el.scrollLeft >= max - 1,
-      overflows: max > 1,
-    };
-
-    setEdges((prev) =>
-      prev.atStart === next.atStart &&
-      prev.atEnd === next.atEnd &&
-      prev.overflows === next.overflows
-        ? prev
-        : next,
-    );
-  }, []);
-
-  // Sin dependencias: corre después de cada render, que es justo cuando puede
-  // haber cambiado el contenido —los esqueletos de carga dan paso a los
-  // resultados y la fila pasa de no desbordar a desbordar—. `measure` solo lee
-  // el layout y descarta el `setState` si nada cambió, así que no se realimenta.
-  useEffect(measure);
-
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-
-    // El listener va en el elemento y no en `window`, y es pasivo: no bloquea
-    // el scroll ni dibuja nada por frame, solo prende y apaga dos flechas.
-    el.addEventListener('scroll', measure, { passive: true });
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-
-    return () => {
-      el.removeEventListener('scroll', measure);
-      observer.disconnect();
-    };
-  }, [measure]);
-
-  const scrollBy = (direction: 1 | -1) => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    // Casi una pantalla, no una entera: deja una tarjeta de la vista anterior
-    // como punto de referencia de dónde estabas.
-    el.scrollBy({
-      left: direction * el.clientWidth * 0.8,
-      behavior: reduceMotion ? 'auto' : 'smooth',
-    });
-  };
+  const { ref: scrollerRef, edges, scrollBy } = useRailEdges<HTMLUListElement>();
 
   const fade =
     fadeFrom === 'card'
