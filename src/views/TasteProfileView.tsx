@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -6,6 +6,7 @@ import {
   Clapperboard,
   Compass,
   Film,
+  Plus,
   Tv,
   User,
   X,
@@ -17,13 +18,17 @@ import { ToggleChip } from '@/components/taste/ToggleChip';
 import { useTastePicks } from '@/hooks/useTastePicks';
 import { useMediaStore } from '@/store';
 import {
+  MAX_FAVORITE_TITLES,
   MAX_GENRES,
   MAX_PEOPLE,
   MAX_STUDIOS,
   TOTAL_QUESTIONS,
+  addFavoriteTitle,
   answeredCount,
   decadeLabel,
   decadeOptions,
+  favoriteTitles,
+  removeFavoriteTitle,
 } from '@/lib/picks';
 import {
   TMDB_IMAGE_BASE_URL,
@@ -201,12 +206,94 @@ function TitleAnswer({
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Cambiar ${title.title}`}
+        aria-label={`Sacar ${title.title}`}
         className="btn-icon w-9 h-9 border border-border-card text-text-muted hover:text-accent"
       >
         <X size={16} aria-hidden="true" />
       </button>
     </div>
+  );
+}
+
+/**
+ * Las películas o las series favoritas, con el botón para sumar otra.
+ *
+ * El buscador aparece solo cuando hace falta: abierto mientras no hay ninguna,
+ * y detrás de "Agregar otra" después. Siempre a la vista invitaría a llenar los
+ * cinco lugares, y con una sola favorita Explorar ya tiene con qué trabajar.
+ */
+function FavoriteTitlesAnswer({
+  titles,
+  mediaType,
+  searchLabel,
+  moreSearchLabel,
+  placeholder,
+  addLabel,
+  onAdd,
+  onRemove,
+}: {
+  titles: PickedTitle[];
+  mediaType: MediaType;
+  searchLabel: string;
+  moreSearchLabel: string;
+  placeholder: string;
+  addLabel: string;
+  onAdd: (title: PickedTitle) => void;
+  onRemove: (tmdbId: number) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const isFull = titles.length >= MAX_FAVORITE_TITLES;
+  const showSearch = titles.length === 0 || (adding && !isFull);
+
+  return (
+    <>
+      {titles.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {titles.map((title) => (
+            <li key={title.tmdbId}>
+              <TitleAnswer title={title} onRemove={() => onRemove(title.tmdbId)} />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showSearch ? (
+        <div className="flex flex-col gap-2">
+          <PickerSearch<TMDbResult>
+            label={titles.length === 0 ? searchLabel : moreSearchLabel}
+            placeholder={placeholder}
+            search={async (query) => onlyOfType(await searchMulti(query), mediaType)}
+            itemKey={(result) => result.id}
+            itemLabel={(result) => result.title || result.name || ''}
+            renderItem={(result) => <TitleResult result={result} />}
+            onSelect={(result) => {
+              onAdd(toPickedTitle(result, mediaType));
+              setAdding(false);
+            }}
+          />
+          {titles.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setAdding(false)}
+              className="btn btn-secondary self-start px-4 py-2 text-sm"
+            >
+              Cancelar
+            </button>
+          )}
+        </div>
+      ) : (
+        !isFull && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="btn btn-secondary self-start px-4 py-2 text-sm"
+          >
+            <Plus size={16} aria-hidden="true" />
+            {addLabel}
+          </button>
+        )
+      )}
+    </>
   );
 }
 
@@ -365,6 +452,11 @@ export function TasteProfileView() {
     savePicks(key === 'actors' ? { actors: next } : { directors: next });
   };
 
+  const addFavorite = (title: PickedTitle) => {
+    const patch = addFavoriteTitle(picks, title);
+    if (patch) savePicks(patch);
+  };
+
   const addStudio = (company: TMDbCompany) => {
     if (picks.studios.some((studio) => studio.id === company.id)) return;
     const next: PickedStudio = {
@@ -404,54 +496,38 @@ export function TasteProfileView() {
       <ol className="flex flex-col gap-4">
         <Question
           index={1}
-          title="Tu película favorita"
-          hint="Esa que recomendás sin pensarlo."
+          title="Tus películas favoritas"
+          hint={`Hasta ${MAX_FAVORITE_TITLES}. Empezá por esa que recomendás sin pensarlo.`}
           answered={picks.movie !== undefined}
         >
-          {picks.movie ? (
-            <TitleAnswer
-              title={picks.movie}
-              onRemove={() => savePicks({ movie: undefined })}
-            />
-          ) : (
-            <PickerSearch<TMDbResult>
-              label="Buscar tu película favorita"
-              placeholder="El Padrino, Parasite, Relatos Salvajes…"
-              search={async (query) => onlyOfType(await searchMulti(query), 'movie')}
-              itemKey={(result) => result.id}
-              itemLabel={(result) => result.title ?? ''}
-              renderItem={(result) => <TitleResult result={result} />}
-              onSelect={(result) =>
-                savePicks({ movie: toPickedTitle(result, 'movie') })
-              }
-            />
-          )}
+          <FavoriteTitlesAnswer
+            titles={favoriteTitles(picks, 'movie')}
+            mediaType="movie"
+            searchLabel="Buscar tu película favorita"
+            moreSearchLabel="Buscar otra película favorita"
+            placeholder="El Padrino, Parasite, Relatos Salvajes…"
+            addLabel="Agregar otra película"
+            onAdd={addFavorite}
+            onRemove={(tmdbId) => savePicks(removeFavoriteTitle(picks, 'movie', tmdbId))}
+          />
         </Question>
 
         <Question
           index={2}
-          title="Tu serie favorita"
-          hint="La que volverías a empezar mañana."
+          title="Tus series favoritas"
+          hint={`Hasta ${MAX_FAVORITE_TITLES}. Empezá por la que volverías a empezar mañana.`}
           answered={picks.series !== undefined}
         >
-          {picks.series ? (
-            <TitleAnswer
-              title={picks.series}
-              onRemove={() => savePicks({ series: undefined })}
-            />
-          ) : (
-            <PickerSearch<TMDbResult>
-              label="Buscar tu serie favorita"
-              placeholder="Los Soprano, Chernobyl, Fleabag…"
-              search={async (query) => onlyOfType(await searchMulti(query), 'tv')}
-              itemKey={(result) => result.id}
-              itemLabel={(result) => result.name ?? ''}
-              renderItem={(result) => <TitleResult result={result} />}
-              onSelect={(result) =>
-                savePicks({ series: toPickedTitle(result, 'tv') })
-              }
-            />
-          )}
+          <FavoriteTitlesAnswer
+            titles={favoriteTitles(picks, 'tv')}
+            mediaType="tv"
+            searchLabel="Buscar tu serie favorita"
+            moreSearchLabel="Buscar otra serie favorita"
+            placeholder="Los Soprano, Chernobyl, Fleabag…"
+            addLabel="Agregar otra serie"
+            onAdd={addFavorite}
+            onRemove={(tmdbId) => savePicks(removeFavoriteTitle(picks, 'tv', tmdbId))}
+          />
         </Question>
 
         <Question

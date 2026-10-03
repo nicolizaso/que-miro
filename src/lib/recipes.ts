@@ -3,6 +3,7 @@ import { Taste, directedAbandoned, resemblesAbandoned } from '@/lib/taste';
 import { SocialSignals, SocialTitleSignal, namesText } from '@/lib/socialFeed';
 import { emptyRestrictions, restrictDiscover } from '@/lib/restrictions';
 import { limitToSubscriptions, recommendsOnlyMine } from '@/lib/subscriptions';
+import { favoriteTitles } from '@/lib/picks';
 import {
   DiscoverParams,
   getDiscover,
@@ -825,46 +826,43 @@ export const RECIPES: Recipe[] = [
   // -------------------------------------------------------------------------
 
   {
-    // 26. La respuesta a la primera pregunta del cuestionario.
+    // 26. La respuesta a la primera pregunta del cuestionario. La primera
+    // favorita pesa un poco más que las que vinieron después: es la que salió
+    // sin pensar.
     id: 'favorita-pelicula',
-    build: ({ picks }) => {
-      const movie = picks.movie;
-      if (!movie) return [];
-
-      return [
-        {
-          id: `favorita-pelicula-${movie.tmdbId}`,
-          family: 'semilla',
-          title: `Si tu película favorita es ${movie.title}`,
-          subtitle: 'Te recomendamos estas otras.',
-          weight: 11,
-          fetch: () => getRecommendations(movie.tmdbId, 'movie'),
-        },
-      ];
-    },
+    build: ({ picks }) =>
+      favoriteTitles(picks, 'movie').map((movie, index) => ({
+        id: `favorita-pelicula-${movie.tmdbId}`,
+        family: 'semilla' as const,
+        title:
+          index === 0
+            ? `Si tu película favorita es ${movie.title}`
+            : `Porque ${movie.title} está entre tus favoritas`,
+        subtitle: 'Te recomendamos estas otras.',
+        weight: index === 0 ? 11 : 10,
+        fetch: () => getRecommendations(movie.tmdbId, 'movie'),
+      })),
   },
   {
-    // 27. Lo mismo con la serie.
+    // 27. Lo mismo con las series.
     id: 'favorita-serie',
-    build: ({ picks }) => {
-      const series = picks.series;
-      if (!series) return [];
-
-      return [
-        {
-          id: `favorita-serie-${series.tmdbId}`,
-          family: 'semilla',
-          title: `Si tu serie favorita es ${series.title}`,
-          subtitle: 'Estas van por el mismo camino.',
-          weight: 11,
-          fetch: () => getRecommendations(series.tmdbId, 'tv'),
-        },
-      ];
-    },
+    build: ({ picks }) =>
+      favoriteTitles(picks, 'tv').map((series, index) => ({
+        id: `favorita-serie-${series.tmdbId}`,
+        family: 'semilla' as const,
+        title:
+          index === 0
+            ? `Si tu serie favorita es ${series.title}`
+            : `Porque ${series.title} está entre tus favoritas`,
+        subtitle: 'Estas van por el mismo camino.',
+        weight: index === 0 ? 11 : 10,
+        fetch: () => getRecommendations(series.tmdbId, 'tv'),
+      })),
   },
   {
-    // 28. Las mismas dos semillas por la otra puerta: `/similar` va por
-    // metadatos y no por quién mira qué, así que trae otra cosa.
+    // 28. Las dos primeras favoritas por la otra puerta: `/similar` va por
+    // metadatos y no por quién mira qué, así que trae otra cosa. Solo las
+    // primeras: con todas serían hasta veinte filas sembradas a mano.
     id: 'favorita-similar',
     build: ({ picks }) =>
       [picks.movie, picks.series]

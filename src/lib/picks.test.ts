@@ -1,16 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_FAVORITE_TITLES,
   MAX_GENRES,
   MAX_PEOPLE,
   MAX_STUDIOS,
+  addFavoriteTitle,
   answeredCount,
   decadeLabel,
   decadeOptions,
   emptyPicks,
+  favoriteTitles,
   hasPicks,
   parsePicks,
   pickedTitleIds,
+  removeFavoriteTitle,
 } from './picks';
+import { PickedTitle, TastePicks } from '@/types';
+
+function title(tmdbId: number, mediaType: 'movie' | 'tv' = 'movie'): PickedTitle {
+  return { tmdbId, mediaType, title: `Título ${tmdbId}`, posterPath: null, releaseYear: '2000' };
+}
 
 describe('parsePicks', () => {
   it('de cualquier cosa devuelve un cuestionario en blanco', () => {
@@ -99,6 +108,43 @@ describe('parsePicks', () => {
     expect(picks.actors).toHaveLength(1);
   });
 
+  it('lee las favoritas que siguen a la primera, con su tope', () => {
+    const picks = parsePicks({
+      movie: title(1),
+      moreMovies: [title(2), title(3), title(4), title(5), title(6)],
+      series: title(10, 'tv'),
+      moreSeries: [title(11, 'movie')],
+    });
+
+    expect(favoriteTitles(picks, 'movie').map(({ tmdbId }) => tmdbId)).toEqual([
+      1, 2, 3, 4, 5,
+    ]);
+    expect(favoriteTitles(picks, 'movie')).toHaveLength(MAX_FAVORITE_TITLES);
+    // El tipo lo fija la pregunta, también en las que siguen.
+    expect(picks.moreSeries?.[0].mediaType).toBe('tv');
+  });
+
+  it('no repite la principal entre las que siguen', () => {
+    const picks = parsePicks({ movie: title(1), moreMovies: [title(1), title(2)] });
+
+    expect(picks.moreMovies?.map(({ tmdbId }) => tmdbId)).toEqual([2]);
+  });
+
+  it('si faltan la principal, sube la primera de las que siguen', () => {
+    const picks = parsePicks({ movie: null, moreMovies: [title(2), title(3)] });
+
+    expect(picks.movie?.tmdbId).toBe(2);
+    expect(picks.moreMovies?.map(({ tmdbId }) => tmdbId)).toEqual([3]);
+  });
+
+  it('un documento de antes de las favoritas extra se lee igual', () => {
+    const picks = parsePicks({ movie: title(1), genres: [] });
+
+    expect(picks.movie?.tmdbId).toBe(1);
+    expect(picks.moreMovies).toBeUndefined();
+    expect(favoriteTitles(picks, 'movie')).toHaveLength(1);
+  });
+
   it('ignora una década que no se ofrece', () => {
     expect(parsePicks({ decade: 1910 }).decade).toBeUndefined();
     expect(parsePicks({ decade: 1995 }).decade).toBeUndefined();
@@ -138,6 +184,58 @@ describe('leer el cuestionario', () => {
 
     expect(pickedTitleIds(picks)).toEqual([550, 1398]);
     expect(pickedTitleIds(emptyPicks())).toEqual([]);
+  });
+
+  it('cuenta también las favoritas que siguen a la primera', () => {
+    const picks = parsePicks({
+      movie: title(1),
+      moreMovies: [title(2)],
+      series: title(10, 'tv'),
+      moreSeries: [title(11, 'tv')],
+    });
+
+    expect(pickedTitleIds(picks)).toEqual([1, 2, 10, 11]);
+  });
+});
+
+describe('sumar y sacar favoritas', () => {
+  const withMovies = (...ids: number[]): TastePicks => {
+    const [first, ...rest] = ids.map((id) => title(id));
+    return { ...emptyPicks(), movie: first, moreMovies: rest.length ? rest : undefined };
+  };
+
+  it('la primera va a su campo de siempre y las demás detrás', () => {
+    expect(addFavoriteTitle(emptyPicks(), title(1))).toEqual({
+      movie: title(1),
+      moreMovies: undefined,
+    });
+    expect(addFavoriteTitle(withMovies(1), title(2))).toEqual({
+      movie: title(1),
+      moreMovies: [title(2)],
+    });
+  });
+
+  it('no suma una repetida ni una sexta', () => {
+    expect(addFavoriteTitle(withMovies(1, 2), title(2))).toBeNull();
+    expect(addFavoriteTitle(withMovies(1, 2, 3, 4, 5), title(6))).toBeNull();
+  });
+
+  it('las series no ocupan lugar de las películas', () => {
+    expect(addFavoriteTitle(withMovies(1, 2, 3, 4, 5), title(6, 'tv'))).toEqual({
+      series: title(6, 'tv'),
+      moreSeries: undefined,
+    });
+  });
+
+  it('al sacar la primera, la siguiente ocupa su lugar', () => {
+    expect(removeFavoriteTitle(withMovies(1, 2, 3), 'movie', 1)).toEqual({
+      movie: title(2),
+      moreMovies: [title(3)],
+    });
+    expect(removeFavoriteTitle(withMovies(1), 'movie', 1)).toEqual({
+      movie: undefined,
+      moreMovies: undefined,
+    });
   });
 });
 

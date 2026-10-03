@@ -96,8 +96,9 @@ dispositivos.
   barajadas en cada visita y cargadas de a tandas mientras scrolleás. Desde la
   ficha lo guardás en *Por Ver* o en *Completadas* de un clic, o directo en una
   de tus listas; si lo completaste, la reseña se abre sola.
-- **Contanos de vos** — siete preguntas en el perfil —tu película, tu serie,
-  tus géneros, tus actores, tus directores, tus productoras, tu década— que
+- **Contanos de vos** — siete preguntas en el perfil —tus películas y tus
+  series favoritas (hasta cinco de cada una, con un botón para sumar otra), tus
+  géneros, tus actores, tus directores, tus productoras, tu década— que
   Explorar convierte en filas nuevas. Es lo que hace que la pestaña sea tuya
   desde el primer día, antes de tener una sola estrella puesta.
 - **Lo que no te interesa** — en la misma pantalla, un año mínimo ("nada
