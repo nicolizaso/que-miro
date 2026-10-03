@@ -60,7 +60,7 @@ function FollowButton({ profile }: { profile: PublicProfile }) {
  */
 function TogetherLink({ profile }: { profile: PublicProfile }) {
   const { user, authState } = useAuth();
-  const hasLibrary = authState === 'authenticated' || authState === 'guest' || authState === 'demo';
+  const hasLibrary = authState === 'authenticated' || authState === 'guest';
   if (!hasLibrary || !profile.watchlist || profile.uid === user?.uid) return null;
   return (
     <Link to={`/juntos/${profile.slug}`} className="btn btn-primary px-4 py-2 text-sm">

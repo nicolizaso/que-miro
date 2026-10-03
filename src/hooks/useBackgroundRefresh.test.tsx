@@ -147,16 +147,6 @@ describe('useBackgroundRefresh', () => {
     expect(getMediaDetail).toHaveBeenCalledTimes(1);
   });
 
-  it('en el demo no refresca: su biblioteca ya viene completa', async () => {
-    auth.authState = 'demo';
-    act(() => useMediaStore.getState().setMediaList([series(1)]));
-
-    renderHook(() => useBackgroundRefresh(), { wrapper });
-    await runRefresh();
-
-    expect(getMediaDetail).not.toHaveBeenCalled();
-  });
-
   it('una serie terminada que suma temporada queda con el aviso de novedades', async () => {
     act(() =>
       useMediaStore.getState().setMediaList([

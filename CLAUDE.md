@@ -15,7 +15,7 @@
 ## Datos
 - Todo lo que entra a la biblioteca pasa por `parseMedia` (`src/lib/schema.ts`): Firestore, localStorage y backups. No hay migraciones en otro lado.
 - Preferí campos opcionales y aditivos: puede haber una PWA vieja en otro dispositivo leyendo el mismo documento. Si un cambio no puede ser aditivo, subí `SCHEMA_VERSION`, migrá en `parseMedia` y explicá por qué.
-- Cada campo nuevo se refleja en `src/types.ts`, `parseMedia`, `firebase-blueprint.json`, el backup y el CSV si corresponde, y el demo (`src/lib/demo.ts`) queda coherente.
+- Cada campo nuevo se refleja en `src/types.ts`, `parseMedia`, `firebase-blueprint.json`, el backup y el CSV si corresponde, y la biblioteca de ejemplo de los tests (`src/test/fixtures/sampleLibrary.ts`) queda coherente.
 
 ## TMDB
 - Solo `api/_lib/tmdb.ts` habla con TMDB. Cada endpoint nuevo lleva lista blanca de parámetros, reenvía solo los campos que la app usa, usa `withCache` + `cacheHeaders` y se monta también en `server.ts`.

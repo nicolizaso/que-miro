@@ -150,13 +150,14 @@ describe('SignInPrompt', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
-  it('en el demo no se sugiere nada: guarda directo', async () => {
-    auth.authState = 'demo';
+  it('con cuenta no se sugiere nada: guarda directo en la cuenta', async () => {
+    auth.authState = 'authenticated';
+    auth.user = { uid: 'u1' };
     renderApp();
     await userEvent.click(screen.getByRole('button', { name: 'Guardar Breaking Bad' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(outcomes).toEqual(['saved']);
-    expect(useMediaStore.getState().mediaList).toHaveLength(1);
+    expect(setDoc.mock.calls[0][0]).toEqual({ path: 'users/u1/saved_media/1396' });
   });
 });

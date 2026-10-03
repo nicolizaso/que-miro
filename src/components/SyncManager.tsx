@@ -116,8 +116,7 @@ function profileDocHandler<T extends { updatedAt: string }>({
  *   después me registré".
  * - Si los datos locales pertenecen a *otra* cuenta, se descartan antes de
  *   suscribirse. Sin esto, la biblioteca de quien usó el dispositivo antes se
- *   le filtraría al siguiente usuario. Los datos del modo demo caen acá: su
- *   `ownerUid` ficticio nunca coincide con un UID real.
+ *   le filtraría al siguiente usuario.
  * - Sin sesión, no se toca nada: el modo invitado vive solo en localStorage.
  * - El cuestionario de "Contanos de vos", las metas y las suscripciones viajan
  *   con la biblioteca: mismo dueño, mismas reglas.

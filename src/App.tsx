@@ -77,9 +77,8 @@ function AppRoutes() {
     <>
       <Routes>
         {/* El login es para quien quiere sincronizar, no una puerta de entrada:
-            se llega desde la app. Solo desde invitado: con cuenta no hace falta,
-            y desde el demo la biblioteca de ejemplo terminaría migrada a la
-            cuenta nueva. Sin Firebase no hay cuentas a las que entrar. Recién
+            se llega desde la app. Solo desde invitado: con cuenta no hace
+            falta. Sin Firebase no hay cuentas a las que entrar. Recién
             entrado, vuelve a donde estaba si llegó queriendo guardar algo
             (ver `lib/pendingSave.ts`). */}
         <Route
@@ -93,8 +92,8 @@ function AppRoutes() {
           }
         />
         {/* Sin cuenta no hay nada social que hacer en un perfil: el invitado ve
-            la vidriera, como quien llega sin sesión. Con cuenta (o en el demo),
-            el perfil es parte de la app. */}
+            la vidriera, como quien llega sin sesión. Con cuenta, el perfil es
+            parte de la app. */}
         {authState === 'guest' && <Route path="/u/:slug" element={<PublicProfileView />} />}
         <Route path="/l/:id" element={<PublicListView />} />
         <Route element={<AppLayout />}>

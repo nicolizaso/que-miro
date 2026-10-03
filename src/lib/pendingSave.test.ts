@@ -42,8 +42,8 @@ describe('shouldPromptSignIn', () => {
     expect(shouldPromptSignIn({ authState: 'guest', isFirebaseConfigured: false, choseGuest: false })).toBe(false);
   });
 
-  it('ni con cuenta ni en el demo', () => {
-    for (const authState of ['authenticated', 'demo', 'loading']) {
+  it('ni con cuenta ni mientras se resuelve la sesión', () => {
+    for (const authState of ['authenticated', 'loading']) {
       expect(shouldPromptSignIn({ authState, isFirebaseConfigured: true, choseGuest: false })).toBe(false);
     }
   });

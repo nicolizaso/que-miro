@@ -1,53 +1,38 @@
-import { useMediaStore } from '@/store';
-import { getMediaDetail } from '@/lib/tmdb';
-import { enrichFromDetail } from '@/lib/enrich';
+/**
+ * Una biblioteca de ejemplo para los tests: títulos en las cinco listas, una
+ * serie a mitad de temporada, otra al día con la próxima anunciada, una
+ * película que llegó a una plataforma, reseñas, metas y el cuestionario
+ * contestado. Los E2E la siembran en el localStorage del invitado y los tests
+ * de componentes la cargan en el store.
+ *
+ * Fue la biblioteca del modo demo, que ya no existe; los comentarios de cada
+ * título siguen diciendo para qué está.
+ */
 import { newWatchId } from '@/lib/schema';
-import { emptyPicks, parsePicks } from '@/lib/picks';
-import { emptyGoals, parseGoals } from '@/lib/goals';
-import { emptySubscriptions, parseSubscriptions } from '@/lib/subscriptions';
-import { emptyRestrictions, parseRestrictions } from '@/lib/restrictions';
-import { emptyFollowing, parseFollowing } from '@/lib/following';
-import { emptySocialSettings, parseSocialSettings } from '@/lib/social';
+import { emptyPicks } from '@/lib/picks';
 import {
   EpisodeRef,
   Goals,
   MediaStatus,
   Restrictions,
   Subscriptions,
-  Following,
   MediaType,
   SavedMedia,
   SeriesProgress,
   SeriesStatus,
-  SocialSettings,
   TastePicks,
   WatchEntry,
 } from '@/types';
 import { toDayKey } from '@/lib/dates';
 
 /**
- * Dueño ficticio de la biblioteca de demostración.
+ * Las respuestas de "Contanos de vos" de la persona del ejemplo.
  *
- * Es la pieza que impide que los datos de ejemplo contaminen una cuenta real:
- * `SyncManager` descarta la biblioteca local cuando su `ownerUid` no coincide
- * con el del usuario que inicia sesión, y este valor nunca va a coincidir con
- * un UID de Firebase. Los datos de invitado (`ownerUid === null`) sí se migran;
- * los del demo, no.
+ * Sin esto, Explorar no tendría las filas que salen del cuestionario. Son
+ * coherentes con su biblioteca: la película y la serie que puntuó 5, y la
+ * gente que aparece en ellas.
  */
-export const DEMO_OWNER_UID = 'demo';
-
-/** Copia de los datos de invitado mientras el demo está activo. */
-const SNAPSHOT_KEY = 'que-miro-pre-demo';
-
-/**
- * Las respuestas de "Contanos de vos" de la persona ficticia del demo.
- *
- * Sin esto, el demo mostraría el cuestionario en blanco y ninguna de las filas
- * que salen de él —que son justo las que conviene mostrarle a alguien que está
- * mirando la app por primera vez—. Son coherentes con su biblioteca: la
- * película y la serie que puntuó 5, y la gente que aparece en ellas.
- */
-export function buildDemoPicks(): TastePicks {
+export function buildSamplePicks(): TastePicks {
   return {
     ...emptyPicks(),
     movie: {
@@ -74,14 +59,14 @@ export function buildDemoPicks(): TastePicks {
 }
 
 /**
- * Las metas del demo, para el año en curso: una ya cumplida —así se ve la
+ * Las metas del ejemplo, para el año en curso: una ya cumplida —así se ve la
  * tarjeta para compartir— y otra en camino, con su ritmo.
  */
 /**
- * Las plataformas del demo: una sola, para que "Lo que puedo ver ya" deje
+ * Las plataformas del ejemplo: una sola, para que "Lo que puedo ver ya" deje
  * algunas afuera. Sin logo: el de verdad llega con la lista de la región.
  */
-export function buildDemoSubscriptions(now = new Date()): Subscriptions {
+export function buildSampleSubscriptions(now = new Date()): Subscriptions {
   return {
     providers: [{ id: 8, name: 'Netflix', logoPath: null }],
     updatedAt: now.toISOString(),
@@ -89,11 +74,11 @@ export function buildDemoSubscriptions(now = new Date()): Subscriptions {
 }
 
 /**
- * Lo que al demo no le interesa: formatos que no tienen nada que ver con su
+ * Lo que al ejemplo no le interesa: formatos que no tienen nada que ver con su
  * biblioteca y un piso en los 70 para películas, que deja adentro a *El
  * padrino* —su favorita más vieja— y afuera el cine mudo.
  */
-export function buildDemoRestrictions(now = new Date()): Restrictions {
+export function buildSampleRestrictions(now = new Date()): Restrictions {
   return {
     minYear: { year: 1970, scope: 'movie' },
     excludedGenres: ['Reality', 'Talk Show'],
@@ -101,14 +86,14 @@ export function buildDemoRestrictions(now = new Date()): Restrictions {
   };
 }
 
-export function buildDemoGoals(now = new Date()): Goals {
+export function buildSampleGoals(now = new Date()): Goals {
   return {
     byYear: { [String(now.getFullYear())]: { movies: 6, series: 3 } },
     updatedAt: now.toISOString(),
   };
 }
 
-interface DemoSeedEntry {
+interface SampleSeedEntry {
   tmdbId: number;
   mediaType: MediaType;
   /** Fallback: si la hidratación desde TMDB funciona, gana lo que diga TMDB. */
@@ -141,7 +126,7 @@ interface DemoSeedEntry {
   /** Una novedad sin ver: llegó a esa plataforma hace `daysAgo` días. */
   arrivedAt?: { provider: string; daysAgo: number };
   /**
-   * En qué anda la serie y qué salió, para que el demo muestre "al día" y
+   * En qué anda la serie y qué salió, para que el ejemplo muestre "al día" y
    * las novedades aunque TMDB no conteste. Si contesta, gana lo de TMDB.
    */
   seriesStatus?: SeriesStatus;
@@ -158,7 +143,7 @@ interface DemoSeedEntry {
   archive?: { daysAgo: number; reason?: string; rating?: number };
 }
 
-export const DEMO_SEED: DemoSeedEntry[] = [
+export const SAMPLE_SEED: SampleSeedEntry[] = [
   {
     tmdbId: 496243,
     mediaType: 'movie',
@@ -411,7 +396,7 @@ function daysAgoToIso(days: number): string {
  * Fechas para los episodios vistos del seed, hacia atrás desde la última vez.
  *
  * Un ritmo creíble —a veces dos seguidos, a veces un par de días sin nada— en
- * vez de uno por día exacto: es lo que hace que el mapa de actividad del demo
+ * vez de uno por día exacto: es lo que hace que el mapa de actividad del ejemplo
  * se parezca al de alguien de verdad.
  */
 function seedWatchedAt(
@@ -447,11 +432,11 @@ function seedEpisode(season: number, episode: number, offsetDays: number, name?:
  * Arma la biblioteca de ejemplo.
  *
  * Sale sin pósters a propósito: las rutas de imagen de TMDB cambian con el
- * tiempo y una hardcodeada rota sin aviso. Las trae `hydrateDemoLibrary` desde
- * la API, y mientras tanto las tarjetas muestran su placeholder.
+ * tiempo y una hardcodeada rota sin aviso. Las tarjetas muestran su
+ * placeholder.
  */
-export function buildDemoLibrary(): SavedMedia[] {
-  return DEMO_SEED.map((entry) => {
+export function buildSampleLibrary(): SavedMedia[] {
+  return SAMPLE_SEED.map((entry) => {
     const progress: SeriesProgress | undefined = entry.watched
       ? {
           watched: entry.watched,
@@ -523,7 +508,7 @@ export function buildDemoLibrary(): SavedMedia[] {
 }
 
 /** La reseña del seed, o el puntaje que se dejó al abandonar. */
-function seedHistory(entry: DemoSeedEntry): WatchEntry[] | undefined {
+function seedHistory(entry: SampleSeedEntry): WatchEntry[] | undefined {
   if (entry.rating !== undefined) {
     return [
       {
@@ -546,171 +531,4 @@ function seedHistory(entry: DemoSeedEntry): WatchEntry[] | undefined {
     ];
   }
   return undefined;
-}
-
-/**
- * Completa la biblioteca del demo con los datos reales de TMDB.
- *
- * Toma de la API también el título, el año y los géneros, no solo el póster:
- * así la tarjeta queda coherente aunque un id del seed apunte a otra cosa.
- * Si la API no responde, la biblioteca sigue en pie con los datos del seed.
- */
-export async function hydrateDemoLibrary(region: string): Promise<void> {
-  const results = await Promise.allSettled(
-    DEMO_SEED.map((entry) => getMediaDetail(entry.tmdbId, entry.mediaType)),
-  );
-
-  const patches = new Map<number, Partial<SavedMedia>>();
-  results.forEach((result, index) => {
-    if (result.status !== 'fulfilled') return;
-
-    const detail = result.value;
-    const date = detail.release_date || detail.first_air_date || '';
-
-    patches.set(DEMO_SEED[index].tmdbId, {
-      posterPath: detail.poster_path,
-      backdropPath: detail.backdrop_path,
-      releaseYear: date ? date.split('-')[0] : DEMO_SEED[index].releaseYear,
-      // Temporadas y plataformas: sin esto el demo no puede mostrar ni el
-      // progreso por episodio ni el filtro por plataforma. Trae también el
-      // título y los géneros, en el castellano de la región elegida; si TMDB
-      // no los manda, quedan los del seed.
-      ...enrichFromDetail(detail, region),
-    });
-  });
-
-  if (patches.size === 0) return;
-
-  const { mediaList, ownerUid, setMediaList } = useMediaStore.getState();
-  // Si el demo se cerró mientras las respuestas estaban en vuelo, no se toca
-  // la biblioteca que haya quedado en su lugar.
-  if (ownerUid !== DEMO_OWNER_UID) return;
-
-  setMediaList(
-    mediaList.map((media) => {
-      const patch = patches.get(media.tmdbId);
-      return patch ? { ...media, ...patch } : media;
-    }),
-  );
-}
-
-/**
- * Entra al modo demo, guardando antes lo que la persona tuviera como invitado
- * para poder devolvérselo al salir.
- */
-export function enterDemoMode(): void {
-  const {
-    mediaList,
-    picks,
-    goals,
-    subscriptions,
-    restrictions,
-    following,
-    socialSettings,
-    ownerUid,
-    setMediaList,
-    setPicks,
-    setGoals,
-    setSubscriptions,
-    setRestrictions,
-    setFollowing,
-    setSocialSettings,
-    setOwnerUid,
-  } = useMediaStore.getState();
-
-  if (ownerUid !== DEMO_OWNER_UID) {
-    try {
-      localStorage.setItem(
-        SNAPSHOT_KEY,
-        JSON.stringify({
-          media: mediaList,
-          picks,
-          goals,
-          subscriptions,
-          restrictions,
-          following,
-          socialSettings,
-        }),
-      );
-    } catch {
-      // Sin storage disponible se pierde el respaldo, pero el demo funciona.
-    }
-  }
-
-  setMediaList(buildDemoLibrary());
-  setPicks(buildDemoPicks());
-  setGoals(buildDemoGoals());
-  setSubscriptions(buildDemoSubscriptions());
-  setRestrictions(buildDemoRestrictions());
-  // La lista vieja de perfiles seguidos, vacía: la gente que el demo sigue
-  // es la de `lib/demoSocial.ts`, que no pasa por Firestore.
-  setFollowing(emptyFollowing());
-  setSocialSettings(emptySocialSettings());
-  setOwnerUid(DEMO_OWNER_UID);
-}
-
-/** Sale del demo y restituye lo que había antes: biblioteca y respuestas. */
-export function exitDemoMode(): void {
-  const {
-    setMediaList,
-    setPicks,
-    setGoals,
-    setSubscriptions,
-    setRestrictions,
-    setFollowing,
-    setSocialSettings,
-    setOwnerUid,
-  } = useMediaStore.getState();
-
-  let media: SavedMedia[] = [];
-  let picks: TastePicks = emptyPicks();
-  let goals: Goals = emptyGoals();
-  let subscriptions: Subscriptions = emptySubscriptions();
-  let restrictions: Restrictions = emptyRestrictions();
-  let following: Following = emptyFollowing();
-  let socialSettings: SocialSettings = emptySocialSettings();
-
-  try {
-    const snapshot = localStorage.getItem(SNAPSHOT_KEY);
-    if (snapshot) {
-      const parsed: unknown = JSON.parse(snapshot);
-      // El respaldo era un array pelado antes de que existiera el
-      // cuestionario: quien entró al demo con la versión anterior y sale con
-      // esta tiene que recuperar igual su biblioteca.
-      if (Array.isArray(parsed)) {
-        media = parsed as SavedMedia[];
-      } else if (parsed && typeof parsed === 'object') {
-        const snapshotObject = parsed as {
-          media?: unknown;
-          picks?: unknown;
-          goals?: unknown;
-          subscriptions?: unknown;
-          restrictions?: unknown;
-          following?: unknown;
-          socialSettings?: unknown;
-        };
-        media = Array.isArray(snapshotObject.media)
-          ? (snapshotObject.media as SavedMedia[])
-          : [];
-        picks = parsePicks(snapshotObject.picks);
-        goals = parseGoals(snapshotObject.goals);
-        subscriptions = parseSubscriptions(snapshotObject.subscriptions);
-        restrictions = parseRestrictions(snapshotObject.restrictions);
-        following = parseFollowing(snapshotObject.following);
-        socialSettings = parseSocialSettings(snapshotObject.socialSettings);
-      }
-    }
-    localStorage.removeItem(SNAPSHOT_KEY);
-  } catch {
-    media = [];
-  }
-
-  setMediaList(media);
-  setPicks(picks);
-  setGoals(goals);
-  setSubscriptions(subscriptions);
-  setRestrictions(restrictions);
-  setFollowing(following);
-  setSocialSettings(socialSettings);
-  setOwnerUid(null);
 }

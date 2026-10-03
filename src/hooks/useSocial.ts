@@ -34,19 +34,15 @@ import {
 } from '@/lib/social';
 import { followingPath } from '@/hooks/useFollowing';
 import { followingToDocument } from '@/lib/following';
-import { DemoSocial } from '@/lib/demoSocial';
 
 /**
  * El estado social de la cuenta, en vivo: tu tarjeta, a quién seguís, quién
  * te sigue, las reacciones a lo tuyo, lo que te recomendaron y a quién
  * bloqueaste. No se persiste: es lo que dice Firestore ahora, y la caché
  * local de Firestore ya cubre el arranque sin red.
- *
- * En el demo se llena con gente inventada y las acciones cambian solo esto,
- * como la biblioteca del modo invitado.
  */
 
-export type SocialMode = 'off' | 'remote' | 'demo';
+export type SocialMode = 'off' | 'remote';
 
 interface SocialState {
   mode: SocialMode;
@@ -68,8 +64,6 @@ interface SocialState {
   myReactions: Record<string, ReactionId | null>;
   /** Las tarjetas de otras cuentas que ya se leyeron en esta sesión. */
   people: Record<string, Account | null>;
-  /** El demo: la gente inventada y su actividad. */
-  demo: DemoSocial | null;
   /** Firestore rechazó las lecturas: las reglas nuevas no están publicadas. */
   unavailable: boolean;
 }
@@ -85,7 +79,6 @@ const initial: SocialState = {
   blocked: [],
   myReactions: {},
   people: {},
-  demo: null,
   unavailable: false,
 };
 
@@ -97,11 +90,6 @@ const setSocial = (patch: Partial<SocialState>) => useSocialStore.setState(patch
 export async function loadPerson(uid: string): Promise<Account | null> {
   const state = useSocialStore.getState();
   if (uid in state.people) return state.people[uid];
-  if (state.mode === 'demo') {
-    const person = state.demo?.people.find((p) => p.account.uid === uid)?.account ?? null;
-    setSocial({ people: { ...useSocialStore.getState().people, [uid]: person } });
-    return person;
-  }
   if (!isFirebaseConfigured) return null;
   try {
     const snapshot = await getDoc(doc(db, `accounts/${uid}`));
@@ -117,10 +105,6 @@ export async function loadPerson(uid: string): Promise<Account | null> {
 /** Busca una cuenta por su usuario exacto. */
 export async function findByHandle(handle: string): Promise<Account | null> {
   const state = useSocialStore.getState();
-  if (state.mode === 'demo') {
-    const own = state.account?.handle === handle ? state.account : null;
-    return own ?? state.demo?.people.find((p) => p.account.handle === handle)?.account ?? null;
-  }
   if (!isFirebaseConfigured) return null;
   const snapshot = await getDoc(doc(db, `handles/${handle}`));
   const uid: unknown = snapshot.data()?.uid;
@@ -176,27 +160,11 @@ async function migrateLegacyFollowing(uid: string, follows: MyFollows) {
  * Engancha el estado social a Firestore mientras haya sesión. Vive en el
  * marco de la app, como la sincronización de la biblioteca.
  */
-export function useSocialSync(buildDemo: () => DemoSocial) {
+export function useSocialSync() {
   const { user, authState } = useAuth();
   const uid = isFirebaseConfigured && authState === 'authenticated' && user ? user.uid : null;
-  const isDemo = authState === 'demo';
 
   useEffect(() => {
-    if (isDemo) {
-      const demo = buildDemo();
-      setSocial({
-        ...initial,
-        mode: 'demo',
-        uid: demo.me.uid,
-        account: demo.me,
-        follows: demo.follows,
-        followsLoaded: true,
-        reactions: demo.reactions,
-        recommendations: demo.recommendations,
-        demo,
-      });
-      return () => setSocial({ ...initial });
-    }
     if (!uid) {
       setSocial({ ...initial });
       return;
@@ -259,8 +227,7 @@ export function useSocialSync(buildDemo: () => DemoSocial) {
     ];
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-    // `buildDemo` no entra: es una fábrica fija del módulo del demo.
-  }, [uid, isDemo]);
+  }, [uid]);
 
   const account = useSocialStore((state) => state.account);
   const hasAccount = Boolean(account);
@@ -324,19 +291,12 @@ export function useSocial() {
     recommendations,
     blocked,
     unavailable,
-    /** Hay sesión (o demo) y ya eligió su usuario: puede usar lo social. */
+    /** Hay sesión y ya eligió su usuario: puede usar lo social. */
     isReady: mode !== 'off' && Boolean(account),
     /** Hay sesión pero todavía no eligió usuario. */
     needsOnboarding: mode === 'remote' && account === null,
     isLoading: mode === 'remote' && account === undefined,
   };
-}
-
-// --- Escrituras en el demo -------------------------------------------------------
-
-/** En el demo, las acciones cambian solo el estado local. */
-export function patchDemo(patch: Partial<Pick<SocialState, 'follows' | 'recommendations' | 'blocked' | 'account'>>) {
-  setSocial(patch);
 }
 
 /** Borra un documento sin esperar, avisando en la consola si falla. */

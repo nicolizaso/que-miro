@@ -10,13 +10,11 @@ import {
   Pause,
   Search,
   SlidersHorizontal,
-  Sparkles,
   Tv,
   X,
   Zap,
 } from 'lucide-react';
 import { useMediaStore } from '@/store';
-import { useAuth } from '@/contexts/AuthContext';
 import { MediaCard } from '@/components/MediaCard';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { AvailabilityNewsRow } from '@/components/AvailabilityNewsRow';
@@ -66,7 +64,6 @@ const TYPES: { value: MediaType; label: string; Icon: typeof Tv }[] = [
 
 export function ListView() {
   const { mediaList } = useMediaStore();
-  const { authState, startDemo } = useAuth();
   const { filters, setFilters, clearFilters } = useLibraryFilters();
 
   // En el teléfono los desplegables ocupan media pantalla antes de que se vea
@@ -541,8 +538,8 @@ export function ListView() {
 
         Antes esto era un AnimatePresence en modo `wait`, que hace esperar a la
         pantalla que entra hasta que termina de irse la que sale. Si en esos
-        150 ms cambiaba lo que había que mostrar —cargar el demo y tocar
-        enseguida otra pestaña—, la grilla entraba con la foto vieja y se
+        150 ms cambiaba lo que había que mostrar —tocar dos pestañas
+        seguidas—, la grilla entraba con la foto vieja y se
         quedaba así: la pestaña decía "Completadas" y las tarjetas eran las de
         "Por Ver". Y antes de eso, con `popLayout`, animaba nodos que ya no
         estaban en el documento (el `reading 'startTime'`). Un fundido de
@@ -579,18 +576,6 @@ export function ListView() {
                 <Compass size={16} aria-hidden="true" />
                 Explorar títulos
               </Link>
-              {/* Con la biblioteca entera vacía, ofrecer el demo es más útil
-                  que un cartel: es también la única puerta al demo cuando la
-                  instalación no tiene Firebase y nunca se ve el login. */}
-              {mediaList.length === 0 && authState !== 'demo' && (
-                <button
-                  onClick={startDemo}
-                  className="btn btn-secondary bg-transparent mt-3 px-4 py-2.5 text-sm"
-                >
-                  <Sparkles size={16} aria-hidden="true" />
-                  Ver una biblioteca de ejemplo
-                </button>
-              )}
             </>
           )}
         </motion.div>

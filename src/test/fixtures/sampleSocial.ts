@@ -1,28 +1,29 @@
 import { MediaType } from '@/types';
 import { Activity, ActivityEvent, ActivityTitle, LibraryEntry } from '@/lib/activity';
 import { Account, Follow, MyFollows, Reaction, Recommendation } from '@/lib/social';
+import { useSocialStore } from '@/hooks/useSocial';
+import { ActivityRead, useSocialCache } from '@/hooks/useSocialFeed';
 
 /**
- * La parte social del demo: cuatro personas inventadas, con su actividad,
- * para recorrer el feed, las notificaciones y los perfiles sin cuenta.
+ * Gente inventada para los tests de lo social: cinco personas con su
+ * actividad, para el feed, las notificaciones y los perfiles.
  *
- * Coherente con la biblioteca del demo (`lib/demo.ts`): Ana puntuó varias
- * de las que el demo ya terminó —así "En común" tiene con qué calcular—, y
- * reseñó *Severance*, que el demo está viendo, para que se vea la reseña
- * tapada por spoilers. Sin pósters, por lo mismo que la biblioteca: las
- * rutas de imagen de TMDB cambian y una hardcodeada se rompe sin aviso.
+ * Coherente con la biblioteca de ejemplo (`sampleLibrary.ts`): Ana puntuó
+ * varias de las que esa biblioteca ya terminó —así "En común" tiene con qué
+ * calcular—, y reseñó *Severance*, que se está viendo, para que se vea la
+ * reseña tapada por spoilers. Fue la gente del modo demo, que ya no existe.
  */
 
-export const DEMO_SOCIAL_UID = 'demo';
+export const SAMPLE_ME_UID = 'demo';
 
-export interface DemoPerson {
+export interface SamplePerson {
   account: Account;
   activity: Activity;
 }
 
-export interface DemoSocial {
+export interface SampleSocial {
   me: Account;
-  people: DemoPerson[];
+  people: SamplePerson[];
   follows: MyFollows;
   reactions: Reaction[];
   recommendations: Recommendation[];
@@ -77,10 +78,10 @@ function entry(title: ActivityTitle, status: LibraryEntry['status'], rating?: nu
   return { tmdbId: title.tmdbId, mediaType: title.mediaType, status, ...(rating ? { rating } : {}) };
 }
 
-export function buildDemoSocial(now = new Date()): DemoSocial {
+export function buildSampleSocial(now = new Date()): SampleSocial {
   const ago = (days: number, hours = 0) => new Date(now.getTime() - days * DAY - hours * 60 * 60 * 1000).toISOString();
 
-  const me = { ...account(DEMO_SOCIAL_UID, 'demo', 'Vos (demo)', 'Probando Qué Miro? sin cuenta.', false, now), followers: 3, following: 3 };
+  const me = { ...account(SAMPLE_ME_UID, 'demo', 'Vos (demo)', 'Probando Qué Miro? sin cuenta.', false, now), followers: 3, following: 3 };
 
   const ana = account('demo-ana', 'ana-demo', 'Ana', 'Drama, cine coreano y todo lo que me haga llorar.', false, now);
   const beto = account('demo-beto', 'beto-demo', 'Beto', 'Series de a una temporada por finde.', false, now);
@@ -234,4 +235,38 @@ export function buildDemoSocial(now = new Date()): DemoSocial {
       },
     ],
   };
+}
+
+/** Lo que alguien ve de la actividad de otra persona: una privada que no te aceptó, cerrada. */
+export function sampleActivityRead(sample: SampleSocial, person: SamplePerson): ActivityRead {
+  const followed = sample.follows.outgoing.some(
+    (f) => f.followed === person.account.uid && f.status === 'accepted',
+  );
+  return person.account.private && !followed ? 'locked' : person.activity;
+}
+
+/**
+ * Carga la gente de ejemplo como si hubiera llegado de Firestore: el estado
+ * social de una cuenta con sesión y la actividad de cada uno, fresca, en la
+ * caché del feed.
+ */
+export function loadSampleSocial(now = new Date()): SampleSocial {
+  const sample = buildSampleSocial(now);
+  useSocialStore.setState({
+    mode: 'remote',
+    uid: sample.me.uid,
+    account: sample.me,
+    follows: sample.follows,
+    followsLoaded: true,
+    reactions: sample.reactions,
+    recommendations: sample.recommendations,
+    blocked: [],
+    myReactions: {},
+    people: Object.fromEntries(sample.people.map((person) => [person.account.uid, person.account])),
+    unavailable: false,
+  });
+  for (const person of sample.people) {
+    useSocialCache.getState().saveActivity(sample.me.uid, person.account.uid, sampleActivityRead(sample, person));
+  }
+  return sample;
 }

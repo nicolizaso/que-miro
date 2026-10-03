@@ -240,8 +240,8 @@ export function useSaveFromList() {
   const { addMedia, saveMany } = useMediaActions();
   const { createCollection, addToCollection } = useCollectionActions();
   const { showToast } = useToast();
-  // Con una biblioteca donde guardar: cuenta, invitado o demo.
-  const canSave = authState === 'authenticated' || authState === 'guest' || authState === 'demo';
+  // Con una biblioteca donde guardar: cuenta o invitado.
+  const canSave = authState === 'authenticated' || authState === 'guest';
 
   const draftOf = (item: PublicList['items'][number], collections?: string[]): SavedMedia => ({
     tmdbId: item.tmdbId,

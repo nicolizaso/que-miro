@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSocial, useSocialStore, findByHandle } from '@/hooks/useSocial';
+import { useSocial, findByHandle } from '@/hooks/useSocial';
 import { ActivityRead, fetchActivity, useSocialCache } from '@/hooks/useSocialFeed';
 import { useOwnActivity } from '@/hooks/useActivityPublisher';
 import { fetchPublicProfile } from '@/hooks/usePublicProfile';
@@ -25,7 +25,6 @@ export interface PersonPage {
  */
 export function usePerson(handle: string | undefined): PersonPage {
   const { mode, uid, account: me } = useSocial();
-  const demo = useSocialStore((state) => state.demo);
   const own = useOwnActivity();
   const [state, setState] = useState<Omit<PersonPage, 'isMe' | 'reload'>>({
     account: undefined,
@@ -40,20 +39,6 @@ export function usePerson(handle: string | undefined): PersonPage {
     if (!handle || mode === 'off' || isMe) return;
     let cancelled = false;
     setState({ account: undefined, activity: undefined, legacy: undefined, error: '' });
-
-    if (mode === 'demo') {
-      const person = demo?.people.find((p) => p.account.handle === handle);
-      const followed = useSocialStore
-        .getState()
-        .follows.outgoing.some((f) => f.followed === person?.account.uid && f.status === 'accepted');
-      setState({
-        account: person?.account ?? null,
-        activity: person ? (person.account.private && !followed ? 'locked' : person.activity) : undefined,
-        legacy: null,
-        error: '',
-      });
-      return;
-    }
 
     (async () => {
       try {
@@ -79,7 +64,7 @@ export function usePerson(handle: string | undefined): PersonPage {
     return () => {
       cancelled = true;
     };
-  }, [handle, mode, uid, isMe, demo, reloadKey]);
+  }, [handle, mode, uid, isMe, reloadKey]);
 
   if (isMe && me) {
     return { account: me, activity: own, legacy: null, isMe: true, error: '', reload: () => {} };

@@ -15,7 +15,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
-import { enterDemoMode, exitDemoMode } from '@/lib/demo';
+import { retireDemo } from '@/lib/retiredDemo';
 import { useMediaStore } from '@/store';
 import { saveRescue } from '@/lib/rescue';
 import { releasePushDevice } from '@/lib/pushDevice';
@@ -27,11 +27,7 @@ type AuthState =
    * Sin cuenta: la biblioteca vive en este dispositivo. Es como se entra a la
    * app; iniciar sesión es algo que se hace después, para sincronizar.
    */
-  | 'guest'
-  /** Biblioteca de ejemplo, sin cuenta y sin escribir en Firestore. */
-  | 'demo';
-
-const DEMO_STORAGE_KEY = 'que-miro-demo';
+  | 'guest';
 
 interface AuthContextType {
   user: User | null;
@@ -39,10 +35,6 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
-  /** Carga la biblioteca de ejemplo para poder recorrer la app sin registrarse. */
-  startDemo: () => void;
-  /** Sale del demo y devuelve la biblioteca que hubiera antes. */
-  stopDemo: () => void;
   logout: () => Promise<void>;
 }
 
@@ -71,12 +63,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>('loading');
 
   useEffect(() => {
+    // Antes que nada: si alguien venía del demo, que vuelva a lo suyo antes de
+    // que la sincronización mire qué hay en el dispositivo.
+    retireDemo();
+
     if (!isFirebaseConfigured) {
       // Sin Firebase la app sigue siendo usable: todo queda en localStorage.
       console.warn('Firebase no está configurado. Activando modo invitado.');
-      setAuthState(
-        localStorage.getItem(DEMO_STORAGE_KEY) === 'true' ? 'demo' : 'guest',
-      );
+      setAuthState('guest');
       return;
     }
 
@@ -84,13 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
       if (currentUser) {
         setAuthState('authenticated');
-        localStorage.removeItem(DEMO_STORAGE_KEY);
-        return;
-      }
-      // Se lee acá y no fuera del callback para no quedarse con un valor viejo
-      // si la persona entra y sale del demo en la misma sesión.
-      if (localStorage.getItem(DEMO_STORAGE_KEY) === 'true') {
-        setAuthState('demo');
         return;
       }
       // La sesión se fue sin pasar por "Salir": venció, o se cerró en otra
@@ -124,18 +111,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await createUserWithEmailAndPassword(auth, email, password);
     };
 
-    const startDemo = () => {
-      enterDemoMode();
-      localStorage.setItem(DEMO_STORAGE_KEY, 'true');
-      setAuthState('demo');
-    };
-
-    const stopDemo = () => {
-      exitDemoMode();
-      localStorage.removeItem(DEMO_STORAGE_KEY);
-      setAuthState('guest');
-    };
-
     const logout = async () => {
       if (isFirebaseConfigured) {
         // Antes de salir, que sin sesión las reglas ya no dejan tocar la
@@ -143,7 +118,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await releasePushDevice();
         await signOut(auth);
       }
-      localStorage.removeItem(DEMO_STORAGE_KEY);
       clearAccountLibrary();
       setUser(null);
       // Salir de la cuenta no saca de la app: se sigue usando sin cuenta, con
@@ -157,8 +131,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signInWithEmail,
       registerWithEmail,
-      startDemo,
-      stopDemo,
       logout,
     };
   }, [user, authState]);
