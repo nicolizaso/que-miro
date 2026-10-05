@@ -133,6 +133,21 @@ describe('filterLibrary', () => {
     expect(result.map((m) => m.releaseYear)).toEqual(['2019', '2008']);
   });
 
+  it('ordena por año ascendente, de lo más viejo a lo más nuevo', () => {
+    const result = filterLibrary(library, makeFilters({ sort: 'anio_asc' }));
+    expect(result.map((m) => m.releaseYear)).toEqual(['2008', '2019']);
+  });
+
+  it('lo que no tiene año va al fondo en los dos sentidos', () => {
+    const sinAnio = makeMedia({ tmdbId: 5, title: 'Sin fecha', releaseYear: '' });
+    const withoutYear = [...library, sinAnio];
+
+    expect(filterLibrary(withoutYear, makeFilters({ sort: 'anio' })).at(-1)?.title).toBe('Sin fecha');
+    expect(filterLibrary(withoutYear, makeFilters({ sort: 'anio_asc' })).at(-1)?.title).toBe(
+      'Sin fecha',
+    );
+  });
+
   it('manda al fondo los títulos sin puntaje al ordenar por puntaje', () => {
     const conReseña = makeMedia({
       tmdbId: 4,

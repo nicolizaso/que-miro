@@ -213,6 +213,23 @@ describe('CatalogView', () => {
     expect(screen.queryByRole('group', { name: /Filtrar por duración/ })).not.toBeInTheDocument();
   });
 
+  it('ordena de lo más viejo a lo más nuevo, y lo deja en la URL', async () => {
+    renderCatalog();
+    await screen.findByText('Película 1');
+
+    const sort = group(/Ordenar el catálogo/);
+    expect(within(sort).getAllByRole('button').map((pill) => pill.textContent)).toEqual([
+      'Populares',
+      'Mejor puntuadas',
+      'Más nuevas',
+      'Más viejas',
+    ]);
+    await userEvent.click(within(sort).getByRole('button', { name: 'Más viejas' }));
+
+    await waitFor(() => expect(lastParams()).toMatchObject({ sort: 'oldest', page: 1 }));
+    expect(urlParams().get('orden')).toBe('oldest');
+  });
+
   it('esconde lo que ya está en la biblioteca, sin volver a pedir nada', async () => {
     act(() => {
       useMediaStore.getState().setMediaList([savedMedia()]);

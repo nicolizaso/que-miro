@@ -370,7 +370,8 @@ export interface DiscoverParams {
   region?: string;
   minRuntime?: number;
   maxRuntime?: number;
-  sort?: 'popular' | 'rating' | 'recent';
+  /** `recent` es de lo más nuevo a lo más viejo, y `oldest`, al revés. */
+  sort?: 'popular' | 'rating' | 'recent' | 'oldest';
   /** Desde la uno. */
   page?: number;
 }
