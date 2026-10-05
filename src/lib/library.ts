@@ -21,6 +21,7 @@ export type SortOption =
   | 'titulo'
   | 'puntaje'
   | 'anio'
+  | 'anio_asc'
   | 'progreso'
   | 'ranking';
 
@@ -29,6 +30,7 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'titulo', label: 'Título (A-Z)' },
   { value: 'puntaje', label: 'Mejor puntuados' },
   { value: 'anio', label: 'Más nuevos' },
+  { value: 'anio_asc', label: 'Más viejos' },
   { value: 'progreso', label: 'Más avanzados' },
   { value: 'ranking', label: 'Mi ranking' },
 ];
@@ -127,10 +129,15 @@ function compare(a: SavedMedia, b: SavedMedia, sort: SortOption): number {
       return ratingA !== ratingB ? ratingB - ratingA : byTitle();
     }
 
-    case 'anio': {
+    case 'anio':
+    case 'anio_asc': {
+      // Sin año no hay dónde ubicarlo: va al fondo en los dos sentidos, en vez
+      // de contar como el año 0 y encabezar "Más viejos".
       const yearA = Number(a.releaseYear) || 0;
       const yearB = Number(b.releaseYear) || 0;
-      return yearA !== yearB ? yearB - yearA : byTitle();
+      if (!yearA !== !yearB) return yearA ? -1 : 1;
+      if (yearA === yearB) return byTitle();
+      return sort === 'anio' ? yearB - yearA : yearA - yearB;
     }
 
     case 'progreso': {

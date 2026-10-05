@@ -13,7 +13,7 @@ import { DiscoverParams } from '@/lib/tmdb';
 import { genresFor, getGenreId } from '@/lib/genres';
 import { MediaType, TMDbResult } from '@/types';
 
-export type CatalogSort = 'popular' | 'rating' | 'recent';
+export type CatalogSort = 'popular' | 'rating' | 'recent' | 'oldest';
 export type CatalogDecade = '2020' | '2010' | '2000' | '1990' | '1980' | 'antes';
 export type CatalogRuntime = 'corta' | 'media' | 'larga';
 
@@ -51,7 +51,10 @@ export const MAX_CATALOG_PROVIDERS = 30;
 export const CATALOG_SORTS: { value: CatalogSort; label: string }[] = [
   { value: 'popular', label: 'Populares' },
   { value: 'rating', label: 'Mejor puntuadas' },
-  { value: 'recent', label: 'Recientes' },
+  // Las dos fechas van juntas y se nombran como pareja: "Recientes" sola no
+  // decía que existía el orden contrario.
+  { value: 'recent', label: 'Más nuevas' },
+  { value: 'oldest', label: 'Más viejas' },
 ];
 
 export const CATALOG_DECADES: {

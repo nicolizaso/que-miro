@@ -711,8 +711,12 @@ export function toErrorResponse(error: unknown): {
 // biblioteca.
 // ---------------------------------------------------------------------------
 
-/** Cómo se ordena una fila de descubrimiento. */
-export type DiscoverSort = 'popular' | 'rating' | 'recent';
+/**
+ * Cómo se ordena una fila de descubrimiento. `oldest` es el orden cronológico,
+ * de lo que salió primero a lo último: el catálogo lo usa para recorrer una
+ * época en el orden en que se estrenó.
+ */
+export type DiscoverSort = 'popular' | 'rating' | 'recent' | 'oldest';
 
 /**
  * Cómo se combinan los géneros pedidos: `all` es "acción **y** comedia" —lo
@@ -767,6 +771,9 @@ const MIN_VOTES: Record<DiscoverSort, number> = {
   rating: 300,
   popular: 50,
   recent: 20,
+  // Sin piso alto, lo primero que hay en TMDB son cortos de 1895 con veinte
+  // votos: la grilla arrancaría con eso en vez de con clásicos que alguien vio.
+  oldest: 100,
 };
 
 const MAX_GENRES = 3;
@@ -859,9 +866,9 @@ function parseYear(value: unknown, name: string): number | undefined {
 
 function parseDiscoverSort(value: unknown): DiscoverSort {
   if (value === undefined || value === 'popular') return 'popular';
-  if (value === 'rating' || value === 'recent') return value;
+  if (value === 'rating' || value === 'recent' || value === 'oldest') return value;
   throw new TmdbError(
-    "El parámetro 'sort' debe ser 'popular', 'rating' o 'recent'.",
+    "El parámetro 'sort' debe ser 'popular', 'rating', 'recent' u 'oldest'.",
     400,
   );
 }
@@ -1085,6 +1092,7 @@ function discoverParams(
     popular: 'popularity.desc',
     rating: 'vote_average.desc',
     recent: `${dateField}.desc`,
+    oldest: `${dateField}.asc`,
   };
 
   const params: Record<string, string> = {

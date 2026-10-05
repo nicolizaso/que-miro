@@ -605,6 +605,27 @@ describe('getDiscover', () => {
     expect(Number(url.searchParams.get('vote_count.gte'))).toBeGreaterThan(0);
   });
 
+  it('ordena de lo más viejo a lo más nuevo, con un piso de votos más alto', async () => {
+    const fetchMock = stubFetch([]);
+
+    await getDiscover(parseDiscoverQuery({ type: 'movie', sort: 'oldest' }));
+    await getDiscover(parseDiscoverQuery({ type: 'tv', sort: 'oldest' }));
+
+    const movie = calledUrl(fetchMock, 0);
+    expect(movie.searchParams.get('sort_by')).toBe('primary_release_date.asc');
+    expect(Number(movie.searchParams.get('vote_count.gte'))).toBeGreaterThanOrEqual(100);
+    expect(calledUrl(fetchMock, 1).searchParams.get('sort_by')).toBe('first_air_date.asc');
+  });
+
+  it('cachea cada orden por separado', async () => {
+    const fetchMock = stubFetch([]);
+
+    await getDiscover(parseDiscoverQuery({ type: 'movie', sort: 'recent' }));
+    await getDiscover(parseDiscoverQuery({ type: 'movie', sort: 'oldest' }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('usa el campo de fecha que corresponde a cada tipo', async () => {
     const fetchMock = stubFetch([]);
 

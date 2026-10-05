@@ -58,6 +58,11 @@ describe('parseCatalogFilters', () => {
     });
   });
 
+  it('lee el orden cronológico, de lo más viejo a lo más nuevo', () => {
+    expect(parseCatalogFilters(new URLSearchParams('orden=oldest')).sort).toBe('oldest');
+    expect(catalogDiscoverParams(filters({ sort: 'oldest' }), 'AR').sort).toBe('oldest');
+  });
+
   it('ignora lo que no entiende en vez de romperse', () => {
     const params = new URLSearchParams(
       'tipo=persona&genero=Inventado&plataforma=netflix,-3,8&epoca=1850&idioma=xx&orden=azar',

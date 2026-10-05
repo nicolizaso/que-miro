@@ -37,8 +37,10 @@ dispositivos.
   España, según el país que elijas: desde Buenos Aires es *Duro de matar*, no
   *La jungla de cristal*. Lo que ya tenías guardado se corrige solo, de a poco.
 - **Filtros y orden** — buscá dentro de tus listas y filtrá por género, tipo,
-  plataforma, lista o ánimo. Los filtros viven en la URL, así que la vista se
-  puede compartir.
+  plataforma, lista o ánimo, y ordená por fecha de lanzamiento en los dos
+  sentidos: lo más nuevo primero, o lo más viejo, para recorrer una saga en el
+  orden en que salió. Los filtros viven en la URL, así que la vista se puede
+  compartir.
 - **Llegó a tu plataforma** — cuando algo de *Por Ver* llega a una de tus
   plataformas, o una película que anotaste antes de que saliera se estrena
   en digital, aparece en "Novedades" al abrir la app. Se descarta con un
@@ -99,10 +101,11 @@ dispositivos.
 - **Catálogo** — desde Explorar, todas las películas o series de TMDB en una
   grilla que sigue cargando mientras bajás, filtradas por género (alcanza con
   que tenga uno de los que marcaste), plataforma —con "Mis plataformas" de un
-  toque—, época, duración, idioma original y orden. Lo que elegís se marca en
-  rojo y pasa adelante de su fila, así que nunca queda fuera de la vista. Al
-  pasar de películas a series, "Acción" se vuelve "Acción y Aventura" en vez
-  de perderse. "Ocultar lo que ya tengo" saca lo que está en tu biblioteca.
+  toque—, época, duración e idioma original, y ordenadas por popularidad,
+  puntaje o fecha de lanzamiento —las más nuevas o las más viejas primero—.
+  Lo que elegís se marca en rojo y pasa adelante de su fila, así que nunca
+  queda fuera de la vista. Al pasar de películas a series, "Acción" se vuelve
+  "Acción y Aventura" en vez de perderse. "Ocultar lo que ya tengo" saca lo que está en tu biblioteca.
   Muestra todo, sin "Lo que no te interesa": acá buscás a propósito. Los
   filtros viven en la URL, así que "terror coreano en Netflix" se comparte
   con el link.
