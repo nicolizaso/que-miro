@@ -208,6 +208,8 @@ export function CatalogView() {
         <FilterRail
           multiple
           label="Género"
+          selectedFirst
+          tone="accent"
           name="Filtrar por género: alcanza con que tenga uno"
           allLabel="Todos"
           options={genreOptions}
@@ -220,6 +222,8 @@ export function CatalogView() {
           <FilterRail
             multiple
             label="Plataforma"
+            selectedFirst
+            tone="accent"
             name="Filtrar por plataforma: incluido en la suscripción"
             allLabel="Todas"
             options={providerOptions}
@@ -234,6 +238,8 @@ export function CatalogView() {
         )}
         <FilterRail<CatalogDecade>
           label="Época"
+          selectedFirst
+          tone="accent"
           name="Filtrar por época"
           allLabel="Cualquiera"
           options={CATALOG_DECADES}
@@ -243,6 +249,8 @@ export function CatalogView() {
         {filters.type === 'movie' && (
           <FilterRail<CatalogRuntime>
             label="Duración"
+            selectedFirst
+            tone="accent"
             name="Filtrar por duración"
             allLabel="Cualquiera"
             options={CATALOG_RUNTIMES}
@@ -252,6 +260,8 @@ export function CatalogView() {
         )}
         <FilterRail
           label="Idioma"
+          selectedFirst
+          tone="accent"
           name="Filtrar por idioma original"
           allLabel="Cualquiera"
           options={CATALOG_LANGUAGES}

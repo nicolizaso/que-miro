@@ -99,11 +99,13 @@ dispositivos.
 - **Catálogo** — desde Explorar, todas las películas o series de TMDB en una
   grilla que sigue cargando mientras bajás, filtradas por género (alcanza con
   que tenga uno de los que marcaste), plataforma —con "Mis plataformas" de un
-  toque—, época, duración, idioma original y orden. Al pasar de películas a
-  series, "Acción" se vuelve "Acción y Aventura" en vez de perderse. "Ocultar
-  lo que ya tengo" saca lo que está en tu biblioteca. Muestra todo, sin
-  "Lo que no te interesa": acá buscás a propósito. Los filtros viven en la
-  URL, así que "terror coreano en Netflix" se comparte con el link.
+  toque—, época, duración, idioma original y orden. Lo que elegís se marca en
+  rojo y pasa adelante de su fila, así que nunca queda fuera de la vista. Al
+  pasar de películas a series, "Acción" se vuelve "Acción y Aventura" en vez
+  de perderse. "Ocultar lo que ya tengo" saca lo que está en tu biblioteca.
+  Muestra todo, sin "Lo que no te interesa": acá buscás a propósito. Los
+  filtros viven en la URL, así que "terror coreano en Netflix" se comparte
+  con el link.
 - **Contanos de vos** — siete preguntas en el perfil —tus películas y tus
   series favoritas (hasta cinco de cada una, con un botón para sumar otra), tus
   géneros, tus actores, tus directores, tus productoras, tu década— que
