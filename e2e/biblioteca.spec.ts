@@ -672,6 +672,10 @@ test('el catálogo filtra por género y guarda en Por Ver', async ({ page }) => 
     .getByRole('button', { name: 'Terror' })
     .click();
   await expect(page).toHaveURL(/genero=Terror/);
+  // Lo elegido pasa adelante de la fila, justo después de "Todos".
+  await expect(
+    page.getByRole('group', { name: /Filtrar por género/ }).getByRole('button').nth(1),
+  ).toHaveText('Terror');
   await expect(page.getByText('El conjuro', { exact: true })).toBeVisible();
   await expect(page.getByText('El club de la pelea', { exact: true })).toHaveCount(0);
 

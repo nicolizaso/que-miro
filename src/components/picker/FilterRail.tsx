@@ -1,5 +1,8 @@
+import { useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
 import { cn } from '@/lib/utils';
+import { selectedFirst } from '@/lib/catalog';
 import { useRailEdges } from '@/hooks/useRailEdges';
 
 /** Una píldora. Sin `count`, no se muestra cuenta ni se apaga sola. */
@@ -32,14 +35,17 @@ type Selection<V extends string> =
  * Para que nadie con mouse dependa de un scroll horizontal, desde `sm` aparecen
  * flechas cuando la fila no entra entera.
  *
- * El catálogo la usa también: ahí no hay cuentas —es todo TMDB— y algunas
- * filas dejan elegir varias.
+ * El catálogo la usa también: ahí no hay cuentas —es todo TMDB—, algunas
+ * filas dejan elegir varias, y con `selectedFirst` lo elegido pasa adelante
+ * —deslizándose a su lugar— para que nunca quede fuera de la vista.
  */
 export function FilterRail<V extends string>({
   label,
   name,
   allLabel,
   options,
+  selectedFirst: chosenFirst = false,
+  tone = 'neutral',
   ...selection
 }: {
   /** El rótulo corto que se ve ("Género"). */
@@ -49,9 +55,31 @@ export function FilterRail<V extends string>({
   /** La primera píldora, la de no filtrar ("Todos", "Cualquiera"). */
   allLabel: string;
   options: RailOption<V>[];
+  /** Las elegidas van adelante, en el orden en que se eligieron. */
+  selectedFirst?: boolean;
+  /** `accent` pinta en rojo las opciones elegidas; "Todos" queda como siempre. */
+  tone?: 'neutral' | 'accent';
 } & Selection<V>) {
   const { ref, edges, scrollBy } = useRailEdges<HTMLDivElement>();
+  const reduceMotion = useReducedMotion();
   const subject = label.toLowerCase();
+
+  const selectedValues: V[] = selection.multiple
+    ? selection.value
+    : selection.value === null
+      ? []
+      : [selection.value];
+  const ordered = chosenFirst ? selectedFirst(options, selectedValues) : options;
+
+  // Al elegir una, la fila vuelve al principio, que es adonde fue a parar.
+  // Va en un efecto y no en el clic: recién después del render está en su
+  // lugar nuevo.
+  const scrollToStart = useRef(false);
+  useEffect(() => {
+    if (!scrollToStart.current) return;
+    scrollToStart.current = false;
+    ref.current?.scrollTo?.({ left: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  });
 
   const isSelected = (option: V) =>
     selection.multiple ? selection.value.includes(option) : selection.value === option;
@@ -65,6 +93,7 @@ export function FilterRail<V extends string>({
   };
 
   const toggle = (option: V) => {
+    if (chosenFirst && !isSelected(option)) scrollToStart.current = true;
     if (selection.multiple) {
       selection.onChange(
         isSelected(option)
@@ -90,8 +119,12 @@ export function FilterRail<V extends string>({
       </span>
 
       <div className="relative min-w-0 flex-1 -mr-4 sm:mr-0">
-        <div
+        {/* `layoutScroll` le dice a Motion que esta caja se desplaza: sin eso,
+            una píldora que pasa adelante con la fila deslizada calcularía mal
+            desde dónde viene. */}
+        <motion.div
           ref={ref}
+          layoutScroll={chosenFirst}
           className="rail flex gap-2 overflow-x-auto pr-4 py-0.5 sm:pr-0"
         >
           <button
@@ -103,18 +136,23 @@ export function FilterRail<V extends string>({
             {allLabel}
           </button>
 
-          {options.map((option) => {
+          {ordered.map((option) => {
             const selected = isSelected(option.value);
             return (
-              <button
+              <motion.button
                 key={option.value}
+                // Con `selectedFirst`, la elegida se desliza adelante en vez de
+                // aparecer ahí de golpe. `MotionConfig` la deja quieta para
+                // quien pidió menos movimiento.
+                layout={chosenFirst ? 'position' : false}
+                transition={{ type: 'spring', stiffness: 520, damping: 42 }}
                 type="button"
                 aria-pressed={selected}
                 // La elegida nunca se apaga, aunque haya quedado en cero por
                 // otro filtro: tiene que poder destocarse.
                 disabled={option.count === 0 && !selected}
                 onClick={() => toggle(option.value)}
-                className="pill rail-item"
+                className={cn('pill rail-item', tone === 'accent' && 'pill-accent')}
               >
                 {option.label}
                 {option.count !== undefined && (
@@ -131,10 +169,10 @@ export function FilterRail<V extends string>({
                     <span className="sr-only"> ({option.count})</span>
                   </>
                 )}
-              </button>
+              </motion.button>
             );
           })}
-        </div>
+        </motion.div>
 
         {/* Los degradados dicen "hay más" de cada lado, y se van al llegar a
             la punta. Son una pista visual, no un control. */}

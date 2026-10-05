@@ -90,3 +90,90 @@ describe('FilterRail', () => {
     expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: 240 }));
   });
 });
+
+describe('FilterRail con lo elegido adelante', () => {
+  const genres = ['Acción', 'Comedia', 'Drama', 'Terror'].map((value) => ({ value, label: value }));
+
+  /** Los nombres de las píldoras, en el orden en que se ven. */
+  function pillOrder(): string[] {
+    return screen.getAllByRole('button').map((button) => button.textContent ?? '');
+  }
+
+  function renderGenres(value: string[], props: { selectedFirst?: boolean; tone?: 'accent' } = {}) {
+    const onChange = vi.fn();
+    const view = render(
+      <FilterRail
+        multiple
+        label="Género"
+        name="Filtrar por género"
+        allLabel="Todos"
+        options={genres}
+        value={value}
+        onChange={onChange}
+        {...props}
+      />,
+    );
+    return { onChange, ...view };
+  }
+
+  it('sin la opción, el orden y el color son los de siempre', () => {
+    renderGenres(['Terror']);
+    expect(pillOrder()).toEqual(['Todos', 'Acción', 'Comedia', 'Drama', 'Terror']);
+    expect(screen.getByRole('button', { name: 'Terror' })).not.toHaveClass('pill-accent');
+  });
+
+  it('pone las elegidas después de "Todos", en el orden en que se eligieron', () => {
+    renderGenres(['Terror', 'Comedia'], { selectedFirst: true });
+    expect(pillOrder()).toEqual(['Todos', 'Terror', 'Comedia', 'Acción', 'Drama']);
+  });
+
+  it('en rojo van las opciones, no "Todos"', () => {
+    renderGenres([], { tone: 'accent' });
+    expect(screen.getByRole('button', { name: 'Drama' })).toHaveClass('pill-accent');
+    expect(screen.getByRole('button', { name: 'Todos' })).not.toHaveClass('pill-accent');
+  });
+
+  it('al elegir una, la fila vuelve al principio', async () => {
+    const scrollTo = vi.fn();
+    const original = HTMLElement.prototype.scrollTo;
+    HTMLElement.prototype.scrollTo = scrollTo;
+    onTestFinished(() => {
+      HTMLElement.prototype.scrollTo = original;
+    });
+
+    const { onChange, rerender } = renderGenres([], { selectedFirst: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Terror' }));
+    expect(onChange).toHaveBeenCalledWith(['Terror']);
+
+    // El padre guarda la elección y la fila se vuelve a dibujar con Terror adelante.
+    rerender(
+      <FilterRail
+        multiple
+        selectedFirst
+        label="Género"
+        name="Filtrar por género"
+        allLabel="Todos"
+        options={genres}
+        value={['Terror']}
+        onChange={onChange}
+      />,
+    );
+    expect(pillOrder()[1]).toBe('Terror');
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ left: 0 }));
+  });
+
+  it('al sacar una, no se mueve la fila', async () => {
+    const scrollTo = vi.fn();
+    const original = HTMLElement.prototype.scrollTo;
+    HTMLElement.prototype.scrollTo = scrollTo;
+    onTestFinished(() => {
+      HTMLElement.prototype.scrollTo = original;
+    });
+
+    const { onChange } = renderGenres(['Terror'], { selectedFirst: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Terror' }));
+
+    expect(onChange).toHaveBeenCalledWith([]);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+});

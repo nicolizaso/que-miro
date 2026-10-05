@@ -13,6 +13,7 @@ import {
   MY_PROVIDERS,
   nextProviders,
   providerRailValue,
+  selectedFirst,
   titleKey,
   visibleCatalogResults,
   writeCatalogFilters,
@@ -145,6 +146,36 @@ describe('switchCatalogType', () => {
   it('al mismo tipo no cambia nada', () => {
     const current = filters({ runtime: 'corta' });
     expect(switchCatalogType(current, 'movie')).toBe(current);
+  });
+});
+
+describe('selectedFirst', () => {
+  const options = ['Acción', 'Comedia', 'Drama', 'Terror'].map((value) => ({
+    value,
+    label: value,
+  }));
+  const values = (list: { value: string }[]) => list.map((option) => option.value);
+
+  it('pone las elegidas adelante, en el orden en que se eligieron', () => {
+    expect(values(selectedFirst(options, ['Terror', 'Comedia']))).toEqual([
+      'Terror',
+      'Comedia',
+      'Acción',
+      'Drama',
+    ]);
+  });
+
+  it('sin nada elegido, devuelve la misma lista', () => {
+    expect(selectedFirst(options, [])).toBe(options);
+  });
+
+  it('ignora lo elegido que no es una opción de la fila', () => {
+    expect(values(selectedFirst(options, ['Western', 'Drama']))).toEqual([
+      'Drama',
+      'Acción',
+      'Comedia',
+      'Terror',
+    ]);
   });
 });
 

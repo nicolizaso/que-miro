@@ -172,6 +172,31 @@ describe('CatalogView', () => {
     expect(urlParams().get('genero')).toBe('Acción,Comedia');
   });
 
+  it('el género elegido pasa adelante y se marca en rojo', async () => {
+    renderCatalog();
+    await screen.findByText('Película 1');
+
+    const genres = group(/Filtrar por género/);
+    await userEvent.click(within(genres).getByRole('button', { name: 'Terror' }));
+
+    const pills = within(genres).getAllByRole('button');
+    expect(pills[0]).toHaveTextContent('Todos');
+    expect(pills[1]).toHaveTextContent('Terror');
+    expect(pills[1]).toHaveAttribute('aria-pressed', 'true');
+    expect(pills[1]).toHaveClass('pill-accent');
+  });
+
+  it('un link compartido muestra sus filtros adelante de cada fila', async () => {
+    renderCatalog('?genero=Western,Terror&idioma=ko');
+    await screen.findByText('Película 1');
+
+    const genres = within(group(/Filtrar por género/)).getAllByRole('button');
+    expect(genres.slice(1, 3).map((pill) => pill.textContent)).toEqual(['Western', 'Terror']);
+    expect(within(group(/Filtrar por idioma/)).getAllByRole('button')[1]).toHaveTextContent(
+      'Coreano',
+    );
+  });
+
   it('al pasar a series traduce los géneros y saca la duración', async () => {
     renderCatalog('?genero=Acción,Terror&duracion=corta');
     await screen.findByText('Película 1');

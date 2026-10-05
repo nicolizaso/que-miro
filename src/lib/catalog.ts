@@ -234,6 +234,27 @@ export function switchCatalogType(filters: CatalogFilters, type: MediaType): Cat
   };
 }
 
+/**
+ * Las opciones de una fila de filtros con las elegidas adelante, en el orden
+ * en que se eligieron; el resto queda en su orden de siempre.
+ *
+ * Una fila de géneros desborda la pantalla: sin esto, "Terror" elegido —o
+ * llegado en un link compartido— quedaba fuera de la vista, y no había forma
+ * de saber que se estaba filtrando por él sin deslizar la fila entera.
+ */
+export function selectedFirst<O extends { value: string }>(
+  options: O[],
+  selected: readonly string[],
+): O[] {
+  const byValue = new Map(options.map((option) => [option.value, option]));
+  const chosen = selected
+    .map((value) => byValue.get(value))
+    .filter((option): option is O => Boolean(option));
+  if (chosen.length === 0) return options;
+  const picked = new Set(chosen);
+  return [...chosen, ...options.filter((option) => !picked.has(option))];
+}
+
 /** Una plataforma como la conoce el catálogo: su id y cómo se llama. */
 export interface CatalogProvider {
   id: number;

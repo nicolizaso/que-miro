@@ -468,6 +468,18 @@
   @apply inline-flex items-center gap-1.5 shrink-0 h-10 px-4 rounded-full border border-border-card text-sm text-text-muted whitespace-nowrap transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.97] hover:border-border-control hover:text-text-main disabled:opacity-35 disabled:pointer-events-none aria-pressed:bg-text-main aria-pressed:border-text-main aria-pressed:text-bg-main aria-pressed:font-medium;
 }
 
+/**
+ * Píldora de filtro del catálogo: elegida va en rojo.
+ *
+ * El catálogo no tiene una acción principal que el acento tenga que
+ * señalar, y sí muchas filas que se deslizan: ahí lo que importa es ver de
+ * un vistazo por qué se está filtrando, y el rojo se distingue de las
+ * píldoras de "Todos" y del tipo, que van invertidas. Va encima de `pill`.
+ */
+@utility pill-accent {
+  @apply aria-pressed:bg-accent aria-pressed:border-accent aria-pressed:text-accent-contrast hover:aria-pressed:text-accent-contrast;
+}
+
 /** Los pósters del fondo del picker (ver `PosterWall`). */
 @utility poster-wall {
   opacity: var(--qm-wall-opacity);
