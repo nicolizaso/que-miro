@@ -16,6 +16,25 @@ export function matchesStatus(media: SavedMedia, status: LibraryStatus): boolean
   return status === 'archivadas' ? isArchivedStatus(media.status) : media.status === status;
 }
 
+/**
+ * La lista a la que hay que ir al cerrar la ficha de un título.
+ *
+ * Desde la ficha un título puede cambiar de lista sin que nadie lo pida:
+ * marcar el primer episodio de una serie de *Por Ver* la pasa a *Viendo*. Si
+ * al cerrar se volviera a la lista de antes, el título habría desaparecido de
+ * golpe; se va a donde quedó, que es donde la persona lo va a ir a buscar.
+ *
+ * `null` es quedarse: el título sigue en la lista, o ya no está en la
+ * biblioteca y no hay adónde seguirlo.
+ */
+export function listAfterDetail(
+  media: SavedMedia | undefined,
+  current: LibraryStatus,
+): LibraryStatus | null {
+  if (!media || matchesStatus(media, current)) return null;
+  return media.status;
+}
+
 export type SortOption =
   | 'recientes'
   | 'titulo'

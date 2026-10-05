@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useMediaStore } from '@/store';
 import { MediaCard } from '@/components/MediaCard';
+import { TitleDetailModal } from '@/components/TitleDetailModal';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { AvailabilityNewsRow } from '@/components/AvailabilityNewsRow';
 import { useLibraryFilters } from '@/hooks/useLibraryFilters';
@@ -29,6 +30,7 @@ import {
   LibraryStatus,
   filterLibrary,
   hasActiveFilters,
+  listAfterDetail,
   matchesStatus,
 } from '@/lib/library';
 import { MediaStatus, MediaType } from '@/types';
@@ -70,6 +72,27 @@ export function ListView() {
   // el primer póster, así que arrancan plegados. De `sm` para arriba entran al
   // lado del buscador y no hace falta esconderlos.
   const [areFiltersOpen, setAreFiltersOpen] = useState(false);
+
+  /**
+   * La ficha abierta, guardada acá y no en la tarjeta.
+   *
+   * Si la tuviera la tarjeta, se cerraría sola cuando el título deja la lista
+   * filtrada —una serie de *Por Ver* a la que se le marca un episodio pasa a
+   * *Viendo*— y la persona perdería lo que estaba haciendo sin entender por
+   * qué. El título se busca en toda la biblioteca, no en lo filtrado.
+   */
+  const [detail, setDetail] = useState<{ tmdbId: number; mediaType: MediaType } | null>(
+    null,
+  );
+  const detailMedia = detail
+    ? mediaList.find((media) => media.tmdbId === detail.tmdbId)
+    : undefined;
+
+  const closeDetail = () => {
+    setDetail(null);
+    const next = listAfterDetail(detailMedia, filters.status);
+    if (next) setFilters({ status: next });
+  };
 
   // Los géneros salen de la pestaña actual, no de toda la biblioteca: ofrecer
   // "Terror" cuando en Completadas no hay ninguna de terror es ofrecer un
@@ -599,10 +622,25 @@ export function ListView() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2 }}
             >
-              <MediaCard media={media} />
+              <MediaCard
+                media={media}
+                onOpenDetail={() =>
+                  setDetail({ tmdbId: media.tmdbId, mediaType: media.mediaType })
+                }
+              />
             </motion.div>
           ))}
         </motion.div>
+      )}
+
+      {detail && (
+        <TitleDetailModal
+          id={detail.tmdbId}
+          mediaType={detail.mediaType}
+          media={detailMedia}
+          isOpen
+          onClose={closeDetail}
+        />
       )}
     </div>
   );

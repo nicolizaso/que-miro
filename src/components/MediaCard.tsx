@@ -23,9 +23,18 @@ import { addedFromText } from '@/lib/social';
 export function MediaCard({
   media,
   onClick,
+  onOpenDetail,
 }: {
   media: SavedMedia;
   onClick?: () => void;
+  /**
+   * Quién abre la ficha, si no es la tarjeta.
+   *
+   * La biblioteca la abre ella: la tarjeta se desmonta apenas el título cambia
+   * de lista —marcar un episodio de algo en *Por Ver*— y se llevaría la ficha
+   * puesta en plena edición.
+   */
+  onOpenDetail?: () => void;
 }) {
   const { updateStatus, removeMedia } = useMediaActions();
   const { resume } = useArchiveActions();
@@ -98,7 +107,8 @@ export function MediaCard({
         <button
           type="button"
           onClick={() => {
-            setIsDetailOpen(true);
+            if (onOpenDetail) onOpenDetail();
+            else setIsDetailOpen(true);
             onClick?.();
           }}
           // Nombre accesible explícito. Sin él, el nombre sale de concatenar

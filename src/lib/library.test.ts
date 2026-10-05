@@ -5,6 +5,7 @@ import {
   collectGenres,
   filterLibrary,
   hasActiveFilters,
+  listAfterDetail,
   normalizeText,
 } from './library';
 import { SavedMedia } from '@/types';
@@ -328,5 +329,27 @@ describe('Lo que puedo ver ya', () => {
 
   it('cuenta como filtro activo', () => {
     expect(hasActiveFilters(makeFilters({ availableNow: true }))).toBe(true);
+  });
+});
+
+describe('listAfterDetail', () => {
+  it('se queda si el título sigue en la lista', () => {
+    expect(listAfterDetail(makeMedia({ status: 'por_ver' }), 'por_ver')).toBeNull();
+  });
+
+  it('sigue al título a la lista adonde se movió', () => {
+    expect(listAfterDetail(makeMedia({ status: 'viendo' }), 'por_ver')).toBe('viendo');
+  });
+
+  it('dentro de Archivadas no se mueve si sigue archivado', () => {
+    expect(listAfterDetail(makeMedia({ status: 'abandonada' }), 'archivadas')).toBeNull();
+  });
+
+  it('retomar algo archivado lleva a Viendo', () => {
+    expect(listAfterDetail(makeMedia({ status: 'viendo' }), 'en_pausa')).toBe('viendo');
+  });
+
+  it('se queda si el título ya no está en la biblioteca', () => {
+    expect(listAfterDetail(undefined, 'por_ver')).toBeNull();
   });
 });

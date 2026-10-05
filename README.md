@@ -58,7 +58,8 @@ dispositivos.
   plataformas está disponible, según el país que elijas, con un enlace a la
   página que lleva directo a cada una. En la línea de la sinopsis están los mismos atajos del
   buscador: *Por Ver* y *Completada* de un toque, o dónde quedó si ya está
-  guardado.
+  guardado. En el celular ocupa toda la pantalla, y si desde ahí el título
+  cambia de lista, al cerrarla caés en la lista adonde fue.
 - **Página de persona** — desde el buscador, el reparto de una ficha, las
   filas de Explorar que hablan de alguien o lo que elegiste en "Contanos de
   vos", su página (`/persona/…`): quién es, su filmografía sin repetidos —con
@@ -69,7 +70,8 @@ dispositivos.
   barra de progreso y un "vas por T2E5" para retomar donde dejaste. Cada
   temporada muestra sus episodios con nombre, fecha, duración e imagen; lo que
   todavía no salió aparece con su fecha, y la sinopsis de lo que no viste queda
-  escondida hasta que la pedís.
+  escondida hasta que la pedís. Marcar el primer episodio de una serie en
+  *Por Ver* la pasa a *Viendo*, y te avisa.
 - **Puntaje por episodio** — cada episodio visto se puede puntuar mientras
   mirás la serie; la ficha muestra tu mejor episodio, tu peor y el promedio de
   cada temporada.

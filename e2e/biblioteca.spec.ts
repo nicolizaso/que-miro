@@ -136,6 +136,29 @@ test('marcar un episodio mueve el progreso de la serie', async ({ page }) => {
     .toBeGreaterThan(before);
 });
 
+test('marcar un episodio de una serie en Por Ver la pasa a Viendo sin cerrar la ficha', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: /^Ver detalle de Dark/ }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByRole('button', { name: /^Episodio 1 de/ }).first().click();
+
+  // La serie cambia de lista, pero la ficha sigue abierta y lo avisa.
+  await expect(page.getByText('"Dark" pasó a Viendo.')).toBeVisible();
+  await expect(dialog).toBeVisible();
+
+  // Al cerrar, se cae en la lista adonde fue, no en la que quedó vacía de ella.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('tab', { name: /Viendo/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: /^Ver detalle de Dark/ })).toBeVisible();
+});
+
 test('el progreso persiste al cerrar y volver a abrir la ficha', async ({ page }) => {
   await selectTab(page, /Viendo/);
   await openFirstCard(page);
@@ -463,14 +486,16 @@ test('abandonar una serie la manda a Archivadas, y retomarla la devuelve', async
   await rate(confirm, '2 de 5 estrellas');
   await confirm.getByRole('button', { name: 'Abandonar' }).click();
 
-  // Se va de Viendo, y el aviso dice adónde.
+  // Se va de Viendo y el aviso dice adónde, pero la ficha sigue abierta.
   await expect(page.getByText(/Abandonaste "Arcane"/)).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Ver detalle de Arcane/ })).toHaveCount(0);
+  await expect(detail).toBeVisible();
 
-  // La biblioteca de ejemplo ya trae una en pausa y una abandonada: con Arcane son tres.
-  await page.getByRole('button', { name: /Archivadas\s*3/ }).click();
+  // Al cerrarla se cae en Abandonadas, que es donde quedó. La biblioteca de
+  // ejemplo ya trae una abandonada: con Arcane son dos.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page).toHaveURL(/estado=abandonada/);
   await expect(page.getByRole('heading', { name: 'Archivadas' })).toBeVisible();
-  await page.getByRole('button', { name: /Abandonadas/ }).click();
   await expect(page.getByRole('button', { name: /^Ver detalle de/ })).toHaveCount(2);
 
   // La ficha cuenta dónde quedó y por qué.
