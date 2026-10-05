@@ -158,6 +158,34 @@ describe('SeriesProgress, con los episodios de la temporada', () => {
     );
   });
 
+  it('marcar el primero de una serie en Por Ver la pasa a Viendo y lo avisa', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance({ status: 'por_ver', progress: undefined }));
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Episodio 1 de Temporada 1' }),
+    );
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0].status).toBe('viendo'),
+    );
+    expect(await screen.findByText('"Severance" pasó a Viendo.')).toBeInTheDocument();
+  });
+
+  it('marcar uno más de una que ya estás viendo no avisa nada', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance());
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Episodio 2 de Temporada 1' }),
+    );
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([1, 2]),
+    );
+    expect(screen.queryByText(/pasó a/)).not.toBeInTheDocument();
+  });
+
   it('anota la duración de la temporada cuando todos los episodios la traen', async () => {
     getSeason.mockResolvedValueOnce({
       ...season,

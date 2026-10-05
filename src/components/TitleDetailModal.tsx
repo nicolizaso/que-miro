@@ -312,13 +312,17 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
       onClose={onClose}
       label={title || 'Detalle del título'}
       labelledBy={title ? titleId : undefined}
-      className="z-[60] flex items-center justify-center p-4 sm:p-6 bg-overlay backdrop-blur-md overflow-y-auto"
+      className="z-[60] flex md:items-center md:justify-center md:p-6 bg-overlay backdrop-blur-md"
     >
+      {/* En el teléfono la ficha ocupa toda la pantalla: como tarjeta flotante
+          los márgenes se comían el ancho que necesitan los episodios y el alto
+          que necesita la lista. Desde `md` sobra lugar a los costados y vuelve
+          a ser una columna centrada, pero de alto completo. */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className="relative w-full max-w-2xl bg-bg-card border border-border-card rounded-3xl shadow-pop overflow-hidden flex flex-col my-auto max-h-[90vh]"
+        className="relative w-full h-[100dvh] md:h-[calc(100dvh-3rem)] md:max-w-2xl bg-bg-card md:border md:border-border-card md:rounded-3xl md:shadow-pop overflow-hidden flex flex-col"
       >
         <button
           onClick={onClose}
@@ -332,7 +336,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
           // Sin el título en la biblioteca no queda nada para mostrar salvo el
           // error. Si está guardado, el modal sigue en pie: el progreso, el
           // historial y las listas son datos propios y no dependen de TMDB.
-          <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
             <AlertCircle className="text-accent" size={32} aria-hidden="true" />
             <p role="alert" className="text-text-muted text-sm max-w-xs">
               {error}
@@ -345,8 +349,10 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
             </button>
           </div>
         ) : (
-          <>
-            <div className="relative aspect-video w-full bg-border-card shrink-0">
+          // Scrollea todo junto, imagen incluida: fija, la imagen se quedaba
+          // con un cuarto de la pantalla mientras se marcan episodios.
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            <div className="relative aspect-video w-full bg-border-card">
               {loading && (
                 <div className="absolute inset-0 animate-pulse bg-border-card" />
               )}
@@ -410,7 +416,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
               )}
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8">
+            <div className="p-6 flex flex-col gap-8">
               {error && (
                 <p
                   role="alert"
@@ -658,7 +664,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                 </>
               )}
             </div>
-          </>
+          </div>
         )}
       </motion.div>
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Star } from 'lucide-react';
 import { MediaStatus, SavedMedia, SeasonInfo, TMDbEpisode } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
+import { useToast } from '@/contexts/ToastContext';
 import { useSeasonDetail } from '@/hooks/useSeasonDetail';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
 import { StarRatingInput, formatRating, ratingLabel } from '@/components/ui/StarRating';
@@ -34,6 +35,7 @@ import {
 } from '@/lib/episodes';
 import { TMDB_STILL_URL } from '@/lib/tmdb';
 import { watchCount } from '@/lib/schema';
+import { STATUS_LABELS } from '@/lib/archive';
 import { formatDay, formatShortDay, toDayKey } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 
@@ -209,7 +211,10 @@ function EpisodeRow({
         onToggle={onToggle}
       />
 
-      <div className="hidden min-[420px]:block w-24 aspect-video shrink-0 rounded-md bg-border-card overflow-hidden">
+      {/* `self-start` para que no se estire con la fila: al marcarlo visto
+          aparece la sinopsis, la fila crece y la imagen se deformaba al alto
+          del texto. */}
+      <div className="hidden min-[420px]:block self-start w-24 aspect-video shrink-0 rounded-md bg-border-card overflow-hidden">
         {episode.still_path && (
           <img
             src={`${TMDB_STILL_URL}${episode.still_path}`}
@@ -542,6 +547,7 @@ export function SeriesProgress({
   seasons: SeasonInfo[];
 }) {
   const { setProgress, applyEnrichment } = useMediaActions();
+  const { showToast } = useToast();
   /** Temporadas cuya duración ya se anotó en esta apertura, para no repetir. */
   const runtimesWritten = useRef(new Set<number>());
   const [isReviewOpen, setIsReviewOpen] = useState(false);
@@ -583,7 +589,13 @@ export function SeriesProgress({
 
   const applyProgress = (progress: ReturnType<typeof toggleEpisode>) => {
     const updated: SavedMedia = { ...mediaWithSeasons, progress };
-    setProgress(media.tmdbId, progress, statusFor(watchedEpisodes(updated)));
+    const status = statusFor(watchedEpisodes(updated));
+    setProgress(media.tmdbId, progress, status);
+    // El cambio de lista lo hace la app, no la persona: sin el aviso, la serie
+    // desaparece de *Por Ver* sin que nadie entienda adónde fue.
+    if (status && status !== media.status) {
+      showToast(`"${media.title}" pasó a ${STATUS_LABELS[status]}.`);
+    }
   };
 
   const countableSeasons = seasons.filter(
