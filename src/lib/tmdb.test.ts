@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   TMDbRequestError,
   getDiscover,
+  getDiscoverPage,
   getMediaDetail,
   getPersonCredits,
   searchMulti,
@@ -181,5 +182,44 @@ describe('el idioma de los pedidos', () => {
     const url = new URL(fetchMock.mock.calls[0][0] as string, 'http://localhost');
     expect(url.searchParams.get('original')).toBe('ko');
     expect(url.searchParams.get('lang')).toBe('es-MX');
+  });
+});
+
+describe('getDiscoverPage', () => {
+  it('pide la página y los géneros con "o", y devuelve cuántas páginas hay', async () => {
+    const fetchMock = stubFetch({
+      json: async () => ({ results: [{ id: 1 }], page: 3, totalPages: 12 }),
+    });
+
+    const page = await getDiscoverPage({
+      mediaType: 'tv',
+      genres: [10759, 35],
+      genreMatch: 'any',
+      page: 3,
+    });
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string, 'http://localhost');
+    expect(url.searchParams.get('genre')).toBe('10759,35');
+    expect(url.searchParams.get('match')).toBe('any');
+    expect(url.searchParams.get('page')).toBe('3');
+    expect(page).toEqual({ results: [{ id: 1 }], page: 3, totalPages: 12 });
+  });
+
+  it('la primera página y el "y" no se escriben: la URL de Explorar no cambia', async () => {
+    const fetchMock = stubFetch({ json: async () => ({ results: [] }) });
+
+    await getDiscoverPage({ mediaType: 'movie', genres: [28, 35], page: 1 });
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/tmdb/discover?type=movie&genre=28%2C35');
+  });
+
+  it('con un servidor que no pagina, no hay más páginas que pedir', async () => {
+    stubFetch({ json: async () => ({ results: [{ id: 1 }] }) });
+
+    await expect(getDiscoverPage({ mediaType: 'movie' })).resolves.toEqual({
+      results: [{ id: 1 }],
+      page: 1,
+      totalPages: 1,
+    });
   });
 });

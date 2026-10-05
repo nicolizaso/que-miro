@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  MAX_DISCOVER_PAGE,
   TmdbError,
   digitalReleases,
   findByImdbId,
@@ -465,6 +466,32 @@ describe('parseDiscoverQuery', () => {
     expect(parseDiscoverQuery({ type: 'movie' }).providers).toEqual([]);
   });
 
+  it('con `match=any` acepta hasta cinco géneros', () => {
+    expect(
+      parseDiscoverQuery({ type: 'movie', genre: '28,35,27,53,18', match: 'any' }),
+    ).toMatchObject({ genres: [28, 35, 27, 53, 18], genreMatch: 'any' });
+    expect(parseDiscoverQuery({ type: 'movie' }).genreMatch).toBe('all');
+    expect(() =>
+      parseDiscoverQuery({ type: 'movie', genre: '1,2,3,4,5,6', match: 'any' }),
+    ).toThrow(TmdbError);
+  });
+
+  it('pagina desde la uno y hasta un tope', () => {
+    expect(parseDiscoverQuery({ type: 'movie' }).page).toBe(1);
+    expect(parseDiscoverQuery({ type: 'movie', page: '4' }).page).toBe(4);
+    expect(() =>
+      parseDiscoverQuery({ type: 'movie', page: String(MAX_DISCOVER_PAGE + 1) }),
+    ).toThrow(TmdbError);
+  });
+
+  it.each([
+    { type: 'movie', match: 'some' },
+    { type: 'movie', page: '0' },
+    { type: 'movie', page: 'dos' },
+  ])('rechaza %o con un 400', (query) => {
+    expect(() => parseDiscoverQuery(query)).toThrow(TmdbError);
+  });
+
   it.each([
     { type: 'movie', providers: '8' },
     { type: 'movie', providers: 'Netflix', region: 'AR' },
@@ -500,9 +527,72 @@ describe('getDiscover', () => {
   it('le agrega el tipo a cada resultado, que TMDB no manda', async () => {
     stubFetch([{ id: 1 }]);
 
-    const results = await getDiscover(parseDiscoverQuery({ type: 'tv' }));
+    const { results } = await getDiscover(parseDiscoverQuery({ type: 'tv' }));
 
     expect(results[0]).toMatchObject({ id: 1, media_type: 'tv' });
+  });
+
+  it('reenvía solo los campos que la app usa', async () => {
+    stubFetch([
+      {
+        id: 1,
+        title: 'Alien',
+        poster_path: '/a.jpg',
+        genre_ids: [27],
+        overview: 'En el espacio…',
+        vote_average: 8.2,
+        popularity: 91.3,
+        original_title: 'Alien',
+        adult: false,
+        video: false,
+      },
+    ]);
+
+    const { results } = await getDiscover(parseDiscoverQuery({ type: 'movie' }));
+
+    expect(results[0]).toEqual({
+      id: 1,
+      media_type: 'movie',
+      title: 'Alien',
+      poster_path: '/a.jpg',
+      genre_ids: [27],
+      overview: 'En el espacio…',
+      vote_average: 8.2,
+    });
+  });
+
+  it('pide la página que se le pide y devuelve cuántas hay, con tope', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ results: [{ id: 1 }], total_pages: 437 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const page = await getDiscover(parseDiscoverQuery({ type: 'movie', page: '3' }));
+
+    expect(calledUrl(fetchMock).searchParams.get('page')).toBe('3');
+    expect(page).toMatchObject({ page: 3, totalPages: MAX_DISCOVER_PAGE });
+  });
+
+  it('cachea cada página por separado', async () => {
+    const fetchMock = stubFetch([]);
+
+    await getDiscover(parseDiscoverQuery({ type: 'movie' }));
+    await getDiscover(parseDiscoverQuery({ type: 'movie', page: '1' }));
+    await getDiscover(parseDiscoverQuery({ type: 'movie', page: '2' }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('pide todos los géneros juntos, o cualquiera con `match=any`', async () => {
+    const fetchMock = stubFetch([]);
+
+    await getDiscover(parseDiscoverQuery({ type: 'movie', genre: '28,35' }));
+    await getDiscover(parseDiscoverQuery({ type: 'movie', genre: '28,35', match: 'any' }));
+
+    expect(calledUrl(fetchMock, 0).searchParams.get('with_genres')).toBe('28,35');
+    expect(calledUrl(fetchMock, 1).searchParams.get('with_genres')).toBe('28|35');
   });
 
   it('pide un piso de votos al ordenar por puntaje', async () => {
@@ -600,7 +690,7 @@ describe('getDiscover', () => {
     // mucho mejor que un error en pantalla.
     stubFetch([]);
 
-    const results = await getDiscover(
+    const { results } = await getDiscover(
       parseDiscoverQuery({ type: 'movie', provider: 'Blockbuster', region: 'AR' }),
     );
 

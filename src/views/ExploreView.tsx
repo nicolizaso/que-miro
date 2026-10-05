@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Compass, LogIn, Shuffle, Sparkles } from 'lucide-react';
+import { Compass, LibraryBig, LogIn, Shuffle, Sparkles } from 'lucide-react';
 import { TitleCarousel } from '@/components/TitleCarousel';
 import { InstallCard } from '@/components/install/InstallCard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -189,14 +189,26 @@ export function ExploreView() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleShuffle}
-          className="shrink-0 flex items-center gap-2 px-3 h-10 rounded-control border border-border-control text-sm font-medium hover:bg-bg-card transition-colors active:scale-95"
-        >
-          <Shuffle size={16} aria-hidden="true" />
-          Barajar
-        </button>
+        {/* El feed elige por vos; el catálogo es para cuando sabés lo que
+            buscás. Van juntos arriba porque son las dos formas de usar la
+            pestaña. */}
+        <div className="shrink-0 flex flex-col sm:flex-row gap-2">
+          <Link
+            to="/explorar/catalogo"
+            className="flex items-center gap-2 px-3 h-10 rounded-control border border-border-control text-sm font-medium hover:bg-bg-card transition-colors active:scale-95"
+          >
+            <LibraryBig size={16} aria-hidden="true" />
+            Catálogo
+          </Link>
+          <button
+            type="button"
+            onClick={handleShuffle}
+            className="flex items-center gap-2 px-3 h-10 rounded-control border border-border-control text-sm font-medium hover:bg-bg-card transition-colors active:scale-95"
+          >
+            <Shuffle size={16} aria-hidden="true" />
+            Barajar
+          </button>
+        </div>
       </header>
 
       {isNew && <Welcome />}

@@ -134,3 +134,17 @@ export function excludableGenreOptions(): string[] {
     a.localeCompare(b, 'es'),
   );
 }
+
+/**
+ * Los géneros que existen en un tipo de medio, por nombre y en orden
+ * alfabético.
+ *
+ * Son todos los que TMDB sabe filtrar ahí, formatos incluidos: en el catálogo
+ * se busca a propósito, y quien quiere ver un reality tiene que poder pedirlo.
+ */
+export function genresFor(mediaType: MediaType): string[] {
+  const valid = mediaType === 'movie' ? MOVIE_GENRE_IDS : TV_GENRE_IDS;
+  return Array.from(valid, (id) => GENRE_MAP[id])
+    .filter((name): name is string => Boolean(name))
+    .sort((a, b) => a.localeCompare(b, 'es'));
+}

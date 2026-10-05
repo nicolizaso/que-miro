@@ -637,6 +637,60 @@ test('del reparto de una ficha a la página de la persona, y de vuelta', async (
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
+test('el catálogo filtra por género y guarda en Por Ver', async ({ page }) => {
+  // TMDB contesta lo popular, o una de terror si se pide terror (27).
+  const movie = (id: number, title: string, genre: number) => ({
+    id,
+    media_type: 'movie',
+    title,
+    poster_path: null,
+    backdrop_path: null,
+    release_date: '2013-07-19',
+    genre_ids: [genre],
+    overview: '',
+  });
+  await page.route('**/api/tmdb/discover**', (route) => {
+    const url = new URL(route.request().url());
+    const results =
+      url.searchParams.get('genre') === '27'
+        ? [movie(138843, 'El conjuro', 27)]
+        : [movie(550, 'El club de la pelea', 18)];
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ results, page: 1, totalPages: 1 }),
+    });
+  });
+
+  await page.goto('/explorar');
+  await page.getByRole('link', { name: 'Catálogo' }).click();
+  await expect(page).toHaveURL(/\/explorar\/catalogo$/);
+  await expect(page.getByText('El club de la pelea', { exact: true })).toBeVisible();
+
+  await page
+    .getByRole('group', { name: /Filtrar por género/ })
+    .getByRole('button', { name: 'Terror' })
+    .click();
+  await expect(page).toHaveURL(/genero=Terror/);
+  await expect(page.getByText('El conjuro', { exact: true })).toBeVisible();
+  await expect(page.getByText('El club de la pelea', { exact: true })).toHaveCount(0);
+
+  const add = page.getByRole('button', { name: 'Agregar "El conjuro" a Por Ver' });
+  await page.getByRole('button', { name: 'Ver detalle de El conjuro' }).hover();
+  await add.click();
+  await expect(
+    page.getByRole('button', { name: '"El conjuro" ya está en tu biblioteca' }),
+  ).toBeVisible();
+
+  // Con "Ocultar lo que ya tengo", lo recién guardado se va de la grilla.
+  await page.getByRole('button', { name: 'Ocultar lo que ya tengo' }).click();
+  await expect(page.getByText('El conjuro', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Ya tenés todo lo que hay con estos filtros.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Mis Listas', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Ver detalle de El conjuro/ })).toBeVisible();
+});
+
 test('buscar un nombre lleva a la página de la persona', async ({ page }) => {
   // TMDB rankea primero a la persona: quien escribe "bardem" la busca a ella.
   await page.route('**/api/tmdb/search**', (route) =>
