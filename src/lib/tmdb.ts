@@ -348,6 +348,8 @@ export interface DiscoverParams {
   mediaType: MediaType;
   /** Se piden todos juntos: `[35, 80]` es "comedia **y** crimen". */
   genres?: number[];
+  /** `any` cambia el "y" de {@link genres} por un "o": lo usa el catálogo. */
+  genreMatch?: 'all' | 'any';
   withoutGenres?: number[];
   /** Años, inclusive. */
   from?: number;
@@ -369,6 +371,16 @@ export interface DiscoverParams {
   minRuntime?: number;
   maxRuntime?: number;
   sort?: 'popular' | 'rating' | 'recent';
+  /** Desde la uno. */
+  page?: number;
+}
+
+/** Una página de `/discover`. */
+export interface DiscoverPage {
+  results: TMDbResult[];
+  page: number;
+  /** Cuántas páginas se pueden pedir, con el tope que pone el servidor. */
+  totalPages: number;
 }
 
 /**
@@ -378,9 +390,19 @@ export interface DiscoverParams {
 export async function getDiscover(
   params: DiscoverParams,
 ): Promise<TMDbResult[]> {
+  return (await getDiscoverPage(params)).results;
+}
+
+/**
+ * Una página de títulos que cumplen un criterio, con cuántas hay: lo que el
+ * catálogo necesita para seguir cargando mientras se scrollea.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function getDiscoverPage(params: DiscoverParams): Promise<DiscoverPage> {
   const query = new URLSearchParams({ type: params.mediaType });
 
   if (params.genres?.length) query.set('genre', params.genres.join(','));
+  if (params.genres?.length && params.genreMatch === 'any') query.set('match', 'any');
   if (params.withoutGenres?.length) {
     query.set('without', params.withoutGenres.join(','));
   }
@@ -400,11 +422,19 @@ export async function getDiscover(
   if (params.minRuntime) query.set('minRuntime', String(params.minRuntime));
   if (params.maxRuntime) query.set('maxRuntime', String(params.maxRuntime));
   if (params.sort) query.set('sort', params.sort);
+  if (params.page && params.page > 1) query.set('page', String(params.page));
 
-  const { results } = await fetchApi<{ results: TMDbResult[] }>(
+  const page = params.page ?? 1;
+  const data = await fetchApi<Partial<DiscoverPage> & { results: TMDbResult[] }>(
     withLanguage(`/api/tmdb/discover?${query.toString()}`),
   );
-  return results;
+  return {
+    results: data.results,
+    page: data.page ?? page,
+    // Un servidor de antes de la paginación no la manda: con eso no hay más
+    // páginas que pedir, que es lo que de verdad devolvía.
+    totalPages: data.totalPages ?? page,
+  };
 }
 
 /**

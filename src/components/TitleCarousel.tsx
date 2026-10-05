@@ -11,9 +11,9 @@ import { ScrollRail } from '@/components/ui/ScrollRail';
 import { cn } from '@/lib/utils';
 
 /** Placeholder con la misma forma que una tarjeta, para que no salte la fila. */
-function CardSkeleton() {
+export function CardSkeleton({ className }: { className?: string }) {
   return (
-    <li className="rail-item w-32 sm:w-36 shrink-0">
+    <li className={className ?? 'rail-item w-32 sm:w-36 shrink-0'}>
       <div className="aspect-[2/3] w-full rounded-control bg-border-card animate-pulse" />
       {/* Dos renglones, del mismo alto que reserva el título de una tarjeta de
           verdad: así al llegar los resultados la fila no cambia de altura. */}
@@ -25,14 +25,22 @@ function CardSkeleton() {
   );
 }
 
-function ResultCard({ result }: { result: TMDbResult }) {
+/**
+ * Un título de TMDB: el póster abre la ficha y el "+" lo suma a *Por Ver*.
+ *
+ * `className` cambia el ancho: en una fila es fijo, y en la grilla del
+ * catálogo lo pone la columna.
+ */
+export function ResultCard({ result, className }: { result: TMDbResult; className?: string }) {
   const mediaList = useMediaStore((state) => state.mediaList);
   const { addMedia } = useMediaActions();
   const { showToast } = useToast();
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
-  const saved = mediaList.find((media) => media.tmdbId === result.id);
+  const saved = mediaList.find(
+    (media) => media.tmdbId === result.id && media.mediaType === result.media_type,
+  );
   const title = result.title || result.name || '';
   const date = result.release_date || result.first_air_date || '';
   const year = date ? date.split('-')[0] : '';
@@ -60,7 +68,7 @@ function ResultCard({ result }: { result: TMDbResult }) {
   };
 
   return (
-    <li className="rail-item w-32 sm:w-36 shrink-0">
+    <li className={className ?? 'rail-item w-32 sm:w-36 shrink-0'}>
       <div className="relative group">
         <button
           type="button"

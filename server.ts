@@ -136,7 +136,7 @@ async function startServer() {
       const query = parseDiscoverQuery(req.query as Record<string, unknown>);
 
       res.set(cacheHeaders(DISCOVER_TTL));
-      return res.status(200).json({ results: await getDiscover(query) });
+      return res.status(200).json(await getDiscover(query));
     } catch (error) {
       const { status, body } = toErrorResponse(error);
       return res.status(status).json(body);

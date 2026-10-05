@@ -715,6 +715,14 @@ export function toErrorResponse(error: unknown): {
 export type DiscoverSort = 'popular' | 'rating' | 'recent';
 
 /**
+ * Cómo se combinan los géneros pedidos: `all` es "acción **y** comedia" —lo
+ * que necesitan las filas de Explorar, "comedias de crimen"— y `any` es
+ * "acción **o** comedia", lo que espera quien marca dos géneros en el
+ * catálogo.
+ */
+export type GenreMatch = 'all' | 'any';
+
+/**
  * Los criterios que acepta `/api/tmdb/discover`.
  *
  * Es una lista blanca y no un passthrough a TMDB a propósito: la ruta es
@@ -723,8 +731,9 @@ export type DiscoverSort = 'popular' | 'rating' | 'recent';
  */
 export interface DiscoverQuery {
   mediaType: MediaType;
-  /** Se piden todos juntos: `28,35` es "acción **y** comedia". */
+  /** Se piden todos juntos (`28,35` es "acción **y** comedia"), salvo con `genreMatch: 'any'`. */
   genres: number[];
+  genreMatch: GenreMatch;
   withoutGenres: number[];
   /** Años, inclusive. */
   from?: number;
@@ -746,6 +755,8 @@ export interface DiscoverQuery {
   maxRuntime?: number;
   minRuntime?: number;
   sort: DiscoverSort;
+  /** Qué página de resultados: el catálogo las pide a medida que se scrollea. */
+  page: number;
   /** En qué idioma vienen los títulos, como en el resto de los endpoints. */
   lang: Language;
 }
@@ -759,6 +770,19 @@ const MIN_VOTES: Record<DiscoverSort, number> = {
 };
 
 const MAX_GENRES = 3;
+
+/**
+ * Con "cualquiera de estos" se admiten más: cada género que se suma agranda
+ * el resultado en vez de vaciarlo, que es lo que pasa con "todos".
+ */
+const MAX_ANY_GENRES = 5;
+
+/**
+ * Hasta qué página se puede pedir. TMDB llega a 500, pero nadie scrollea 10.000
+ * títulos, y sin tope la ruta pública serviría para recorrer TMDB entero con
+ * nuestra API key.
+ */
+export const MAX_DISCOVER_PAGE = 20;
 
 /**
  * Cuántas plataformas se aceptan juntas: las mismas que se pueden marcar como
@@ -791,19 +815,37 @@ function parseIntParam(value: unknown, name: string): number {
   return num;
 }
 
-function parseGenreList(value: unknown, name: string): number[] {
+function parseGenreList(value: unknown, name: string, max = MAX_GENRES): number[] {
   if (value === undefined || value === '') return [];
   const ids = String(value)
     .split(',')
     .map((part) => parseIntParam(part.trim(), name));
 
-  if (ids.length > MAX_GENRES) {
+  if (ids.length > max) {
     throw new TmdbError(
-      `El parámetro '${name}' admite hasta ${MAX_GENRES} géneros.`,
+      `El parámetro '${name}' admite hasta ${max} géneros.`,
       400,
     );
   }
   return ids;
+}
+
+function parseGenreMatch(value: unknown): GenreMatch {
+  if (value === undefined || value === '' || value === 'all') return 'all';
+  if (value === 'any') return 'any';
+  throw new TmdbError("El parámetro 'match' debe ser 'all' o 'any'.", 400);
+}
+
+function parsePage(value: unknown): number {
+  if (value === undefined || value === '') return 1;
+  const page = parseIntParam(value, 'page');
+  if (page > MAX_DISCOVER_PAGE) {
+    throw new TmdbError(
+      `El parámetro 'page' admite hasta la página ${MAX_DISCOVER_PAGE}.`,
+      400,
+    );
+  }
+  return page;
 }
 
 function parseYear(value: unknown, name: string): number | undefined {
@@ -880,9 +922,16 @@ export function parseDiscoverQuery(
     );
   }
 
+  const genreMatch = parseGenreMatch(query.match);
+
   return {
     mediaType: parseMediaType(query.type),
-    genres: parseGenreList(query.genre, 'genre'),
+    genres: parseGenreList(
+      query.genre,
+      'genre',
+      genreMatch === 'any' ? MAX_ANY_GENRES : MAX_GENRES,
+    ),
+    genreMatch,
     withoutGenres: parseGenreList(query.without, 'without'),
     from: parseYear(query.from, 'from'),
     to: parseYear(query.to, 'to'),
@@ -907,6 +956,7 @@ export function parseDiscoverQuery(
         ? undefined
         : parseIntParam(query.minRuntime, 'minRuntime'),
     sort: parseDiscoverSort(query.sort),
+    page: parsePage(query.page),
     lang: parseLanguage(legacyOriginal ? undefined : query.lang),
   };
 }
@@ -916,7 +966,7 @@ function discoverCacheKey(query: DiscoverQuery): string {
   return [
     'discover',
     query.mediaType,
-    query.genres.join('+'),
+    query.genres.join(query.genreMatch === 'any' ? '|' : '+'),
     query.withoutGenres.join('-'),
     query.from ?? '',
     query.to ?? '',
@@ -929,6 +979,7 @@ function discoverCacheKey(query: DiscoverQuery): string {
     query.minRuntime ?? '',
     query.maxRuntime ?? '',
     query.sort,
+    query.page,
     query.lang,
   ].join(':');
 }
@@ -1041,8 +1092,12 @@ function discoverParams(
     include_adult: 'false',
     'vote_count.gte': String(MIN_VOTES[query.sort]),
   };
+  if (query.page > 1) params.page = String(query.page);
 
-  if (query.genres.length > 0) params.with_genres = query.genres.join(',');
+  // En TMDB, `,` es "todos" y `|` es "cualquiera".
+  if (query.genres.length > 0) {
+    params.with_genres = query.genres.join(query.genreMatch === 'any' ? '|' : ',');
+  }
   if (query.withoutGenres.length > 0) {
     params.without_genres = query.withoutGenres.join(',');
   }
@@ -1074,6 +1129,48 @@ function discoverParams(
   return params;
 }
 
+/** Lo que la app lee de un título de TMDB (`TMDbResult` en el cliente). */
+const DISCOVER_FIELDS = [
+  'id',
+  'title',
+  'name',
+  'poster_path',
+  'backdrop_path',
+  'release_date',
+  'first_air_date',
+  'genre_ids',
+  'overview',
+  'vote_average',
+  'vote_count',
+  'original_language',
+] as const;
+
+/**
+ * Un título de `/discover` con solo los campos que la app usa.
+ *
+ * TMDB manda además popularidad, título original, si es para adultos y otros
+ * que nadie lee: son bytes de más en cada página del catálogo, que se pide de
+ * a muchas, y en cada entrada de la caché.
+ */
+export function trimDiscoverResult(
+  raw: Record<string, unknown>,
+  mediaType: MediaType,
+): Record<string, unknown> {
+  const trimmed: Record<string, unknown> = { media_type: mediaType };
+  for (const field of DISCOVER_FIELDS) {
+    if (raw[field] !== undefined) trimmed[field] = raw[field];
+  }
+  return trimmed;
+}
+
+/** Una página de `/discover`. */
+export interface DiscoverPage {
+  results: Record<string, unknown>[];
+  page: number;
+  /** Cuántas páginas se pueden pedir, ya con el tope de {@link MAX_DISCOVER_PAGE}. */
+  totalPages: number;
+}
+
 /**
  * Títulos que cumplen un criterio: de terror, de los 90, en tu plataforma.
  *
@@ -1081,7 +1178,7 @@ function discoverParams(
  * en vez de fallar: quien llama esconde la fila y no pasa nada. Un error 500
  * por una plataforma renombrada sería mucho ruido para tan poco.
  */
-export async function getDiscover(query: DiscoverQuery) {
+export async function getDiscover(query: DiscoverQuery): Promise<DiscoverPage> {
   return withCache(discoverCacheKey(query), DISCOVER_TTL, async () => {
     let providerId: number | null = null;
     if (query.provider && query.region) {
@@ -1090,21 +1187,23 @@ export async function getDiscover(query: DiscoverQuery) {
         query.region,
         query.provider,
       );
-      if (providerId === null) return [];
+      if (providerId === null) return { results: [], page: query.page, totalPages: 0 };
     }
 
-    const data = await fetchTMDB<{ results?: Record<string, unknown>[] }>(
-      `/discover/${query.mediaType}`,
-      discoverParams(query, providerId),
-      query.lang,
-    );
+    const data = await fetchTMDB<{
+      results?: Record<string, unknown>[];
+      total_pages?: number;
+    }>(`/discover/${query.mediaType}`, discoverParams(query, providerId), query.lang);
 
     // `/discover` no devuelve `media_type` —el tipo está en la ruta—, igual que
     // `/popular` y `/top_rated`.
-    return (data.results ?? []).map((result) => ({
-      ...result,
-      media_type: query.mediaType,
-    }));
+    return {
+      results: (data.results ?? []).map((result) =>
+        trimDiscoverResult(result, query.mediaType),
+      ),
+      page: query.page,
+      totalPages: Math.min(data.total_pages ?? 0, MAX_DISCOVER_PAGE),
+    };
   });
 }
 

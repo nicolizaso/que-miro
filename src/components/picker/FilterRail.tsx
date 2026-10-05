@@ -1,7 +1,21 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FacetOption } from '@/lib/picker';
 import { useRailEdges } from '@/hooks/useRailEdges';
+
+/** Una píldora. Sin `count`, no se muestra cuenta ni se apaga sola. */
+export interface RailOption<V extends string> {
+  value: V;
+  label: string;
+  count?: number;
+}
+
+/**
+ * Una sola elegida, o varias: el catálogo deja marcar "acción" y "comedia"
+ * juntas. En las dos, la primera píldora es la de no filtrar.
+ */
+type Selection<V extends string> =
+  | { multiple?: false; value: V | null; onChange: (value: V | null) => void }
+  | { multiple: true; value: V[]; onChange: (value: V[]) => void };
 
 /**
  * Una fila de filtros del picker: el nombre a la izquierda y las opciones como
@@ -17,14 +31,16 @@ import { useRailEdges } from '@/hooks/useRailEdges';
  * plataformas empujaría la ruleta hacia abajo y cada fila tendría otra altura.
  * Para que nadie con mouse dependa de un scroll horizontal, desde `sm` aparecen
  * flechas cuando la fila no entra entera.
+ *
+ * El catálogo la usa también: ahí no hay cuentas —es todo TMDB— y algunas
+ * filas dejan elegir varias.
  */
 export function FilterRail<V extends string>({
   label,
   name,
   allLabel,
   options,
-  value,
-  onChange,
+  ...selection
 }: {
   /** El rótulo corto que se ve ("Género"). */
   label: string;
@@ -32,12 +48,33 @@ export function FilterRail<V extends string>({
   name: string;
   /** La primera píldora, la de no filtrar ("Todos", "Cualquiera"). */
   allLabel: string;
-  options: FacetOption<V>[];
-  value: V | null;
-  onChange: (value: V | null) => void;
-}) {
+  options: RailOption<V>[];
+} & Selection<V>) {
   const { ref, edges, scrollBy } = useRailEdges<HTMLDivElement>();
   const subject = label.toLowerCase();
+
+  const isSelected = (option: V) =>
+    selection.multiple ? selection.value.includes(option) : selection.value === option;
+  const noneSelected = selection.multiple
+    ? selection.value.length === 0
+    : selection.value === null;
+
+  const clear = () => {
+    if (selection.multiple) selection.onChange([]);
+    else selection.onChange(null);
+  };
+
+  const toggle = (option: V) => {
+    if (selection.multiple) {
+      selection.onChange(
+        isSelected(option)
+          ? selection.value.filter((current) => current !== option)
+          : [...selection.value, option],
+      );
+    } else {
+      selection.onChange(isSelected(option) ? null : option);
+    }
+  };
 
   return (
     <div
@@ -59,15 +96,15 @@ export function FilterRail<V extends string>({
         >
           <button
             type="button"
-            aria-pressed={value === null}
-            onClick={() => onChange(null)}
+            aria-pressed={noneSelected}
+            onClick={clear}
             className="pill rail-item"
           >
             {allLabel}
           </button>
 
           {options.map((option) => {
-            const selected = option.value === value;
+            const selected = isSelected(option.value);
             return (
               <button
                 key={option.value}
@@ -76,20 +113,24 @@ export function FilterRail<V extends string>({
                 // La elegida nunca se apaga, aunque haya quedado en cero por
                 // otro filtro: tiene que poder destocarse.
                 disabled={option.count === 0 && !selected}
-                onClick={() => onChange(selected ? null : option.value)}
+                onClick={() => toggle(option.value)}
                 className="pill rail-item"
               >
                 {option.label}
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'text-xs tabular-nums',
-                    selected ? 'opacity-60' : 'text-text-subtle',
-                  )}
-                >
-                  {option.count}
-                </span>
-                <span className="sr-only"> ({option.count})</span>
+                {option.count !== undefined && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'text-xs tabular-nums',
+                        selected ? 'opacity-60' : 'text-text-subtle',
+                      )}
+                    >
+                      {option.count}
+                    </span>
+                    <span className="sr-only"> ({option.count})</span>
+                  </>
+                )}
               </button>
             );
           })}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalGenreNames, getGenreId, getGenreNames } from './genres';
+import { canonicalGenreNames, genresFor, getGenreId, getGenreNames } from './genres';
 
 describe('getGenreNames', () => {
   it('traduce los IDs conocidos a nombres en español', () => {
@@ -39,5 +39,27 @@ describe('getGenreId', () => {
     expect(getGenreId('Terror', 'movie')).toBe(27);
     // "Terror" no existe en series: sin id, la fila no se arma.
     expect(getGenreId('Terror', 'tv')).toBeUndefined();
+  });
+});
+
+describe('genresFor', () => {
+  it('ofrece cada género solo en el tipo donde existe', () => {
+    expect(genresFor('movie')).toContain('Terror');
+    expect(genresFor('movie')).not.toContain('Sci-Fi y Fantasía');
+    expect(genresFor('tv')).toContain('Sci-Fi y Fantasía');
+    expect(genresFor('tv')).not.toContain('Terror');
+  });
+
+  it('cada nombre se puede volver a traducir a un id del mismo tipo', () => {
+    for (const type of ['movie', 'tv'] as const) {
+      for (const name of genresFor(type)) {
+        expect(getGenreId(name, type)).toBeDefined();
+      }
+    }
+  });
+
+  it('viene en orden alfabético', () => {
+    const genres = genresFor('tv');
+    expect(genres).toEqual([...genres].sort((a, b) => a.localeCompare(b, 'es')));
   });
 });

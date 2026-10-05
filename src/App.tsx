@@ -12,6 +12,7 @@ import { usePendingSaveReplay } from '@/hooks/usePendingSaveReplay';
 import { useApplyTheme } from '@/lib/theme';
 import { useMediaStore } from '@/store';
 import { ExploreView } from '@/views/ExploreView';
+import { CatalogView } from '@/views/CatalogView';
 import { CalendarView } from '@/views/CalendarView';
 import { ListView } from '@/views/ListView';
 import { LoginView } from '@/views/LoginView';
@@ -99,6 +100,7 @@ function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route index element={<Home />} />
           <Route path="explorar" element={<ExploreView />} />
+          <Route path="explorar/catalogo" element={<CatalogView />} />
           <Route path="picker" element={<SmartPickerView />} />
           <Route path="calendario" element={<CalendarView />} />
           <Route path="juntos/:slug" element={<TogetherView />} />
