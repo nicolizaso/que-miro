@@ -65,12 +65,43 @@ const season: TMDbSeason = {
   ],
 };
 
-const getSeason = vi.fn(async (): Promise<TMDbSeason> => season);
+const season2: TMDbSeason = {
+  season_number: 2,
+  name: 'Temporada 2',
+  episodes: [
+    {
+      episode_number: 1,
+      name: 'Hola, señora Cobel',
+      overview: 'Mark vuelve a la oficina.',
+      air_date: dayOffset(-10),
+      runtime: 50,
+      still_path: '/s2e1.jpg',
+      vote_average: 8,
+      episode_type: 'standard',
+    },
+    {
+      episode_number: 2,
+      name: 'Adiós, señora Selvig',
+      overview: 'Afuera también pasan cosas.',
+      air_date: dayOffset(-3),
+      runtime: 48,
+      still_path: '/s2e2.jpg',
+      vote_average: 8.2,
+      episode_type: 'finale',
+    },
+  ],
+};
+
+const getSeason = vi.fn(
+  async (_id: number, seasonNumber: number): Promise<TMDbSeason> =>
+    seasonNumber === 2 ? season2 : season,
+);
 
 vi.mock('@/lib/tmdb', () => ({
-  getSeason: () => getSeason(),
+  getSeason: (id: number, seasonNumber: number) => getSeason(id, seasonNumber),
   currentLanguage: () => 'es-ES',
   TMDB_STILL_URL: 'https://image.tmdb.org/t/p/w300',
+  TMDB_STILL_LARGE_URL: 'https://image.tmdb.org/t/p/w780',
 }));
 
 const { SeriesProgress } = await import('@/components/SeriesProgress');
@@ -95,11 +126,19 @@ function severance(overrides: Partial<SavedMedia> = {}): SavedMedia {
   };
 }
 
+/** La serie como la ve la ficha: desde el store, así cada marca se refleja. */
+function LiveProgress({ tmdbId }: { tmdbId: number }) {
+  const media = useMediaStore((state) =>
+    state.mediaList.find((item) => item.tmdbId === tmdbId),
+  );
+  return media ? <SeriesProgress media={media} seasons={media.seasons!} /> : null;
+}
+
 function renderProgress(media: SavedMedia) {
   act(() => useMediaStore.getState().setMediaList([media]));
   return render(
     <ToastProvider>
-      <SeriesProgress media={media} seasons={media.seasons!} />
+      <LiveProgress tmdbId={media.tmdbId} />
     </ToastProvider>,
   );
 }
@@ -114,7 +153,12 @@ afterEach(() => {
   act(() => useMediaStore.getState().reset());
 });
 
-describe('SeriesProgress, con los episodios de la temporada', () => {
+/** El botón grande de la tarjeta de un episodio. */
+function seenButton(episode: number, seasonName = 'Temporada 1') {
+  return screen.findByRole('button', { name: `Lo vi: episodio ${episode} de ${seasonName}` });
+}
+
+describe('SeriesProgress, un episodio a la vez', () => {
   it('muestra cada episodio con su nombre, su fecha y su duración', async () => {
     renderProgress(severance());
 
@@ -123,11 +167,21 @@ describe('SeriesProgress, con los episodios de la temporada', () => {
     expect(screen.getByText('Final de temporada')).toBeInTheDocument();
   });
 
-  it('lo que todavía no salió está deshabilitado, con su fecha', async () => {
+  it('abre en el episodio que te toca', async () => {
     renderProgress(severance());
 
-    const future = await screen.findByRole('button', { name: 'Episodio 3 de Temporada 1' });
-    expect(future).toBeDisabled();
+    await screen.findByText('Bienvenidos a Lumon');
+    expect(screen.getByText('Episodio 2 de 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ir al episodio 2' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+  });
+
+  it('lo que todavía no salió no se puede marcar, y dice cuándo sale', async () => {
+    renderProgress(severance());
+
+    expect(await seenButton(3)).toBeDisabled();
     expect(screen.getByText(/^Sale el /)).toBeInTheDocument();
   });
 
@@ -145,13 +199,11 @@ describe('SeriesProgress, con los episodios de la temporada', () => {
     expect(screen.getByText('Helly intenta renunciar.')).toBeInTheDocument();
   });
 
-  it('marcar un episodio de la lista guarda el progreso', async () => {
+  it('"Lo vi" guarda el progreso', async () => {
     const user = userEvent.setup();
     renderProgress(severance());
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Episodio 2 de Temporada 1' }),
-    );
+    await user.click(await seenButton(2));
 
     await waitFor(() =>
       expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([1, 2]),
@@ -162,9 +214,7 @@ describe('SeriesProgress, con los episodios de la temporada', () => {
     const user = userEvent.setup();
     renderProgress(severance({ status: 'por_ver', progress: undefined }));
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Episodio 1 de Temporada 1' }),
-    );
+    await user.click(await seenButton(1));
 
     await waitFor(() =>
       expect(useMediaStore.getState().mediaList[0].status).toBe('viendo'),
@@ -176,14 +226,42 @@ describe('SeriesProgress, con los episodios de la temporada', () => {
     const user = userEvent.setup();
     renderProgress(severance());
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Episodio 2 de Temporada 1' }),
-    );
+    await user.click(await seenButton(2));
 
     await waitFor(() =>
       expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([1, 2]),
     );
     expect(screen.queryByText(/pasó a/)).not.toBeInTheDocument();
+  });
+
+  it('tocar un número lleva la tarjeta a ese episodio, sin marcarlo', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance());
+
+    await screen.findByText('Bienvenidos a Lumon');
+    await user.click(screen.getByRole('button', { name: 'Ir al episodio 3' }));
+
+    expect(screen.getByText('Episodio 3 de 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ir al episodio 3' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([1]);
+  });
+
+  it('después de "Lo vi" ofrece puntuarlo y pasar al siguiente', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance());
+
+    await user.click(await seenButton(2));
+
+    const card = screen.getByText('Media Loop').closest('li')!;
+    expect(
+      await within(card).findByRole('group', { name: 'Tu puntaje para Media Loop' }),
+    ).toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: /Siguiente: E3/ }));
+
+    expect(screen.getByText('Episodio 3 de 3')).toBeInTheDocument();
   });
 
   it('anota la duración de la temporada cuando todos los episodios la traen', async () => {
@@ -202,32 +280,157 @@ describe('SeriesProgress, con los episodios de la temporada', () => {
     );
   });
 
-  it('sin los episodios queda la grilla de números, que alcanza para marcar', async () => {
+  it('sin los episodios, las tarjetas muestran el número y se marcan igual', async () => {
     getSeason.mockRejectedValueOnce(new Error('sin red'));
     const user = userEvent.setup();
     renderProgress(severance());
 
-    const third = await screen.findByRole('button', { name: 'Episodio 3 de Temporada 1' });
-    // En la grilla no se sabe qué salió: se puede marcar todo.
+    const third = await seenButton(3);
+    // Sin los datos de TMDB no se sabe qué salió: se puede marcar todo.
     expect(third).toBeEnabled();
     expect(screen.queryByText('Bienvenidos a Lumon')).not.toBeInTheDocument();
 
     await user.click(third);
+    await user.click(screen.getByRole('button', { name: 'Solo este' }));
     await waitFor(() =>
       expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([1, 3]),
     );
   });
+
+  it('desmarcar la temporada entera avisa y se puede deshacer', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance({ progress: { watched: { 1: [1, 2, 3] } } }));
+
+    await user.click(await screen.findByRole('button', { name: 'Desmarcar' }));
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0].progress).toBeUndefined(),
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Deshacer' }));
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([1, 2, 3]),
+    );
+    expect(useMediaStore.getState().mediaList[0].status).toBe('viendo');
+  });
+});
+
+describe('marcar un episodio avanzado', () => {
+  it('sin nada visto antes, pregunta por los anteriores y los marca todos', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance({ status: 'por_ver', progress: undefined }));
+
+    await user.click(await seenButton(2));
+    expect(screen.getByText('¿Viste también el T1E1?')).toBeInTheDocument();
+    // Hasta que se contesta, no se marca nada.
+    expect(useMediaStore.getState().mediaList[0].progress).toBeUndefined();
+
+    await user.click(screen.getByRole('button', { name: 'Sí, marcarlos' }));
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([1, 2]),
+    );
+    expect(screen.queryByText('¿Viste también el T1E1?')).not.toBeInTheDocument();
+  });
+
+  it('"Solo este" marca ese y deja los anteriores como estaban', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance({ status: 'por_ver', progress: undefined }));
+
+    await user.click(await seenButton(2));
+    await user.click(screen.getByRole('button', { name: 'Solo este' }));
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([2]),
+    );
+  });
+
+  it('"Cancelar" no marca nada y devuelve el foco a "Lo vi"', async () => {
+    const user = userEvent.setup();
+    renderProgress(severance({ status: 'por_ver', progress: undefined }));
+
+    await user.click(await seenButton(2));
+    // Mientras se pregunta, "Lo vi" se corre y el foco va a la respuesta.
+    expect(screen.queryByRole('button', { name: /Lo vi: episodio 2/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sí, marcarlos' })).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(await seenButton(2)).toHaveFocus();
+    expect(useMediaStore.getState().mediaList[0].progress).toBeUndefined();
+  });
+
+  it('pregunta también por lo que falta de las temporadas anteriores', async () => {
+    const user = userEvent.setup();
+    renderProgress(
+      severance({
+        seasons: [
+          { seasonNumber: 1, name: 'Temporada 1', episodeCount: 3 },
+          { seasonNumber: 2, name: 'Temporada 2', episodeCount: 2 },
+        ],
+      }),
+    );
+
+    await user.click(await screen.findByRole('tab', { name: /Temporada 2/ }));
+    expect(await screen.findByText('Hola, señora Cobel')).toBeInTheDocument();
+
+    await user.click(await seenButton(1, 'Temporada 2'));
+    expect(screen.getByText('¿Viste también del T1E2 al T1E3?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sí, marcarlos' }));
+
+    await waitFor(() =>
+      expect(useMediaStore.getState().mediaList[0].progress?.watched).toEqual({
+        1: [1, 2, 3],
+        2: [1],
+      }),
+    );
+  });
+});
+
+describe('las temporadas', () => {
+  it('se ve una por vez, y se cambia con las pastillas', async () => {
+    const user = userEvent.setup();
+    renderProgress(
+      severance({
+        seasons: [
+          { seasonNumber: 1, name: 'Temporada 1', episodeCount: 3 },
+          { seasonNumber: 2, name: 'Temporada 2', episodeCount: 2 },
+        ],
+      }),
+    );
+
+    expect(await screen.findByText('Bienvenidos a Lumon')).toBeInTheDocument();
+    expect(screen.queryByText('Hola, señora Cobel')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Temporada 1/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+
+    await user.click(screen.getByRole('tab', { name: /Temporada 2/ }));
+
+    expect(await screen.findByText('Hola, señora Cobel')).toBeInTheDocument();
+    expect(screen.queryByText('Bienvenidos a Lumon')).not.toBeInTheDocument();
+  });
+
+  it('con una sola temporada no hay pastillas', async () => {
+    renderProgress(severance());
+
+    await screen.findByText('Bienvenidos a Lumon');
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+  });
 });
 
 describe('los puntajes por episodio', () => {
-  it('se puntúa un episodio visto desde su fila, y solo los vistos', async () => {
+  it('se puntúa un episodio visto desde su tarjeta, y solo los vistos', async () => {
     const user = userEvent.setup();
     renderProgress(severance());
 
-    const rate = await screen.findByRole('button', { name: 'Puntuar Bienvenidos a Lumon' });
-    expect(screen.queryByRole('button', { name: 'Puntuar Media Loop' })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('group', { name: 'Tu puntaje para Bienvenidos a Lumon' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('group', { name: 'Tu puntaje para Media Loop' }),
+    ).not.toBeInTheDocument();
 
-    await user.click(rate);
     await user.click(screen.getByLabelText('4,5 de 5 estrellas'));
 
     await waitFor(() =>
@@ -244,8 +447,8 @@ describe('los puntajes por episodio', () => {
       }),
     );
 
-    const best = (await screen.findByText('Tu mejor episodio')).parentElement!;
-    const worst = screen.getByText('Tu peor').parentElement!;
+    const best = await screen.findByText(/Tu mejor episodio/);
+    const worst = screen.getByText(/Tu peor/);
     expect(await within(best).findByText(/Bienvenidos a Lumon/)).toBeInTheDocument();
     expect(within(worst).getByText(/Media Loop/)).toBeInTheDocument();
   });

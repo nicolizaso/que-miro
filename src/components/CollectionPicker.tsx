@@ -108,19 +108,11 @@ export function CollectionPicker({ title, media, onSaveInto }: Props) {
     <div className="flex flex-col gap-3">
       <h3 className="text-section">Mis listas</h3>
 
-      {/* Sin listas todavía, el cartel de abajo ya explica de qué van: repetir
-          acá que además se guarda sería un párrafo sobre algo que no se puede
-          hacer. */}
+      {/* Sin listas todavía no va ninguna explicación: queda solo el botón
+          para crear la primera, y el ejemplo de para qué sirve va en el campo. */}
       {!media && collections.length > 0 && (
         <p className="text-sm text-text-subtle">
           Sumarla a una lista también la guarda en tu biblioteca, en Por Ver.
-        </p>
-      )}
-
-      {collections.length === 0 && !isCreating && (
-        <p className="text-sm text-text-subtle">
-          Todavía no tenés listas propias. Sirven para juntar títulos por fuera
-          de los tres estados: "maratón del finde", "pendientes de terror".
         </p>
       )}
 
@@ -165,7 +157,7 @@ export function CollectionPicker({ title, media, onSaveInto }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={MAX_COLLECTION_NAME}
-            placeholder="Nombre de la lista"
+            placeholder='Nombre, como "Maratón del finde"'
             aria-label="Nombre de la lista nueva"
             className="flex-1 bg-bg-main border border-border-control rounded-control px-3 py-2 text-sm text-text-main placeholder:text-text-subtle focus:outline-none focus:border-accent"
           />

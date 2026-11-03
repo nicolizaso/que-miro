@@ -18,6 +18,7 @@ export function ShareButton({
   url,
   card,
   label = 'Compartir',
+  iconOnlyOnMobile = false,
   className,
 }: {
   title: string;
@@ -25,6 +26,11 @@ export function ShareButton({
   url?: string;
   card?: ShareCardData;
   label?: string;
+  /**
+   * En pantallas chicas, solo el ícono: en una fila de acciones apretada, la
+   * palabra hacía que el botón bajara solo a otro renglón.
+   */
+  iconOnlyOnMobile?: boolean;
   className?: string;
 }) {
   const { showToast } = useToast();
@@ -58,7 +64,9 @@ export function ShareButton({
       ) : (
         <Share2 size={16} aria-hidden="true" />
       )}
-      {justCopied ? 'Copiado' : label}
+      <span className={iconOnlyOnMobile ? 'sr-only sm:not-sr-only' : undefined}>
+        {justCopied ? 'Copiado' : label}
+      </span>
     </button>
   );
 }

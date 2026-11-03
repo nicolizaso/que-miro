@@ -53,12 +53,14 @@ dispositivos.
   series con el catálogo de cada una. Con "Recomendame solo lo que está en mis
   plataformas", todo Explorar se limita a eso: las filas que no se pueden
   filtrar así se esconden mientras esté prendido.
-- **Ficha del título** — el puntaje de TMDB al lado del nombre (si tiene
-  votos suficientes para decir algo), sinopsis, reparto, tráiler y en qué
-  plataformas está disponible, según el país que elijas, con un enlace a la
-  página que lleva directo a cada una. En la línea de la sinopsis están los mismos atajos del
-  buscador: *Por Ver* y *Completada* de un toque, o dónde quedó si ya está
-  guardado. En el celular ocupa toda la pantalla, y si desde ahí el título
+- **Ficha del título** — el puntaje de TMDB y el tráiler sobre la imagen,
+  sinopsis, reparto y en qué plataformas está disponible, según el país que
+  elijas, con un enlace a la página que lleva directo a cada una. Debajo de la
+  imagen, una fila de acciones: en qué lista está (con pausar, abandonar y los
+  avisos adentro), los mismos atajos del buscador para *Por Ver* y
+  *Completada*, tus listas y compartir. Una serie que estás viendo abre por tu
+  progreso; lo demás, por la sinopsis. Al scrollear queda arriba una barra con
+  el nombre. En el celular ocupa toda la pantalla, y si desde ahí el título
   cambia de lista, al cerrarla caés en la lista adonde fue.
 - **Página de persona** — desde el buscador, el reparto de una ficha, las
   filas de Explorar que hablan de alguien o lo que elegiste en "Contanos de
@@ -66,15 +68,19 @@ dispositivos.
   filtro reparto / dirección— y cada título marcado según tu biblioteca.
   Arriba, "Viste 7 de 23" y las mejor puntuadas que te faltan, con un mínimo
   de votos para que no gane algo con tres.
-- **Progreso de series** — marcá episodios de a uno o por temporada entera, con
-  barra de progreso y un "vas por T2E5" para retomar donde dejaste. Cada
-  temporada muestra sus episodios con nombre, fecha, duración e imagen; lo que
-  todavía no salió aparece con su fecha, y la sinopsis de lo que no viste queda
-  escondida hasta que la pedís. Marcar el primer episodio de una serie en
-  *Por Ver* la pasa a *Viendo*, y te avisa.
-- **Puntaje por episodio** — cada episodio visto se puede puntuar mientras
-  mirás la serie; la ficha muestra tu mejor episodio, tu peor y el promedio de
-  cada temporada.
+- **Progreso de series** — un episodio a la vez, como en TV Time: una tarjeta
+  con la imagen grande, nombre, fecha y duración, que se desliza con el dedo o
+  con flechas y abre en el episodio que te toca. "Lo vi" lo marca y ofrece
+  puntuarlo y pasar al siguiente. Si marcás uno avanzado sin los anteriores,
+  pregunta si también los viste. Abajo, la tira de números de la temporada
+  sirve de mapa, y las temporadas se eligen con pastillas; también se marcan
+  enteras, y desmarcar una se puede deshacer. Lo que todavía no salió aparece
+  con su fecha, y la sinopsis de lo que no viste queda escondida hasta que la
+  pedís. Marcar el primer episodio de una serie en *Por Ver* la pasa a
+  *Viendo*, y te avisa.
+- **Puntaje por episodio** — cada episodio visto se puede puntuar desde su
+  tarjeta mientras mirás la serie; la ficha muestra tu mejor episodio, tu peor
+  y el promedio de cada temporada.
 - **Al día y novedades** — una serie que sigue saliendo no se "termina": si
   viste todo lo emitido, estás al día, y el porcentaje se cuenta contra lo que
   ya salió. Cuando una serie que terminaste estrena temporada, la tarjeta avisa
@@ -85,8 +91,8 @@ dispositivos.
 - **Historial de visionados** — volver a ver algo suma una entrada nueva en vez
   de pisar lo que habías escrito la primera vez.
 - **Listas propias** — agrupaciones más allá de los tres estados: "maratón del
-  finde", "pendientes de terror". Se arman desde la ficha de cualquier título,
-  esté o no en tu biblioteca.
+  finde", "pendientes de terror". Se arman desde el botón *Listas* de la ficha
+  de cualquier título, esté o no en tu biblioteca.
 - **Listas compartibles** — publicá una lista con su link (`/l/…`), con
   descripción opcional y vista previa en redes. Se mantiene al día sola;
   quien la abre puede guardar un título o la lista entera como propia. Se

@@ -128,8 +128,8 @@ test('marcar un episodio mueve el progreso de la serie', async ({ page }) => {
   await expect(bar).toBeVisible();
 
   const before = Number(await bar.getAttribute('aria-valuenow'));
-  const episodes = dialog.getByRole('button', { name: /^Episodio \d+ de/ });
-  await episodes.last().click();
+  // La ficha abre en el episodio que toca: el primero sin marcar.
+  await dialog.getByRole('button', { name: /^Lo vi: episodio/, pressed: false }).first().click();
 
   await expect
     .poll(async () => Number(await bar.getAttribute('aria-valuenow')))
@@ -143,7 +143,7 @@ test('marcar un episodio de una serie en Por Ver la pasa a Viendo sin cerrar la 
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
 
-  await dialog.getByRole('button', { name: /^Episodio 1 de/ }).first().click();
+  await dialog.getByRole('button', { name: /^Lo vi: episodio 1 de/ }).first().click();
 
   // La serie cambia de lista, pero la ficha sigue abierta y lo avisa.
   await expect(page.getByText('"Dark" pasó a Viendo.')).toBeVisible();
@@ -159,12 +159,36 @@ test('marcar un episodio de una serie en Por Ver la pasa a Viendo sin cerrar la 
   await expect(page.getByRole('button', { name: /^Ver detalle de Dark/ })).toBeVisible();
 });
 
+test('marcar un episodio avanzado sin los anteriores pregunta si los viste', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: /^Ver detalle de Dark/ }).click();
+  const dialog = page.getByRole('dialog');
+  const bar = dialog.getByRole('progressbar').first();
+  await expect(bar).toHaveAttribute('aria-valuenow', '0');
+
+  // El tercero, sin el primero ni el segundo: tiene que preguntar.
+  await dialog.getByRole('button', { name: 'Ir al episodio 3' }).click();
+  await dialog.getByRole('button', { name: /^Lo vi: episodio 3 de/ }).first().click();
+  await expect(dialog.getByText('¿Viste también del T1E1 al T1E2?')).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Sí, marcarlos' }).click();
+
+  await expect(dialog.getByText(/^3 de \d+ episodios/)).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Ir al episodio 1, visto' })).toBeVisible();
+});
+
 test('el progreso persiste al cerrar y volver a abrir la ficha', async ({ page }) => {
   await selectTab(page, /Viendo/);
   await openFirstCard(page);
 
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: /^Episodio \d+ de/ }).last().click();
+  const bar = dialog.getByRole('progressbar').first();
+  const before = Number(await bar.getAttribute('aria-valuenow'));
+  await dialog.getByRole('button', { name: /^Lo vi: episodio/, pressed: false }).first().click();
+  await expect
+    .poll(async () => Number(await bar.getAttribute('aria-valuenow')))
+    .toBeGreaterThan(before);
   const after = await dialog
     .getByRole('progressbar')
     .first()
@@ -479,6 +503,8 @@ test('abandonar una serie la manda a Archivadas, y retomarla la devuelve', async
   await card.click();
 
   const detail = page.getByRole('dialog');
+  // Pausar y abandonar van adentro de la píldora del estado.
+  await detail.getByRole('button', { name: /En tu biblioteca: Viendo/ }).click();
   await detail.getByRole('button', { name: 'Abandonar' }).click();
 
   const confirm = page.getByRole('dialog', { name: /¿Abandonás Arcane\?/ });

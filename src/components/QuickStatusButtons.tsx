@@ -9,6 +9,12 @@ interface Props {
   /** Estado que se está guardando, para el spinner del botón que lo pidió. */
   savingStatus: MediaStatus | null;
   onSave: (status: MediaStatus) => void;
+  /**
+   * Sin los indicadores de lo que ya está hecho: en la ficha, la píldora del
+   * estado ya dice en qué lista está, y repetirlo con un ícono era decirlo dos
+   * veces.
+   */
+  hideIndicators?: boolean;
   className?: string;
 }
 
@@ -25,23 +31,27 @@ export function QuickStatusButtons({
   saved,
   savingStatus,
   onSave,
+  hideIndicators = false,
   className,
 }: Props) {
   const isCompleted = saved?.status === 'completada';
+  if (hideIndicators && isCompleted) return null;
 
   return (
     <div className={cn('flex items-center gap-2 shrink-0', className)}>
       {saved ? (
-        // Un marcador y no un tilde pelado: el tilde de al lado quiere decir
-        // "completada", y dos tildes juntos no dicen ninguna de las dos
-        // cosas.
-        <span
-          className="btn-icon w-11 h-11 bg-border-card text-text-muted"
-          title="Ya está en tu biblioteca"
-        >
-          <BookmarkCheck size={20} aria-hidden="true" />
-          <span className="sr-only">Ya está en tu biblioteca</span>
-        </span>
+        hideIndicators ? null : (
+          // Un marcador y no un tilde pelado: el tilde de al lado quiere decir
+          // "completada", y dos tildes juntos no dicen ninguna de las dos
+          // cosas.
+          <span
+            className="btn-icon w-11 h-11 bg-border-card text-text-muted"
+            title="Ya está en tu biblioteca"
+          >
+            <BookmarkCheck size={20} aria-hidden="true" />
+            <span className="sr-only">Ya está en tu biblioteca</span>
+          </span>
+        )
       ) : (
         <button
           type="button"
