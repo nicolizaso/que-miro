@@ -61,7 +61,10 @@ dispositivos.
   *Completada*, tus listas y compartir. Una serie que estás viendo abre por tu
   progreso; lo demás, por la sinopsis. Al scrollear queda arriba una barra con
   el nombre. En el celular ocupa toda la pantalla, y si desde ahí el título
-  cambia de lista, al cerrarla caés en la lista adonde fue.
+  cambia de lista, al cerrarla caés en la lista adonde fue. Al final, una
+  galería de imágenes de la película o la serie: las escenas mejor votadas en
+  TMDB, sin texto encima, que se abren a pantalla completa y se pasan con las
+  flechas, el teclado o deslizando.
 - **Página de persona** — desde el buscador, el reparto de una ficha, las
   filas de Explorar que hablan de alguien o lo que elegiste en "Contanos de
   vos", su página (`/persona/…`): quién es, su filmografía sin repetidos —con

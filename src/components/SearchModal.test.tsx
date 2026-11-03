@@ -66,6 +66,7 @@ const searchTitlesAndPeople = vi.fn(
 vi.mock('@/lib/tmdb', () => ({
   searchTitlesAndPeople: (...args: unknown[]) => searchTitlesAndPeople(...(args as [])),
   getMediaDetail: async () => detail,
+  getImages: async () => [],
   getGenreNames: (ids: number[]) =>
     ids.map((id) => (id === 10765 ? 'Sci-Fi y Fantasía' : '')).filter(Boolean),
   TMDB_IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',

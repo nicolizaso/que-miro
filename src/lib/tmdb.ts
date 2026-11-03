@@ -27,6 +27,11 @@ export const TMDB_STILL_URL = 'https://image.tmdb.org/t/p/w300';
  * pantalla 2x la tarjeta pide unos 700 px reales, y la de 300 se ve borrosa.
  */
 export const TMDB_STILL_LARGE_URL = 'https://image.tmdb.org/t/p/w780';
+/**
+ * Las fotos de la galería en grande: a pantalla completa la de 780 se ve
+ * borrosa, y la original puede pesar varios megas.
+ */
+export const TMDB_BACKDROP_LARGE_URL = 'https://image.tmdb.org/t/p/w1280';
 /** Avatares: un póster recortado en un círculo de 40 a 96 px. */
 export const TMDB_AVATAR_URL = 'https://image.tmdb.org/t/p/w185';
 /** Logos de plataformas: se muestran a 48 px, y el de 500 pesaba diez veces más. */
@@ -297,6 +302,29 @@ export async function getSeason(id: number, seasonNumber: number): Promise<TMDbS
   return fetchApi<TMDbSeason>(
     withLanguage(`/api/tmdb/season?id=${id}&season=${seasonNumber}`),
   );
+}
+
+/** Una foto de la galería, como la manda `/api/tmdb/images`. */
+export interface TMDbImage {
+  file_path: string;
+  width: number;
+  height: number;
+  vote_average: number;
+  vote_count: number;
+}
+
+/**
+ * Los fondos de un título, para la galería de la ficha.
+ *
+ * Sin idioma: son fotogramas sin texto, y así España y Latinoamérica
+ * comparten la misma respuesta cacheada en el borde.
+ * @throws {TMDbRequestError} si la consulta falla.
+ */
+export async function getImages(id: number, mediaType: MediaType): Promise<TMDbImage[]> {
+  const { backdrops } = await fetchApi<{ backdrops?: TMDbImage[] }>(
+    `/api/tmdb/images?type=${mediaType}&id=${id}`,
+  );
+  return backdrops ?? [];
 }
 
 /** Una plataforma de streaming de un país, como la manda `/api/tmdb/providers`. */
