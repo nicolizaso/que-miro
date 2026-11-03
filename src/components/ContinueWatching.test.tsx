@@ -32,6 +32,7 @@ vi.mock('@/lib/tmdb', () => ({
   TMDB_LOGO_URL: 'https://image.tmdb.org/t/p/w92',
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
   TMDB_STILL_URL: 'https://image.tmdb.org/t/p/w300',
+  TMDB_STILL_LARGE_URL: 'https://image.tmdb.org/t/p/w780',
 }));
 
 // jsdom no trae `ResizeObserver`, que la fila usa para prender sus flechas.

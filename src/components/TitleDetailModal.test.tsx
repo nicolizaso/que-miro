@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Collection, SavedMedia, TMDbDetail } from '@/types';
@@ -50,6 +50,7 @@ vi.mock('@/lib/tmdb', () => ({
   TMDB_LOGO_URL: 'https://image.tmdb.org/t/p/w92',
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
   TMDB_STILL_URL: 'https://image.tmdb.org/t/p/w300',
+  TMDB_STILL_LARGE_URL: 'https://image.tmdb.org/t/p/w780',
 }));
 
 const { TitleDetailModal } = await import('@/components/TitleDetailModal');
@@ -177,6 +178,7 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     const user = userEvent.setup();
     await renderExploreDetail();
 
+    await user.click(screen.getByRole('button', { name: 'Listas' }));
     await user.click(screen.getByRole('button', { name: 'Maratón' }));
 
     await waitFor(() =>
@@ -196,7 +198,8 @@ describe('TitleDetailModal, sobre un título que no está en la biblioteca', () 
     await renderExploreDetail();
 
     await user.click(screen.getByRole('button', { name: 'Agregar "Severance" a Por Ver' }));
-    await screen.findByText(/Ya está en tu biblioteca, en/);
+    await screen.findByRole('button', { name: /En tu biblioteca: Por Ver/ });
+    await user.click(screen.getByRole('button', { name: 'Listas' }));
     await user.click(screen.getByRole('button', { name: 'Maratón' }));
 
     await waitFor(() =>
@@ -233,7 +236,7 @@ describe('TitleDetailModal, el orden de la ficha', () => {
     );
   }
 
-  it('arranca por la sinopsis, sigue con el reparto y después el tráiler', async () => {
+  it('las acciones van debajo de la imagen, y después la sinopsis y el reparto', async () => {
     getMediaDetail.mockImplementation(async () => ({
       ...detail,
       credits: { cast: [{ id: 525, name: 'Adam Scott', character: 'Mark S.', profile_path: null }] },
@@ -249,25 +252,76 @@ describe('TitleDetailModal, el orden de la ficha', () => {
     );
 
     const synopsis = await screen.findByRole('heading', { name: 'Sinopsis' });
-    const cast = screen.getByRole('heading', { name: 'Reparto Principal' });
-    const trailer = screen.getByRole('link', { name: /Ver Tráiler/ });
-    const collections = screen.getByRole('heading', { name: 'Mis listas' });
+    const name = screen.getByRole('heading', { level: 2, name: 'Severance' });
+    const trailer = screen.getByRole('link', { name: /Tráiler/ });
+    const share = screen.getByRole('button', { name: 'Compartir' });
+    const cast = screen.getByRole('heading', { name: 'Reparto' });
 
+    // El tráiler va chico, sobre la imagen, junto al nombre.
+    expect(name.closest('.relative')).toContainElement(trailer);
+    expect(isBefore(share, synopsis)).toBe(true);
     expect(isBefore(synopsis, cast)).toBe(true);
-    expect(isBefore(cast, trailer)).toBe(true);
-    expect(isBefore(trailer, collections)).toBe(true);
   });
 
-  it('los atajos van en la línea de la sinopsis, solo con ícono', async () => {
+  it('los atajos van en la fila de acciones, solo con ícono', async () => {
     await renderExploreDetail();
 
-    const row = screen.getByRole('heading', { name: 'Sinopsis' }).parentElement!;
     for (const name of ['Agregar "Severance" a Por Ver', 'Marcar "Severance" como completada']) {
-      const button = within(row).getByRole('button', { name });
+      const button = screen.getByRole('button', { name });
       expect(button.textContent).toBe('');
+      expect(isBefore(button, screen.getByRole('heading', { name: 'Sinopsis' }))).toBe(true);
     }
-    // Sin el título guardado, "Tu biblioteca" no tendría nada adentro.
-    expect(screen.queryByRole('heading', { name: 'Tu biblioteca' })).not.toBeInTheDocument();
+  });
+
+  it('una serie que estás viendo arranca por tu progreso', async () => {
+    const watching: SavedMedia = {
+      tmdbId: 42,
+      mediaType: 'tv',
+      title: 'Severance',
+      posterPath: null,
+      backdropPath: null,
+      releaseYear: '2022',
+      genres: ['Drama'],
+      status: 'viendo',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      seasons: [{ seasonNumber: 1, name: 'Temporada 1', episodeCount: 9 }],
+      progress: { watched: { 1: [1] } },
+    };
+    act(() => useMediaStore.setState({ mediaList: [watching] }));
+    render(
+      <ToastProvider>
+        <TitleDetailModal id={42} mediaType="tv" media={watching} isOpen onClose={() => {}} />
+      </ToastProvider>,
+    );
+
+    const synopsis = await screen.findByRole('heading', { name: 'Sinopsis' });
+    const progress = screen.getByRole('heading', { name: 'Tu progreso' });
+    expect(isBefore(progress, synopsis)).toBe(true);
+  });
+
+  it('una que todavía no empezaste arranca por la sinopsis', async () => {
+    const pending: SavedMedia = {
+      tmdbId: 42,
+      mediaType: 'tv',
+      title: 'Severance',
+      posterPath: null,
+      backdropPath: null,
+      releaseYear: '2022',
+      genres: ['Drama'],
+      status: 'por_ver',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      seasons: [{ seasonNumber: 1, name: 'Temporada 1', episodeCount: 9 }],
+    };
+    act(() => useMediaStore.setState({ mediaList: [pending] }));
+    render(
+      <ToastProvider>
+        <TitleDetailModal id={42} mediaType="tv" media={pending} isOpen onClose={() => {}} />
+      </ToastProvider>,
+    );
+
+    const synopsis = await screen.findByRole('heading', { name: 'Sinopsis' });
+    const progress = screen.getByRole('heading', { name: 'Tu progreso' });
+    expect(isBefore(synopsis, progress)).toBe(true);
   });
 });
 
@@ -293,14 +347,33 @@ describe('TitleDetailModal, sobre un título que ya está en la biblioteca', () 
     );
   }
 
-  it('muestra los mismos indicadores que el buscador, y no ofrece agregarlo de nuevo', async () => {
+  it('dice en qué lista está, y no ofrece agregarlo de nuevo', async () => {
     renderSavedDetail(saved);
 
-    const row = (await screen.findByRole('heading', { name: 'Sinopsis' })).parentElement!;
-    expect(within(row).getByText('Ya está en tu biblioteca')).toBeInTheDocument();
     expect(
-      within(row).queryByRole('button', { name: 'Agregar "Severance" a Por Ver' }),
+      await screen.findByRole('button', { name: /En tu biblioteca: Por Ver/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Agregar "Severance" a Por Ver' }),
     ).not.toBeInTheDocument();
+    // Ya no hay frase que lo repita ni ícono que lo repita otra vez.
+    expect(screen.queryByText(/Ya está en tu biblioteca/)).not.toBeInTheDocument();
+  });
+
+  it('pausar y abandonar quedan adentro de la píldora del estado', async () => {
+    const user = userEvent.setup();
+    // Con actividad reciente: una que hace rato no avanza abre con el panel
+    // desplegado, para sugerir la pausa.
+    renderSavedDetail({ ...saved, status: 'viendo', updatedAt: new Date().toISOString() });
+
+    const status = await screen.findByRole('button', { name: /En tu biblioteca: Viendo/ });
+    expect(screen.queryByRole('button', { name: /Poner en pausa/ })).not.toBeInTheDocument();
+
+    await user.click(status);
+
+    expect(status).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: /Poner en pausa/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Abandonar/ })).toBeInTheDocument();
   });
 
   it('el tilde lo pasa a Completadas sin escribirlo de cero', async () => {
@@ -316,13 +389,21 @@ describe('TitleDetailModal, sobre un título que ya está en la biblioteca', () 
     expect(useMediaStore.getState().mediaList[0]?.collections).toEqual(['col-Maratón']);
   });
 
-  it('una completada muestra el tilde como indicador', async () => {
+  it('una que hace rato no avanza abre con la pausa a la vista', async () => {
+    renderSavedDetail({ ...saved, status: 'viendo' });
+
+    expect(
+      await screen.findByRole('button', { name: /En tu biblioteca: Viendo/ }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(/que no avanzás/)).toBeInTheDocument();
+  });
+
+  it('una completada no ofrece completarla de nuevo', async () => {
     renderSavedDetail({ ...saved, status: 'completada' });
 
-    const row = (await screen.findByRole('heading', { name: 'Sinopsis' })).parentElement!;
-    expect(within(row).getByText('Ya está en Completadas')).toBeInTheDocument();
+    expect(await screen.findByText('Completada')).toBeInTheDocument();
     expect(
-      within(row).queryByRole('button', { name: 'Marcar "Severance" como completada' }),
+      screen.queryByRole('button', { name: 'Marcar "Severance" como completada' }),
     ).not.toBeInTheDocument();
   });
 });
@@ -380,6 +461,13 @@ describe('TitleDetailModal, las plataformas', () => {
     expect(whereToWatch).toHaveAttribute('href', link);
     expect(whereToWatch).toHaveAttribute('target', '_blank');
     expect(screen.getByText(/Datos de plataformas/)).toHaveTextContent('JustWatch');
+  });
+
+  it('sin plataformas no muestra la sección, ni una fila que lo explique', async () => {
+    await renderExploreDetail();
+
+    expect(screen.queryByRole('heading', { name: /Dónde ver/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/No encontramos plataformas/)).not.toBeInTheDocument();
   });
 });
 

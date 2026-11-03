@@ -6,6 +6,7 @@ import {
   detectNewEpisodes,
   episodeHighlights,
   episodeRating,
+  focusEpisode,
   formatEpisode,
   hasNewEpisodes,
   hasWatchedAllAired,
@@ -13,14 +14,17 @@ import {
   isEpisodeWatched,
   isSeriesComplete,
   isStillAiring,
+  markEpisodes,
   newEpisodesSummary,
   nextEpisode,
+  previousEpisodesQuestion,
   progressPercent,
   rateEpisode,
   ratedEpisodes,
   toggleEpisode,
   toggleSeason,
   totalEpisodes,
+  unwatchedRunBefore,
   watchedAiredEpisodes,
   watchedEpisodes,
 } from './progress';
@@ -607,5 +611,137 @@ describe('puntajes por episodio', () => {
       media.progress!.episodeRatings = { '1x1': 5, '1x2': 4.5, '1x3': 4.5 };
       expect(episodeHighlights(media).seasons[0].average).toBe(4.7);
     });
+  });
+});
+
+describe('los anteriores sin ver', () => {
+  const T1: SeasonInfo = { seasonNumber: 1, name: 'Temporada 1', episodeCount: 3 };
+  const T2: SeasonInfo = { seasonNumber: 2, name: 'Temporada 2', episodeCount: 2 };
+  const CON_ESPECIALES: SeasonInfo[] = [
+    { seasonNumber: 0, name: 'Especiales', episodeCount: 2 },
+    T1,
+    T2,
+  ];
+
+  it('sin nada marcado, son todos los anteriores, de todas las temporadas', () => {
+    expect(unwatchedRunBefore(makeSeries(), 2, 2)).toEqual([
+      { seasonNumber: 1, episode: 1 },
+      { seasonNumber: 1, episode: 2 },
+      { seasonNumber: 1, episode: 3 },
+      { seasonNumber: 2, episode: 1 },
+    ]);
+  });
+
+  it('si el de justo antes está visto, no falta nada', () => {
+    expect(unwatchedRunBefore(makeSeries({ 1: [3] }), 2, 1)).toEqual([]);
+    expect(unwatchedRunBefore(makeSeries({ 1: [1] }), 1, 2)).toEqual([]);
+  });
+
+  it('el primer episodio no tiene anteriores', () => {
+    expect(unwatchedRunBefore(makeSeries(), 1, 1)).toEqual([]);
+  });
+
+  it('es el hueco desde donde ibas, no los que salteaste hace rato', () => {
+    // Saltearse el 1x2 fue una decisión vieja: marcar el 2x2 pregunta solo
+    // por lo que falta desde el 1x3.
+    expect(unwatchedRunBefore(makeSeries({ 1: [1, 3] }), 2, 2)).toEqual([
+      { seasonNumber: 2, episode: 1 },
+    ]);
+  });
+
+  it('no cuenta los especiales', () => {
+    expect(unwatchedRunBefore(makeSeries({}, CON_ESPECIALES), 1, 2)).toEqual([
+      { seasonNumber: 1, episode: 1 },
+    ]);
+  });
+
+  it('marca varios de una vez, en orden, sin tocar lo que ya estaba', () => {
+    const NOW = new Date('2026-08-10T21:30:00.000Z');
+    const before = {
+      watched: { 1: [1] },
+      watchedAt: { '1x1': '2026-01-01T00:00:00.000Z' },
+      episodeRatings: { '1x1': 4 },
+    };
+
+    const after = markEpisodes(
+      before,
+      [
+        { seasonNumber: 2, episode: 1 },
+        { seasonNumber: 1, episode: 3 },
+        { seasonNumber: 1, episode: 2 },
+      ],
+      NOW,
+    );
+
+    expect(after.watched).toEqual({ 1: [1, 2, 3], 2: [1] });
+    expect(after.watchedAt).toEqual({
+      '1x1': '2026-01-01T00:00:00.000Z',
+      '1x2': NOW.toISOString(),
+      '1x3': NOW.toISOString(),
+      '2x1': NOW.toISOString(),
+    });
+    expect(after.episodeRatings).toEqual({ '1x1': 4 });
+    expect(before.watched).toEqual({ 1: [1] });
+  });
+});
+
+describe('previousEpisodesQuestion', () => {
+  it('uno solo se nombra', () => {
+    expect(previousEpisodesQuestion([{ seasonNumber: 2, episode: 3 }])).toBe(
+      '¿Viste también el T2E3?',
+    );
+  });
+
+  it('varios de la misma temporada, como un tramo', () => {
+    expect(
+      previousEpisodesQuestion([
+        { seasonNumber: 2, episode: 1 },
+        { seasonNumber: 2, episode: 2 },
+        { seasonNumber: 2, episode: 3 },
+      ]),
+    ).toBe('¿Viste también del T2E1 al T2E3?');
+  });
+
+  it('de varias temporadas, cuántos y desde dónde', () => {
+    expect(
+      previousEpisodesQuestion([
+        { seasonNumber: 1, episode: 3 },
+        { seasonNumber: 2, episode: 1 },
+        { seasonNumber: 2, episode: 2 },
+      ]),
+    ).toBe('¿Viste también los 3 anteriores, desde el T1E3?');
+  });
+});
+
+describe('focusEpisode', () => {
+  const T1: SeasonInfo = { seasonNumber: 1, name: 'Temporada 1', episodeCount: 3 };
+  const T2: SeasonInfo = { seasonNumber: 2, name: 'Temporada 2', episodeCount: 2 };
+
+  it('abre en el primero sin ver de la temporada', () => {
+    expect(focusEpisode(makeSeries({ 1: [1, 2] }), T1)).toBe(3);
+    expect(focusEpisode(makeSeries({ 1: [1, 3] }), T1)).toBe(2);
+    expect(focusEpisode(makeSeries(), T2)).toBe(1);
+  });
+
+  it('en una temporada vista entera, en el último', () => {
+    expect(focusEpisode(makeSeries({ 1: [1, 2, 3] }), T1)).toBe(3);
+  });
+
+  it('al día en una temporada en emisión, en el último que salió', () => {
+    const media: SavedMedia = {
+      ...makeSeries({ 1: [1, 2, 3], 2: [1] }),
+      seriesStatus: 'Returning Series',
+      lastAired: { seasonNumber: 2, episodeNumber: 1, airDate: '2026-09-10' },
+    };
+    expect(focusEpisode(media, T2)).toBe(1);
+  });
+
+  it('en una temporada que todavía no salió, en el primero', () => {
+    const media: SavedMedia = {
+      ...makeSeries({ 1: [1, 2, 3] }),
+      seriesStatus: 'Returning Series',
+      nextToAir: { seasonNumber: 2, episodeNumber: 1, airDate: '2026-12-10' },
+    };
+    expect(focusEpisode(media, T2)).toBe(1);
   });
 });

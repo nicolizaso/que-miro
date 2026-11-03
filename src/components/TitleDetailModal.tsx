@@ -13,14 +13,10 @@ import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
 import { ScrollRail } from '@/components/ui/ScrollRail';
 import { SeriesProgress } from '@/components/SeriesProgress';
-import { CollectionPicker } from '@/components/CollectionPicker';
-import { StatusActions } from '@/components/StatusActions';
-import { QuickStatusButtons } from '@/components/QuickStatusButtons';
-import { NotifyToggle } from '@/components/NotifyToggle';
+import { TitleActions } from '@/components/TitleActions';
 import { WatchHistory } from '@/components/WatchHistory';
 import { SocialOnTitle } from '@/components/social/SocialOnTitle';
 import { ReviewDrawer } from '@/components/ReviewDrawer';
-import { ShareButton } from '@/components/ShareButton';
 import { JustWatchCredit } from '@/components/Attribution';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
@@ -29,7 +25,7 @@ import { ProviderLogo, pickProviders } from '@/lib/providers';
 import { paysFor, subscribedNames } from '@/lib/subscriptions';
 import { newEpisodesSummary } from '@/lib/progress';
 import { formatTmdbScore } from '@/lib/tmdbScore';
-import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
+import { isArchivedStatus } from '@/lib/archive';
 import { cn } from '@/lib/utils';
 import { useMediaStore } from '@/store';
 import { getRegionName, usePreferences } from '@/preferences';
@@ -82,12 +78,12 @@ function ProviderGroup({
           return (
             <li
               key={provider.provider_name}
-              className="flex flex-col items-center gap-1 w-14"
+              className="flex flex-col items-center gap-1 w-12"
               title={provider.provider_name}
             >
               <span
                 className={cn(
-                  'block w-12 h-12 rounded-control bg-border-card overflow-hidden',
+                  'block w-10 h-10 rounded-control bg-border-card overflow-hidden',
                   isMine && 'ring-2 ring-accent ring-offset-2 ring-offset-bg-card',
                 )}
               >
@@ -131,6 +127,11 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   /** La reseña que se pide al marcar algo como completado. */
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const titleId = useId();
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
+  /** Si la imagen ya salió de pantalla: ahí aparece la barra con el nombre. */
+  const [isPastHero, setIsPastHero] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
   // Un backfill por apertura: sin esto, el patch cambia `media`, el efecto se
   // vuelve a disparar y se escribe en loop.
   const backfilled = useRef<number | null>(null);
@@ -199,12 +200,35 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
   useEffect(() => {
     setJustSaved(null);
     setIsReviewOpen(false);
+    setIsOverviewExpanded(false);
+    setIsPastHero(false);
   }, [id, isOpen]);
+
+  const showsContent = !(error && !media && !justSaved);
+
+  /**
+   * Cuando la imagen sale de pantalla aparece una barra fina con el nombre.
+   *
+   * La X flota arriba a la derecha y, sin la barra, al scrollear quedaba
+   * encima del contenido —tapaba el contador de episodios y "Marcar toda"—.
+   * Con la barra, lo que pasa por debajo de la X es la barra.
+   */
+  useEffect(() => {
+    const root = scrollRef.current;
+    const hero = heroRef.current;
+    if (!root || !hero || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsPastHero(!entry.isIntersecting),
+      { root, rootMargin: '-64px 0px 0px 0px' },
+    );
+    observer.observe(hero);
+    return () => observer.disconnect();
+  }, [isOpen, showsContent]);
 
   const trailer = detail?.videos?.results?.find(
     (v) => v.type === 'Trailer' && v.site === 'YouTube',
   );
-  const cast = detail?.credits?.cast?.slice(0, 5) ?? [];
+  const credits = detail?.credits?.cast?.slice(0, 5) ?? [];
 
   const picked = pickProviders(detail, preferredRegion);
   const allProviders = picked?.providers ?? [];
@@ -297,13 +321,122 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
     await saveToLibrary('por_ver', [collectionId]);
   };
 
-  const quickStatus = (
-    <QuickStatusButtons
-      title={title}
-      saved={saved}
-      savingStatus={savingStatus}
-      onSave={handleQuickAdd}
-    />
+  /**
+   * Una serie que estás siguiendo abre por el progreso: casi siempre se abre
+   * su ficha para marcar el episodio de anoche, y antes había que pasar por la
+   * sinopsis, el reparto y el tráiler para llegar. Lo demás arranca como
+   * siempre, por lo que cuenta de qué va.
+   */
+  const isFollowing =
+    saved?.mediaType === 'tv' && (saved.status === 'viendo' || saved.status === 'en_pausa');
+  const year =
+    (detail?.release_date || detail?.first_air_date || '').split('-')[0] || saved?.releaseYear;
+  /** Las sinopsis cortas entran enteras en cuatro renglones. */
+  const isLongOverview = (detail?.overview?.length ?? 0) > 280;
+
+  const progress = saved && mediaType === 'tv' && (
+    <SeriesProgress media={saved} seasons={seasons} />
+  );
+
+
+  const whereToWatch = allProviders.length > 0 && picked && (
+    <section className="flex flex-col gap-3">
+      <h3 className="text-section">Dónde ver en {getRegionName(picked.region)}</h3>
+      {picked.region !== preferredRegion && (
+        <p className="text-xs text-text-subtle -mt-2">
+          No hay datos para {getRegionName(preferredRegion)}. Podés cambiar el país en
+          tu perfil.
+        </p>
+      )}
+      {/* Incluido primero y aparte: "está en Prime Video" podía ser incluido
+          o alquiler, y para decidir qué ver esta noche son dos respuestas
+          opuestas. */}
+      <div className="flex flex-wrap gap-x-8 gap-y-4">
+        <ProviderGroup label="Incluido en" providers={picked.included} subscribed={subscribed} />
+        <ProviderGroup
+          label="Alquiler o compra"
+          providers={picked.rentOrBuy}
+          subscribed={subscribed}
+        />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        {/* La API da nombres y logos, pero los enlaces a cada plataforma
+            viven en la página de TMDB. */}
+        {picked.link && (
+          <a
+            href={picked.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline underline-offset-4"
+          >
+            Ver dónde verlo
+            <ExternalLink size={14} aria-hidden="true" />
+            <span className="sr-only">(se abre en TMDB)</span>
+          </a>
+        )}
+        <JustWatchCredit />
+      </div>
+    </section>
+  );
+
+  const synopsis = detail?.overview && (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-section">Sinopsis</h3>
+      <p
+        className={cn(
+          'text-text-muted text-sm leading-relaxed',
+          isLongOverview && !isOverviewExpanded && 'line-clamp-4',
+        )}
+      >
+        {detail.overview}
+      </p>
+      {isLongOverview && (
+        <button
+          type="button"
+          aria-expanded={isOverviewExpanded}
+          onClick={() => setIsOverviewExpanded((open) => !open)}
+          className="self-start text-sm text-text-muted underline underline-offset-4 hover:text-text-main"
+        >
+          {isOverviewExpanded ? 'Leer menos' : 'Leer más'}
+        </button>
+      )}
+    </section>
+  );
+
+  const cast = credits.length > 0 && (
+    <ScrollRail
+      label="Reparto"
+      fadeFrom="card"
+      header={<h3 className="text-section">Reparto</h3>}
+    >
+      {credits.map((c) => (
+        <li key={c.id} className="rail-item w-20 shrink-0">
+          {/* Un enlace de verdad y no un botón: la página de la persona tiene
+              su dirección, así que "atrás" vuelve adonde estabas y se puede
+              abrir en otra pestaña. La ficha se cierra al salir: queda atrás,
+              no encima de la página nueva. */}
+          <Link
+            to={`/persona/${c.id}`}
+            onClick={onClose}
+            className="group flex flex-col gap-2 rounded-control"
+          >
+            <span className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0 shadow-card ring-2 ring-transparent group-hover:ring-accent transition-[box-shadow]">
+              {c.profile_path && (
+                <img
+                  src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`}
+                  alt=""
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+              )}
+            </span>
+            <span className="text-xs text-center font-medium leading-tight truncate group-hover:text-accent">
+              {c.name}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ScrollRail>
   );
 
   return (
@@ -327,12 +460,12 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
         <button
           onClick={onClose}
           aria-label="Cerrar"
-          className="absolute top-4 right-4 z-10 p-2 bg-bg-main/60 backdrop-blur-md rounded-full text-text-main hover:bg-bg-main transition-colors"
+          className="absolute top-3 right-4 z-20 p-2 bg-bg-main/60 backdrop-blur-md rounded-full text-text-main hover:bg-bg-main transition-colors"
         >
           <X size={20} aria-hidden="true" />
         </button>
 
-        {error && !saved ? (
+        {!showsContent ? (
           // Sin el título en la biblioteca no queda nada para mostrar salvo el
           // error. Si está guardado, el modal sigue en pie: el progreso, el
           // historial y las listas son datos propios y no dependen de TMDB.
@@ -351,11 +484,20 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
         ) : (
           // Scrollea todo junto, imagen incluida: fija, la imagen se quedaba
           // con un cuarto de la pantalla mientras se marcan episodios.
-          <div className="flex-1 overflow-y-auto overscroll-contain">
-            <div className="relative aspect-video w-full bg-border-card">
-              {loading && (
-                <div className="absolute inset-0 animate-pulse bg-border-card" />
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+            <div
+              aria-hidden="true"
+              className={cn(
+                'sticky top-0 z-10 h-16 -mb-16 flex items-center pl-6 pr-16',
+                'bg-bg-card border-b border-border-card transition-opacity duration-150',
+                isPastHero ? 'opacity-100' : 'opacity-0 pointer-events-none',
               )}
+            >
+              <p className="font-serif italic font-bold text-xl truncate">{title}</p>
+            </div>
+
+            <div ref={heroRef} className="relative aspect-video w-full bg-border-card">
+              {loading && <div className="absolute inset-0 animate-pulse bg-border-card" />}
               {/* Sin la ficha de TMDB queda el póster que el título ya tenía
                   guardado: peor encuadre que un backdrop, pero mejor que un
                   rectángulo gris. */}
@@ -379,7 +521,7 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
               {title && (
-                <div className="absolute bottom-6 left-6 right-6">
+                <div className="absolute bottom-5 left-6 right-6">
                   <div className="flex items-start justify-between gap-3">
                     <h2
                       id={titleId}
@@ -400,17 +542,30 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                       </span>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2 text-sm text-white/80 mt-2">
-                    <span>
-                      {(detail?.release_date || detail?.first_air_date || '').split(
-                        '-',
-                      )[0] || saved?.releaseYear}
-                    </span>
-                    {(detail?.genres?.map((g) => g.name) ?? saved?.genres ?? [])
-                      .slice(0, 3)
-                      .map((name) => (
-                        <span key={name}>• {name}</span>
-                      ))}
+                  <div className="flex items-end justify-between gap-3 mt-2">
+                    <p className="flex flex-wrap gap-x-2 text-sm text-white/80">
+                      <span>{year}</span>
+                      {(detail?.genres?.map((g) => g.name) ?? saved?.genres ?? [])
+                        .slice(0, 3)
+                        .map((name) => (
+                          <span key={name}>• {name}</span>
+                        ))}
+                    </p>
+                    {/* Chico y sobre la imagen: era el botón más grande y el
+                        único rojo de la ficha, y es lo que menos se usa en
+                        una serie que ya estás viendo. */}
+                    {trailer && (
+                      <a
+                        href={`https://www.youtube.com/watch?v=${trailer.key}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-black/50 backdrop-blur-md px-3 py-1.5 text-sm font-semibold text-white hover:bg-black/70 transition-colors"
+                      >
+                        <Play size={14} className="fill-current" aria-hidden="true" />
+                        Tráiler
+                        <span className="sr-only">(se abre en YouTube)</span>
+                      </a>
+                    )}
                   </div>
                 </div>
               )}
@@ -427,131 +582,80 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                 </p>
               )}
 
+              {(detail || saved) && (
+                <TitleActions
+                  title={title}
+                  saved={saved}
+                  savingStatus={savingStatus}
+                  onQuickSave={handleQuickAdd}
+                  onSaveInto={handleSaveInto}
+                  share={{
+                    text: `Estoy mirando ${title} en Qué Miro?`,
+                    card: {
+                      eyebrow: saved?.history?.length ? 'La vi' : 'Anotada para ver',
+                      headline: title,
+                      subline: [year, detail?.genres?.[0]?.name ?? saved?.genres[0]]
+                        .filter(Boolean)
+                        .join(' · '),
+                      stats: saved?.history?.[0]
+                        ? [{ value: String(saved.history[0].rating), label: 'de 5 estrellas' }]
+                        : undefined,
+                    },
+                  }}
+                />
+              )}
+
+              {/* El aviso ofrece volver a Viendo, pero no la mueve solo: puede
+                  que la persona quiera esperar a que salga la temporada
+                  entera. */}
+              {saved && news && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-accent/30 bg-accent/10 px-4 py-3">
+                  <p className="text-sm text-text-main">
+                    <strong className="text-accent">{news.label}</strong>{' '}
+                    {saved.status === 'completada'
+                      ? 'desde que la terminaste.'
+                      : 'desde la última vez que estabas al día.'}
+                  </p>
+                  {/* Una en pausa ya ofrece "Retomar" en su píldora: dos
+                      botones que hacen lo mismo se leen como dos cosas
+                      distintas. */}
+                  {saved.status !== 'viendo' && !isArchivedStatus(saved.status) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void updateStatus(saved.tmdbId, 'viendo');
+                        showToast(`"${saved.title}" volvió a Viendo.`);
+                      }}
+                      className="btn btn-primary px-3 py-2 text-sm"
+                    >
+                      Pasar a Viendo
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {isFollowing && progress}
+
               {loading ? (
                 <div className="flex items-center justify-center gap-2 py-10 text-text-muted">
                   <Loader2 className="animate-spin" size={20} aria-hidden="true" />
                   <span className="text-sm">Cargando detalles...</span>
                 </div>
+              ) : isFollowing ? (
+                <>
+                  {whereToWatch}
+                  {synopsis}
+                  {cast}
+                </>
               ) : (
                 <>
-                  {detail?.overview ? (
-                    <div>
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <h3 className="text-lg font-bold">Sinopsis</h3>
-                        {quickStatus}
-                      </div>
-                      <p className="text-text-muted text-sm leading-relaxed">
-                        {detail.overview}
-                      </p>
-                    </div>
-                  ) : (
-                    // Sin sinopsis no va un encabezado vacío: los atajos quedan
-                    // solos, en el mismo lugar.
-                    (detail || saved) && (
-                      <div className="flex justify-end">{quickStatus}</div>
-                    )
-                  )}
-
-                  {cast.length > 0 && (
-                    <ScrollRail
-                      label="Reparto Principal"
-                      fadeFrom="card"
-                      header={<h3 className="text-lg font-bold">Reparto Principal</h3>}
-                    >
-                      {cast.map((c) => (
-                        <li key={c.id} className="rail-item w-20 shrink-0">
-                          {/* Un enlace de verdad y no un botón: la página de la
-                              persona tiene su dirección, así que "atrás" vuelve
-                              adonde estabas y se puede abrir en otra pestaña.
-                              La ficha se cierra al salir: queda atrás, no
-                              encima de la página nueva. */}
-                          <Link
-                            to={`/persona/${c.id}`}
-                            onClick={onClose}
-                            className="group flex flex-col gap-2 rounded-control"
-                          >
-                            <span className="w-20 h-20 rounded-full bg-border-card overflow-hidden shrink-0 shadow-card ring-2 ring-transparent group-hover:ring-accent transition-[box-shadow]">
-                              {c.profile_path && (
-                                <img
-                                  src={`${TMDB_IMAGE_BASE_URL}${c.profile_path}`}
-                                  alt=""
-                                  loading="lazy"
-                                  className="w-full h-full object-cover"
-                                />
-                              )}
-                            </span>
-                            <span className="text-xs text-center font-medium leading-tight truncate group-hover:text-accent">
-                              {c.name}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ScrollRail>
-                  )}
-
-                  {trailer && (
-                    <a
-                      href={`https://www.youtube.com/watch?v=${trailer.key}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-primary w-full py-4 shrink-0"
-                    >
-                      <Play size={20} className="fill-current" aria-hidden="true" />
-                      Ver Tráiler
-                      <span className="sr-only">(se abre en YouTube)</span>
-                    </a>
-                  )}
+                  {synopsis}
+                  {whereToWatch}
+                  {cast}
                 </>
               )}
 
-              {saved && (
-                <div className="flex flex-col gap-3">
-                  <h3 className="text-section">Tu biblioteca</h3>
-                  <p className="text-sm text-text-muted">
-                    Ya está en tu biblioteca, en{' '}
-                    <strong className="text-text-main">
-                      {isArchivedStatus(saved.status)
-                        ? 'Archivadas'
-                        : STATUS_LABELS[saved.status]}
-                    </strong>
-                    .
-                  </p>
-                  {/* El aviso ofrece volver a Viendo, pero no la mueve
-                      solo: puede que la persona quiera esperar a que
-                      salga la temporada entera. */}
-                  {news && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-accent/30 bg-accent/10 px-4 py-3">
-                      <p className="text-sm text-text-main">
-                        <strong className="text-accent">{news.label}</strong>{' '}
-                        {saved.status === 'completada'
-                          ? 'desde que la terminaste.'
-                          : 'desde la última vez que estabas al día.'}
-                      </p>
-                      {/* Una en pausa ya ofrece "Retomar" abajo: dos
-                          botones que hacen lo mismo se leen como dos
-                          cosas distintas. */}
-                      {saved.status !== 'viendo' && !isArchivedStatus(saved.status) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void updateStatus(saved.tmdbId, 'viendo');
-                            showToast(`"${saved.title}" volvió a Viendo.`);
-                          }}
-                          className="btn btn-primary px-3 py-2 text-sm"
-                        >
-                          Pasar a Viendo
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <StatusActions media={saved} />
-                  <NotifyToggle media={saved} />
-                </div>
-              )}
-
-              {saved && mediaType === 'tv' && (
-                <SeriesProgress media={saved} seasons={seasons} />
-              )}
+              {!isFollowing && progress}
 
               {saved && <WatchHistory media={saved} />}
 
@@ -562,106 +666,10 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                     mediaType,
                     title,
                     posterPath: saved?.posterPath ?? detail?.poster_path ?? null,
-                    releaseYear:
-                      saved?.releaseYear ?? (detail?.release_date || detail?.first_air_date || '').split('-')[0],
+                    releaseYear: saved?.releaseYear ?? year ?? '',
                   }}
                   saved={saved}
                 />
-              )}
-
-              {(saved || detail) && (
-                <CollectionPicker
-                  title={title}
-                  media={saved ?? undefined}
-                  onSaveInto={handleSaveInto}
-                />
-              )}
-
-              {!loading && (
-                <>
-                  {title && (
-                    <ShareButton
-                      className="self-start"
-                      title={title}
-                      text={`Estoy mirando ${title} en Qué Miro?`}
-                      card={{
-                        eyebrow: saved?.history?.length
-                          ? 'La vi'
-                          : 'Anotada para ver',
-                        headline: title,
-                        subline: [
-                          detail?.release_date?.split('-')[0] ??
-                            detail?.first_air_date?.split('-')[0] ??
-                            saved?.releaseYear,
-                          detail?.genres?.[0]?.name ?? saved?.genres[0],
-                        ]
-                          .filter(Boolean)
-                          .join(' · '),
-                        stats: saved?.history?.[0]
-                          ? [
-                              {
-                                value: String(saved.history[0].rating),
-                                label: 'de 5 estrellas',
-                              },
-                            ]
-                          : undefined,
-                      }}
-                    />
-                  )}
-
-                  {allProviders.length > 0 && picked && (
-                    <div>
-                      <h3 className="text-lg font-bold mb-1">
-                        Dónde Ver en {getRegionName(picked.region)}
-                      </h3>
-                      {picked.region !== preferredRegion && (
-                        <p className="text-xs text-text-subtle mb-3">
-                          No hay datos para {getRegionName(preferredRegion)}. Podés
-                          cambiar el país en tu perfil.
-                        </p>
-                      )}
-                      {/* Incluido primero y aparte: "está en Prime Video" podía
-                          ser incluido o alquiler, y para decidir qué ver esta
-                          noche son dos respuestas opuestas. */}
-                      <div className="flex flex-col gap-4 mt-3">
-                        <ProviderGroup
-                          label="Incluido en"
-                          providers={picked.included}
-                          subscribed={subscribed}
-                        />
-                        <ProviderGroup
-                          label="Alquiler o compra"
-                          providers={picked.rentOrBuy}
-                          subscribed={subscribed}
-                        />
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-3">
-                        {/* La API da nombres y logos, pero los enlaces a cada
-                            plataforma viven en la página de TMDB. */}
-                        {picked.link && (
-                          <a
-                            href={picked.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline underline-offset-4"
-                          >
-                            Ver dónde verlo
-                            <ExternalLink size={14} aria-hidden="true" />
-                            <span className="sr-only">(se abre en TMDB)</span>
-                          </a>
-                        )}
-                        <JustWatchCredit />
-                      </div>
-                    </div>
-                  )}
-
-                  {allProviders.length === 0 && detail && (
-                    <p className="text-sm text-text-subtle">
-                      No encontramos plataformas para este título en{' '}
-                      {getRegionName(preferredRegion)}.
-                    </p>
-                  )}
-                </>
               )}
             </div>
           </div>

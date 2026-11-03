@@ -20,8 +20,13 @@ import {
 
 export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 export const TMDB_IMAGE_ORIGINAL_URL = 'https://image.tmdb.org/t/p/original';
-/** Las imágenes de episodio van chicas: con 300 px de ancho sobra. */
+/** Las imágenes de episodio, para pantallas comunes: 300 px de ancho. */
 export const TMDB_STILL_URL = 'https://image.tmdb.org/t/p/w300';
+/**
+ * Las imágenes de episodio a todo el ancho de la tarjeta. En un celular con
+ * pantalla 2x la tarjeta pide unos 700 px reales, y la de 300 se ve borrosa.
+ */
+export const TMDB_STILL_LARGE_URL = 'https://image.tmdb.org/t/p/w780';
 /** Avatares: un póster recortado en un círculo de 40 a 96 px. */
 export const TMDB_AVATAR_URL = 'https://image.tmdb.org/t/p/w185';
 /** Logos de plataformas: se muestran a 48 px, y el de 500 pesaba diez veces más. */

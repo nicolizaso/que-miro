@@ -330,6 +330,104 @@ export function toggleEpisode(
   return withEpisodeData(watched, progress, now);
 }
 
+/** Un episodio puntual de la serie. */
+export interface EpisodeRef {
+  seasonNumber: number;
+  episode: number;
+}
+
+/**
+ * Los episodios sin ver que hay justo antes de uno, en orden.
+ *
+ * Es la tanda que se ofrece marcar junto con un episodio avanzado: quien marca
+ * el 2x5 sin tener nada visto casi siempre está registrando que vio todo hasta
+ * ahí, y tildar uno por uno los anteriores es justo lo que nadie quiere hacer.
+ *
+ * Es el hueco desde el último visto, no todo lo que falte para atrás: un
+ * episodio que salteaste hace meses fue una decisión, y preguntar por él cada
+ * vez que marcás otro sería insistir. Vacío si el de justo antes está visto.
+ */
+export function unwatchedRunBefore(
+  media: WithAiring,
+  seasonNumber: number,
+  episode: number,
+): EpisodeRef[] {
+  const before: EpisodeRef[] = [];
+  for (const season of countableSeasons(media)) {
+    if (season.seasonNumber > seasonNumber) break;
+    const last =
+      season.seasonNumber === seasonNumber
+        ? Math.min(episode - 1, season.episodeCount)
+        : airedInSeason(media, season);
+    for (let number = 1; number <= last; number++) {
+      before.push({ seasonNumber: season.seasonNumber, episode: number });
+    }
+  }
+
+  const run: EpisodeRef[] = [];
+  for (let index = before.length - 1; index >= 0; index--) {
+    const ref = before[index];
+    if (isEpisodeWatched(media.progress, ref.seasonNumber, ref.episode)) break;
+    run.unshift(ref);
+  }
+  return run;
+}
+
+/**
+ * La pregunta que acompaña a {@link unwatchedRunBefore}, en castellano.
+ *
+ * Nombra los episodios en vez de contarlos cuando entran en una frase: "del
+ * T2E1 al T2E3" se chequea de un vistazo contra lo que uno se acuerda de haber
+ * visto, "3 episodios" no.
+ */
+export function previousEpisodesQuestion(run: EpisodeRef[]): string {
+  const [first] = run;
+  const last = run[run.length - 1];
+  const name = (ref: EpisodeRef) => formatEpisode(ref.seasonNumber, ref.episode);
+
+  if (run.length === 1) return `¿Viste también el ${name(first)}?`;
+  if (first.seasonNumber === last.seasonNumber) {
+    return `¿Viste también del ${name(first)} al ${name(last)}?`;
+  }
+  return `¿Viste también los ${run.length} anteriores, desde el ${name(first)}?`;
+}
+
+/**
+ * Marca varios episodios de una vez, devolviendo el progreso nuevo.
+ *
+ * Lo que ya estaba marcado se queda como estaba, con su fecha y su puntaje;
+ * lo nuevo lleva la fecha de ahora, igual que al marcar una temporada entera.
+ */
+export function markEpisodes(
+  progress: SeriesProgress | undefined,
+  episodes: EpisodeRef[],
+  now: Date = new Date(),
+): SeriesProgress {
+  const watched = { ...(progress?.watched ?? {}) };
+  for (const { seasonNumber, episode } of episodes) {
+    const current = watched[seasonNumber] ?? [];
+    if (current.includes(episode)) continue;
+    watched[seasonNumber] = [...current, episode].sort((a, b) => a - b);
+  }
+  return withEpisodeData(watched, progress, now);
+}
+
+/**
+ * El episodio en el que se abre una temporada.
+ *
+ * El primero sin ver de lo que ya salió, que es el que alguien viene a marcar.
+ * Si viste todo lo emitido, el último que salió: es donde quedaste y donde se
+ * puntúa. Una temporada que todavía no salió abre en el primero, que es el que
+ * se viene.
+ */
+export function focusEpisode(media: WithAiring, season: SeasonInfo): number {
+  const aired = airedInSeason(media, season);
+  for (let episode = 1; episode <= aired; episode++) {
+    if (!isEpisodeWatched(media.progress, season.seasonNumber, episode)) return episode;
+  }
+  return Math.max(aired, 1);
+}
+
 /**
  * Marca o desmarca una temporada entera.
  *
