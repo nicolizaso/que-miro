@@ -234,6 +234,15 @@ describe('SeriesProgress, un episodio a la vez', () => {
     expect(screen.queryByText(/pasó a/)).not.toBeInTheDocument();
   });
 
+  it('la tira de números va arriba de la tarjeta, así no salta cuando la tarjeta cambia de alto', async () => {
+    renderProgress(severance());
+
+    await screen.findByText('Bienvenidos a Lumon');
+    const strip = screen.getByRole('list', { name: 'Ir a un episodio' });
+    const cards = screen.getByRole('list', { name: 'Episodios de Temporada 1' });
+    expect(strip.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('tocar un número lleva la tarjeta a ese episodio, sin marcarlo', async () => {
     const user = userEvent.setup();
     renderProgress(severance());

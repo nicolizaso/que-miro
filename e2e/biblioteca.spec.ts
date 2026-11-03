@@ -178,6 +178,28 @@ test('marcar un episodio avanzado sin los anteriores pregunta si los viste', asy
   await expect(dialog.getByRole('button', { name: 'Ir al episodio 1, visto' })).toBeVisible();
 });
 
+test('tocar un número de la tira lleva la tarjeta hasta ese episodio', async ({ page }) => {
+  await selectTab(page, /Viendo/);
+  await page.getByRole('button', { name: /^Ver detalle de Severance/ }).click();
+  const dialog = page.getByRole('dialog');
+  // Abre en T2E4; el último está varias tarjetas más allá.
+  await expect(dialog.getByRole('button', { name: 'Ir al episodio 4' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+
+  await dialog.getByRole('button', { name: 'Ir al episodio 10' }).click();
+
+  const cards = dialog.getByRole('list', { name: /^Episodios de / });
+  const last = cards.locator('[data-episode="10"]');
+  await expect
+    .poll(async () => {
+      const [list, card] = await Promise.all([cards.boundingBox(), last.boundingBox()]);
+      return list && card ? Math.round(card.x - list.x) : null;
+    })
+    .toBe(24);
+});
+
 test('el progreso persiste al cerrar y volver a abrir la ficha', async ({ page }) => {
   await selectTab(page, /Viendo/);
   await openFirstCard(page);
