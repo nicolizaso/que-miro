@@ -536,6 +536,66 @@ export async function getSeason(
 }
 
 /**
+ * Un día: las imágenes de un título casi no cambian, y los votos que las
+ * ordenan se mueven de a poco.
+ */
+export const IMAGES_TTL = 60 * 60 * 24;
+
+/**
+ * Cuántas imágenes viajan como mucho. Las series largas tienen cientos; la
+ * galería muestra veinte, y el resto es margen para que el cliente descarte
+ * la que ya está de fondo en la ficha.
+ */
+export const MAX_IMAGES = 40;
+
+/** Una imagen de la galería, con lo justo para dibujarla y ordenarla. */
+export interface GalleryImage {
+  file_path: string;
+  width: number;
+  height: number;
+  vote_average: number;
+  vote_count: number;
+}
+
+/**
+ * Los fondos de un título, para la galería de la ficha.
+ *
+ * Solo los que no tienen idioma: son los fotogramas limpios. Los que tienen
+ * idioma suelen llevar el título escrito encima, y en una galería de escenas
+ * se leen como afiches repetidos. Como no dependen del idioma, se cachean una
+ * sola vez para España y Latinoamérica.
+ */
+export async function getImages(
+  mediaType: MediaType,
+  id: number,
+): Promise<{ backdrops: GalleryImage[] }> {
+  return withCache(`images:${mediaType}:${id}`, IMAGES_TTL, async () => {
+    const data = await fetchTMDB<{ backdrops?: Record<string, unknown>[] }>(
+      `/${mediaType}/${id}/images`,
+      { include_image_language: 'null' },
+    );
+
+    const backdrops = (data.backdrops ?? [])
+      // TMDB a veces suma los del idioma pedido aunque se le diga `null`.
+      .filter((raw) => raw.iso_639_1 == null && typeof raw.file_path === 'string')
+      .slice(0, MAX_IMAGES)
+      .map((raw) => {
+        const vote = Number(raw.vote_average);
+        const count = Number(raw.vote_count);
+        return {
+          file_path: raw.file_path as string,
+          width: Number(raw.width) || 0,
+          height: Number(raw.height) || 0,
+          vote_average: Number.isFinite(vote) ? vote : 0,
+          vote_count: Number.isFinite(count) ? count : 0,
+        };
+      });
+
+    return { backdrops };
+  });
+}
+
+/**
  * Una hora: el cron de avisos pide cada serie una sola vez por corrida, y esto
  * cubre una segunda corrida el mismo rato —un reintento, una prueba a mano—
  * sin repetirle las preguntas a TMDB.

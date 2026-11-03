@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import detail from './detail.js';
 import discover from './discover.js';
 import find from './find.js';
+import images from './images.js';
 import person from './person.js';
 import personPage from './person-page.js';
 import providers from './providers.js';
@@ -29,6 +30,7 @@ export const TMDB_ROUTES: Record<string, Handler> = {
   detail,
   discover,
   find,
+  images,
   person,
   'person-page': personPage,
   providers,

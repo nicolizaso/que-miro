@@ -16,6 +16,7 @@ import {
   PERSON_TTL,
   PROVIDERS_TTL,
   RECOMMENDATIONS_TTL,
+  IMAGES_TTL,
   SEASON_TTL,
   TRENDING_TTL,
   findByImdbId,
@@ -27,6 +28,7 @@ import {
   getProviders,
   getRecommendations,
   getSaga,
+  getImages,
   getSeason,
   getSimilar,
   getTrending,
@@ -227,6 +229,17 @@ async function startServer() {
         parseLanguage(req.query.lang),
       );
       res.set(cacheHeaders(SEASON_TTL));
+      return res.status(200).json(result);
+    } catch (error) {
+      const { status, body } = toErrorResponse(error);
+      return res.status(status).json(body);
+    }
+  });
+
+  app.get('/api/tmdb/images', async (req, res) => {
+    try {
+      const result = await getImages(parseMediaType(req.query.type), parseId(req.query.id));
+      res.set(cacheHeaders(IMAGES_TTL));
       return res.status(200).json(result);
     } catch (error) {
       const { status, body } = toErrorResponse(error);

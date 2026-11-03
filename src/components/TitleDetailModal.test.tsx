@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Collection, SavedMedia, TMDbDetail } from '@/types';
+import type { TMDbImage } from '@/lib/tmdb';
 
 /** Sin sesión: la biblioteca es el store local, que es lo que miran los tests. */
 vi.mock('@/contexts/AuthContext', () => ({
@@ -38,9 +39,12 @@ const detail: TMDbDetail = {
 };
 
 const getMediaDetail = vi.fn(async () => detail);
+/** Sin fotos por defecto: la galería no aparece y no se mete en el resto. */
+const getImages = vi.fn(async (): Promise<TMDbImage[]> => []);
 
 vi.mock('@/lib/tmdb', () => ({
   getMediaDetail: (...args: unknown[]) => getMediaDetail(...(args as [])),
+  getImages: () => getImages(),
   // Sin los episodios, la temporada queda en su grilla de números.
   getSeason: async () => {
     throw new Error('sin red');
@@ -51,6 +55,7 @@ vi.mock('@/lib/tmdb', () => ({
   TMDB_IMAGE_ORIGINAL_URL: 'https://image.tmdb.org/t/p/original',
   TMDB_STILL_URL: 'https://image.tmdb.org/t/p/w300',
   TMDB_STILL_LARGE_URL: 'https://image.tmdb.org/t/p/w780',
+  TMDB_BACKDROP_LARGE_URL: 'https://image.tmdb.org/t/p/w1280',
 }));
 
 const { TitleDetailModal } = await import('@/components/TitleDetailModal');
@@ -515,5 +520,78 @@ describe('TitleDetailModal, el reparto', () => {
       getMediaDetail.mockImplementation(async () => detail);
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('TitleDetailModal, la galería', () => {
+  function photo(path: string, vote_average = 0): TMDbImage {
+    return { file_path: path, width: 1920, height: 1080, vote_average, vote_count: 1 };
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    getImages.mockImplementation(async () => []);
+    vi.unstubAllGlobals();
+  });
+
+  it('sin fotos no muestra la sección', async () => {
+    await renderExploreDetail();
+    await waitFor(() => expect(getImages).toHaveBeenCalled());
+    expect(screen.queryByRole('heading', { name: 'Imágenes' })).not.toBeInTheDocument();
+  });
+
+  it('muestra las fotos sin repetir el fondo, y el visor pasa de una a otra', async () => {
+    const user = userEvent.setup();
+    getImages.mockImplementation(async () => [
+      photo('/backdrop.jpg', 9),
+      photo('/escena-1.jpg', 6),
+      photo('/escena-2.jpg', 5),
+    ]);
+
+    await renderExploreDetail();
+
+    expect(await screen.findByRole('heading', { name: 'Imágenes' })).toBeInTheDocument();
+    // La de fondo ya está arriba: quedan dos.
+    expect(screen.getAllByRole('button', { name: /^Ver imagen/ })).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: 'Ver imagen 1 de 2' }));
+    const viewer = screen.getByRole('dialog', { name: 'Imágenes de Severance' });
+    expect(viewer).toHaveTextContent('1 de 2');
+    expect(screen.getByRole('img', { name: 'Imagen 1 de 2 de Severance' })).toHaveAttribute(
+      'src',
+      'https://image.tmdb.org/t/p/w1280/escena-1.jpg',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Imagen siguiente' }));
+    expect(screen.getByRole('img', { name: 'Imagen 2 de 2 de Severance' })).toBeInTheDocument();
+
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('img', { name: 'Imagen 1 de 2 de Severance' })).toBeInTheDocument();
+
+    // Escape cierra el visor y deja la ficha abierta.
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Imágenes de Severance' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Imágenes' })).toBeInTheDocument();
+  });
+
+  it('si fallan las fotos, la ficha sigue igual', async () => {
+    getImages.mockImplementation(async () => {
+      throw new Error('sin red');
+    });
+
+    await renderExploreDetail();
+    await waitFor(() => expect(getImages).toHaveBeenCalled());
+    expect(screen.getByRole('heading', { name: 'Sinopsis' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Imágenes' })).not.toBeInTheDocument();
   });
 });

@@ -13,6 +13,7 @@ import { motion } from 'motion/react';
 import { Dialog } from '@/components/ui/Dialog';
 import { ScrollRail } from '@/components/ui/ScrollRail';
 import { SeriesProgress } from '@/components/SeriesProgress';
+import { TitleGallery } from '@/components/TitleGallery';
 import { TitleActions } from '@/components/TitleActions';
 import { WatchHistory } from '@/components/WatchHistory';
 import { SocialOnTitle } from '@/components/social/SocialOnTitle';
@@ -439,6 +440,17 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
     </ScrollRail>
   );
 
+  // Al final en los dos órdenes: es un extra para mirar, y no tiene que
+  // empujar hacia abajo dónde verla ni la sinopsis.
+  const gallery = detail && (
+    <TitleGallery
+      id={id}
+      mediaType={mediaType}
+      title={title}
+      heroPath={detail.backdrop_path}
+    />
+  );
+
   return (
     <Dialog
       isOpen={isOpen}
@@ -646,12 +658,14 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                   {whereToWatch}
                   {synopsis}
                   {cast}
+                  {gallery}
                 </>
               ) : (
                 <>
                   {synopsis}
                   {whereToWatch}
                   {cast}
+                  {gallery}
                 </>
               )}
 

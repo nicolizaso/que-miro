@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_DISCOVER_PAGE,
+  MAX_IMAGES,
   TmdbError,
   digitalReleases,
   findByImdbId,
   getAiring,
   getDiscover,
+  getImages,
   getList,
   getMediaDetail,
   getPersonCredits,
@@ -1425,5 +1427,81 @@ describe('la página de una persona', () => {
     clearCache();
 
     expect((await getPersonPage(1, 'es-MX')).person.biography).toBe('La de España.');
+  });
+});
+
+describe('las fotos de la galería', () => {
+  const originalKey = process.env.TMDB_API_KEY;
+
+  beforeEach(() => {
+    process.env.TMDB_API_KEY = 'test-key';
+    clearCache();
+  });
+
+  afterEach(() => {
+    process.env.TMDB_API_KEY = originalKey;
+    vi.unstubAllGlobals();
+    clearCache();
+  });
+
+  function stubImages(backdrops: unknown[]) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 1, backdrops, posters: [{ file_path: '/poster.jpg' }], logos: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('pide solo las imágenes sin idioma, a la ruta del tipo', async () => {
+    const fetchMock = stubImages([]);
+
+    await getImages('tv', 95396);
+
+    const url = new URL(fetchMock.mock.calls[0][0]);
+    expect(url.pathname).toBe('/3/tv/95396/images');
+    expect(url.searchParams.get('include_image_language')).toBe('null');
+  });
+
+  it('reenvía solo los fondos sin texto, recortados', async () => {
+    stubImages([
+      {
+        aspect_ratio: 1.778,
+        file_path: '/escena.jpg',
+        width: 1920,
+        height: 1080,
+        iso_639_1: null,
+        vote_average: 5.4,
+        vote_count: 3,
+      },
+      { file_path: '/con-titulo.jpg', width: 1920, height: 1080, iso_639_1: 'es', vote_average: 9 },
+      { file_path: null, iso_639_1: null },
+    ]);
+
+    const { backdrops } = await getImages('movie', 603);
+
+    expect(backdrops).toEqual([
+      { file_path: '/escena.jpg', width: 1920, height: 1080, vote_average: 5.4, vote_count: 3 },
+    ]);
+    expect(JSON.stringify(backdrops)).not.toContain('poster');
+  });
+
+  it('corta en el máximo', async () => {
+    stubImages(
+      Array.from({ length: 100 }, (_, n) => ({ file_path: `/${n}.jpg`, iso_639_1: null })),
+    );
+
+    expect((await getImages('tv', 1)).backdrops).toHaveLength(MAX_IMAGES);
+  });
+
+  it('cachea por tipo e id, sin importar el idioma', async () => {
+    const fetchMock = stubImages([]);
+
+    await getImages('tv', 1);
+    await getImages('tv', 1);
+    await getImages('movie', 1);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
