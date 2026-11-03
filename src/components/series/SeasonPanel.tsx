@@ -157,8 +157,12 @@ export function SeasonPanel({
     const measure = () => {
       setListHeight(card.offsetHeight);
       // La fila no scrollea en vertical, pero el navegador igual la corre si
-      // algo de adentro pide estar a la vista mientras cambia de alto.
-      if (listRef.current) listRef.current.scrollTop = 0;
+      // algo de adentro pide estar a la vista mientras cambia de alto. Solo si
+      // se corrió: escribir `scrollTop`, aunque sea el mismo valor, corta el
+      // deslizamiento horizontal en curso, y tocar un número de la tira dejaba
+      // la tarjeta donde estaba.
+      const list = listRef.current;
+      if (list && list.scrollTop !== 0) list.scrollTop = 0;
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -229,7 +233,7 @@ export function SeasonPanel({
       {...(tabPanel
         ? { id: tabPanel.id, role: 'tabpanel', 'aria-labelledby': tabPanel.labelledBy }
         : {})}
-      className="flex flex-col gap-3"
+      className="@container flex flex-col gap-3"
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm min-w-0">
@@ -257,11 +261,13 @@ export function SeasonPanel({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs text-text-subtle tabular-nums" aria-live="polite">
-          Episodio {current} de {count}
-        </span>
-        <div className="flex items-center gap-1">
+      {/* Arriba de la tarjeta y no abajo: la tarjeta cambia de alto según el
+          episodio, y lo que va debajo se corre. Acá, la tira y las flechas
+          quedan siempre en el mismo lugar. */}
+      <div className="flex items-center gap-2">
+        {/* Las flechas, solo con mouse: en pantalla táctil la tarjeta ya se
+            desliza con el dedo, y le robarían ancho a la tira. */}
+        <div className="hidden sm:flex shrink-0">
           <button
             type="button"
             onClick={() => goTo(current - 1)}
@@ -271,6 +277,16 @@ export function SeasonPanel({
           >
             <ChevronLeft size={18} aria-hidden="true" />
           </button>
+        </div>
+        <SeasonStrip
+          episodeCount={count}
+          current={current}
+          isAired={isAired}
+          isWatched={isWatched}
+          onGo={goTo}
+          className="flex-1 min-w-0 -mx-6 px-6 sm:mx-0 sm:px-1"
+        />
+        <div className="hidden sm:flex shrink-0">
           <button
             type="button"
             onClick={() => goTo(current + 1)}
@@ -282,6 +298,11 @@ export function SeasonPanel({
           </button>
         </div>
       </div>
+      {/* El anillo de la tira ya dice cuál es; esto es para el lector de
+          pantalla, que se entera al deslizar. */}
+      <p className="sr-only" aria-live="polite">
+        Episodio {current} de {count}
+      </p>
 
       {status === 'loading' ? (
         <CardSkeleton />
@@ -295,7 +316,12 @@ export function SeasonPanel({
           onScroll={handleScroll}
           aria-label={`Episodios de ${season.name}`}
           style={{ height: listHeight }}
-          className="relative -mx-6 px-6 scroll-px-6 grid grid-flow-col auto-cols-[calc(100%-2rem)] md:auto-cols-[85%] gap-3 items-start overflow-x-auto overflow-y-hidden snap-x snap-mandatory overscroll-x-contain transition-[height] duration-200 motion-reduce:transition-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          // El ancho de cada tarjeta sale del panel (`cqw`) y no de la fila:
+          // así el relleno de la derecha puede ser más ancho sin achicarlas.
+          // Ese relleno es lo que deja que la última tarjeta se imante al
+          // mismo lugar que las otras; con uno común quedaba corrida a la
+          // derecha, con un pedazo grande de la anterior a la vista.
+          className="relative -mx-6 pl-6 pr-14 md:pr-[calc(15cqw+1.5rem)] scroll-px-6 grid grid-flow-col auto-cols-[calc(100cqw-2rem)] md:auto-cols-[85cqw] gap-3 items-start overflow-x-auto overflow-y-hidden snap-x snap-mandatory overscroll-x-contain transition-[height] duration-200 motion-reduce:transition-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {Array.from({ length: count }, (_, index) => {
             const episodeNumber = index + 1;
@@ -340,14 +366,6 @@ export function SeasonPanel({
           })}
         </ul>
       )}
-
-      <SeasonStrip
-        episodeCount={count}
-        current={current}
-        isAired={isAired}
-        isWatched={isWatched}
-        onGo={goTo}
-      />
     </div>
   );
 }
