@@ -18,8 +18,14 @@ import {
   SeriesProgress,
   WatchEntry,
 } from '@/types';
-import { newWatchId, toStoredMedia, toStoredPatch, withArchive } from '@/lib/schema';
-import { isArchivedStatus } from '@/lib/archive';
+import {
+  newWatchId,
+  toStoredMedia,
+  toStoredPatch,
+  undoableCompletion,
+  withArchive,
+} from '@/lib/schema';
+import { STATUS_LABELS, isArchivedStatus } from '@/lib/archive';
 import { detectAvailabilityNews, markNewsSeen } from '@/lib/availability';
 import { hasSubscriptions, subscribedNames } from '@/lib/subscriptions';
 import { hasChosenGuest, shouldPromptSignIn } from '@/lib/pendingSave';
@@ -288,13 +294,55 @@ export function useMediaActions() {
     fireAndForget(setFields(tmdbId, { notify }));
   };
 
-  const updateStatus = async (tmdbId: number, status: MediaStatus) => {
+  /**
+   * Si el título sale de Completadas, se lleva la reseña recién cargada (ver
+   * `undoableCompletion`) y lo avisa con un "Deshacer" que devuelve todo como
+   * estaba: lista, reseña y episodios.
+   *
+   * Devuelve el historial a escribir, o `undefined` si no hay nada que sacar.
+   */
+  const dropUndoneReview = (current: SavedMedia | undefined, status: MediaStatus | undefined) => {
+    if (!current || current.status !== 'completada' || !status || status === 'completada') {
+      return undefined;
+    }
+    const entry = undoableCompletion(current);
+    if (!entry) return undefined;
+
+    const before = {
+      status: current.status,
+      history: current.history,
+      progress: current.progress,
+    };
+    showToast(
+      `"${current.title}" pasó a ${STATUS_LABELS[status]} y se borró el puntaje que le pusiste.`,
+      'success',
+      { action: { label: 'Deshacer', onAction: () => void write(current.tmdbId, before) } },
+    );
+    return (current.history ?? []).filter((item) => item.id !== entry.id);
+  };
+
+  /**
+   * Cambia de lista un título.
+   *
+   * `keepReview` es para cuando salir de Completadas no corrige nada —salieron
+   * episodios nuevos y la retomás—: ahí la reseña de lo que ya viste vale.
+   */
+  const updateStatus = async (
+    tmdbId: number,
+    status: MediaStatus,
+    { keepReview = false }: { keepReview?: boolean } = {},
+  ) => {
     const current = useMediaStore
       .getState()
       .mediaList.find((media) => media.tmdbId === tmdbId);
     const progress =
       status === 'completada' ? progressOnComplete(current) : undefined;
-    await write(tmdbId, { status, ...(progress ? { progress } : {}) });
+    const history = keepReview ? undefined : dropUndoneReview(current, status);
+    await write(tmdbId, {
+      status,
+      ...(progress ? { progress } : {}),
+      ...(history ? { history } : {}),
+    });
   };
 
   const patchMedia = async (tmdbId: number, patch: Partial<SavedMedia>) => {
@@ -411,12 +459,16 @@ export function useMediaActions() {
     const clearsNews =
       current?.newEpisodesSince !== undefined &&
       !hasNewEpisodes({ ...current, progress });
+    const history = dropUndoneReview(current, status);
 
     await write(tmdbId, {
       progress: hasProgress ? progress : undefined,
       ...(status ? { status } : {}),
       ...(clearsNews ? { newEpisodesSince: undefined } : {}),
+      ...(history ? { history } : {}),
     });
+    // Quien llamó se entera de que ya hubo aviso, para no dar otro encima.
+    return history !== undefined;
   };
 
   const removeMedia = async (tmdbId: number) => {

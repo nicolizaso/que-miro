@@ -1,4 +1,5 @@
 import {
+  MediaStatus,
   NewEpisodesMarker,
   SavedMedia,
   SeasonInfo,
@@ -492,6 +493,35 @@ export function completeProgress(
   // Igual que marcar una temporada entera: lo que faltaba queda con la fecha
   // de ahora, y lo que ya tenía la suya la conserva.
   return withEpisodeData(watched, media.progress, now);
+}
+
+// --- El estado que sigue al progreso ----------------------------------------
+
+/**
+ * A qué lista pasa un título después de marcar o desmarcar episodios, o
+ * `undefined` si se queda donde está.
+ *
+ * Terminar la serie no la marca como completada por su cuenta: eso lo decide
+ * la reseña, igual que en las películas. Pero al revés sí: si desmarcás algo
+ * de una completada, ya no la viste entera —o la estás volviendo a ver—, y
+ * dejarla en Completadas mentiría. Sin nada visto, vuelve a Por Ver: es lo que
+ * queda cuando se la marcó como completada sin querer.
+ */
+export function statusAfterProgress(
+  status: MediaStatus,
+  watchedBefore: number,
+  watchedAfter: number,
+): MediaStatus | undefined {
+  if (status === 'completada') {
+    if (watchedAfter >= watchedBefore) return undefined;
+    return watchedAfter === 0 ? 'por_ver' : 'viendo';
+  }
+  if (watchedAfter === 0) return status === 'viendo' ? 'por_ver' : undefined;
+  // Marcar un episodio más de una serie en pausa es retomarla. Una abandonada
+  // no se retoma sola: completar hasta dónde llegaste es corregir el dato, no
+  // volver a mirarla.
+  if (status === 'en_pausa' && watchedAfter > watchedBefore) return 'viendo';
+  return status === 'por_ver' ? 'viendo' : undefined;
 }
 
 // --- Episodios nuevos -------------------------------------------------------

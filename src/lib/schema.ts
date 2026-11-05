@@ -605,6 +605,29 @@ export function latestRating(media: SavedMedia): number | undefined {
   return latestWatch(media)?.rating;
 }
 
+/** Cuánto dura la chance de arrepentirse de haber marcado algo como visto. */
+export const COMPLETION_UNDO_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * La reseña que se va con el título si sale de Completadas, o `undefined`.
+ *
+ * Marcar como completada pide el puntaje en el mismo gesto, así que si fue sin
+ * querer, el puntaje también lo fue: dejarlo sumaría al gusto y a las
+ * estadísticas una vez que no viste. Solo la última y solo si es de las
+ * últimas 24 horas: un error se nota enseguida, y una serie que terminaste
+ * hace meses y estás volviendo a ver conserva lo que opinaste la primera vez.
+ * Lo puntuado al abandonar no cuenta: no es de haberla terminado.
+ */
+export function undoableCompletion(
+  media: Pick<SavedMedia, 'history'>,
+  now: Date = new Date(),
+): WatchEntry | undefined {
+  const entry = media.history?.[0];
+  if (!entry || isAbandonedEntry(entry)) return undefined;
+  const age = now.getTime() - Date.parse(entry.completedAt);
+  return age >= 0 && age < COMPLETION_UNDO_MS ? entry : undefined;
+}
+
 /**
  * Cuántas veces lo viste de punta a punta.
  *
