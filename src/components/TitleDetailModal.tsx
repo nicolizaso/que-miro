@@ -635,7 +635,9 @@ export function TitleDetailModal({ id, mediaType, media, isOpen, onClose }: Prop
                     <button
                       type="button"
                       onClick={() => {
-                        void updateStatus(saved.tmdbId, 'viendo');
+                        // Retomarla por lo nuevo no corrige nada: la reseña de lo que
+                        // ya viste se queda.
+                        void updateStatus(saved.tmdbId, 'viendo', { keepReview: true });
                         showToast(`"${saved.title}" volvió a Viendo.`);
                       }}
                       className="btn btn-primary px-3 py-2 text-sm"

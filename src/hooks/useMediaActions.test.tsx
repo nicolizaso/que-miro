@@ -115,3 +115,67 @@ describe('las escrituras en Firestore', () => {
     expect(options.mergeFields).toContain('archive');
   });
 });
+
+describe('salir de Completadas', () => {
+  const recent = () => ({ id: 'hoy', rating: 4, completedAt: new Date().toISOString() });
+  const old = { id: 'vieja', rating: 3, completedAt: '2020-01-01T00:00:00.000Z' };
+
+  beforeEach(() => setDoc.mockClear());
+
+  function lastWrite() {
+    return setDoc.mock.calls.at(-1)![1] as Record<string, unknown>;
+  }
+
+  it('cambiarle el estado borra el puntaje recién puesto', async () => {
+    useMediaStore.setState({
+      mediaList: [series({ status: 'completada', history: [recent(), old] })],
+    });
+    const { result } = renderHook(() => useMediaActions(), { wrapper });
+
+    await act(async () => {
+      await result.current.updateStatus(7, 'viendo');
+    });
+
+    expect(lastWrite().status).toBe('viendo');
+    expect(lastWrite().history).toEqual([old]);
+  });
+
+  it('un puntaje de hace más de un día se queda', async () => {
+    useMediaStore.setState({ mediaList: [series({ status: 'completada', history: [old] })] });
+    const { result } = renderHook(() => useMediaActions(), { wrapper });
+
+    await act(async () => {
+      await result.current.updateStatus(7, 'viendo');
+    });
+
+    expect(lastWrite()).not.toHaveProperty('history');
+  });
+
+  it('retomarla por los episodios nuevos no borra nada', async () => {
+    useMediaStore.setState({
+      mediaList: [series({ status: 'completada', history: [recent()] })],
+    });
+    const { result } = renderHook(() => useMediaActions(), { wrapper });
+
+    await act(async () => {
+      await result.current.updateStatus(7, 'viendo', { keepReview: true });
+    });
+
+    expect(lastWrite()).not.toHaveProperty('history');
+  });
+
+  it('desmarcar episodios también lo borra, y avisa', async () => {
+    useMediaStore.setState({
+      mediaList: [series({ status: 'completada', history: [recent()] })],
+    });
+    const { result } = renderHook(() => useMediaActions(), { wrapper });
+
+    let notified = false;
+    await act(async () => {
+      notified = await result.current.setProgress(7, { watched: { 1: [1, 2] } }, 'viendo');
+    });
+
+    expect(notified).toBe(true);
+    expect(lastWrite().history).toEqual([]);
+  });
+});

@@ -21,6 +21,7 @@ import {
   progressPercent,
   rateEpisode,
   ratedEpisodes,
+  statusAfterProgress,
   toggleEpisode,
   toggleSeason,
   totalEpisodes,
@@ -743,5 +744,42 @@ describe('focusEpisode', () => {
       nextToAir: { seasonNumber: 2, episodeNumber: 1, airDate: '2026-12-10' },
     };
     expect(focusEpisode(media, T2)).toBe(1);
+  });
+});
+
+describe('statusAfterProgress', () => {
+  it('desmarcar algo de una completada la vuelve a Viendo', () => {
+    expect(statusAfterProgress('completada', 10, 8)).toBe('viendo');
+  });
+
+  it('desmarcarla entera la vuelve a Por Ver', () => {
+    expect(statusAfterProgress('completada', 10, 0)).toBe('por_ver');
+  });
+
+  it('marcar más de una completada no la mueve', () => {
+    expect(statusAfterProgress('completada', 8, 10)).toBeUndefined();
+    expect(statusAfterProgress('completada', 10, 10)).toBeUndefined();
+  });
+
+  it('el primer episodio pasa una de Por Ver a Viendo', () => {
+    expect(statusAfterProgress('por_ver', 0, 1)).toBe('viendo');
+  });
+
+  it('desmarcar todo de una que estás viendo la devuelve a Por Ver', () => {
+    expect(statusAfterProgress('viendo', 3, 0)).toBe('por_ver');
+  });
+
+  it('terminar de marcarla no la pasa a Completada sola', () => {
+    expect(statusAfterProgress('viendo', 9, 10)).toBeUndefined();
+  });
+
+  it('marcar uno más de una en pausa la retoma, desmarcar no', () => {
+    expect(statusAfterProgress('en_pausa', 3, 4)).toBe('viendo');
+    expect(statusAfterProgress('en_pausa', 3, 2)).toBeUndefined();
+  });
+
+  it('una abandonada no se retoma sola', () => {
+    expect(statusAfterProgress('abandonada', 3, 4)).toBeUndefined();
+    expect(statusAfterProgress('abandonada', 3, 0)).toBeUndefined();
   });
 });

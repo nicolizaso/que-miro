@@ -323,6 +323,60 @@ describe('SeriesProgress, un episodio a la vez', () => {
   });
 });
 
+describe('desmarcar una serie completada', () => {
+  const recent = () => ({ id: 'hoy', rating: 4, completedAt: new Date().toISOString() });
+
+  async function unmarkSecond(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: /^Ir al episodio 2/ }));
+    await user.click(await seenButton(2));
+  }
+
+  it('la vuelve a Viendo y lo avisa', async () => {
+    const user = userEvent.setup();
+    const old = { id: 'vieja', rating: 3, completedAt: '2020-01-01T00:00:00.000Z' };
+    renderProgress(severance({ status: 'completada', progress: { watched: { 1: [1, 2] } }, history: [old] }));
+
+    await unmarkSecond(user);
+
+    await waitFor(() => expect(useMediaStore.getState().mediaList[0].status).toBe('viendo'));
+    expect(await screen.findByText('"Severance" pasó a Viendo.')).toBeInTheDocument();
+    // La reseña de hace años no era el error: se queda.
+    expect(useMediaStore.getState().mediaList[0].history).toEqual([old]);
+  });
+
+  it('si el puntaje es de hoy, lo borra y se puede deshacer todo', async () => {
+    const user = userEvent.setup();
+    const entry = recent();
+    renderProgress(severance({ status: 'completada', progress: { watched: { 1: [1, 2] } }, history: [entry] }));
+
+    await unmarkSecond(user);
+
+    await waitFor(() => expect(useMediaStore.getState().mediaList[0].history).toEqual([]));
+    expect(useMediaStore.getState().mediaList[0].status).toBe('viendo');
+    expect(
+      await screen.findByText('"Severance" pasó a Viendo y se borró el puntaje que le pusiste.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('"Severance" pasó a Viendo.')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Deshacer' }));
+    await waitFor(() => expect(useMediaStore.getState().mediaList[0].status).toBe('completada'));
+    expect(useMediaStore.getState().mediaList[0].history).toEqual([entry]);
+    expect(useMediaStore.getState().mediaList[0].progress?.watched[1]).toEqual([1, 2]);
+  });
+
+  it('desmarcar la temporada entera la vuelve a Por Ver, con un solo aviso', async () => {
+    const user = userEvent.setup();
+    renderProgress(
+      severance({ status: 'completada', progress: { watched: { 1: [1, 2, 3] } }, history: [recent()] }),
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Desmarcar' }));
+
+    await waitFor(() => expect(useMediaStore.getState().mediaList[0].status).toBe('por_ver'));
+    expect(screen.getAllByRole('button', { name: 'Deshacer' })).toHaveLength(1);
+  });
+});
+
 describe('marcar un episodio avanzado', () => {
   it('sin nada visto antes, pregunta por los anteriores y los marca todos', async () => {
     const user = userEvent.setup();

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { WatchEntry } from '@/types';
 import {
   latestRating,
   latestWatch,
@@ -7,6 +8,7 @@ import {
   parseMediaList,
   toStoredMedia,
   toStoredPatch,
+  undoableCompletion,
   watchCount,
   withArchive,
 } from './schema';
@@ -223,6 +225,36 @@ describe('lecturas del historial', () => {
     expect(latestWatch(sinVer)).toBeUndefined();
     expect(latestRating(sinVer)).toBeUndefined();
     expect(watchCount(sinVer)).toBe(0);
+  });
+});
+
+describe('undoableCompletion', () => {
+  const now = new Date('2026-03-10T12:00:00.000Z');
+  const entry = (completedAt: string, extra: Partial<WatchEntry> = {}): WatchEntry => ({
+    id: completedAt,
+    rating: 4,
+    completedAt,
+    ...extra,
+  });
+
+  it('devuelve la última reseña si es de las últimas 24 horas', () => {
+    const recent = entry('2026-03-10T09:00:00.000Z');
+    const media = { history: [recent, entry('2025-01-01T00:00:00.000Z')] };
+    expect(undoableCompletion(media, now)).toBe(recent);
+  });
+
+  it('una de hace más de un día se queda', () => {
+    expect(undoableCompletion({ history: [entry('2026-03-09T11:59:00.000Z')] }, now)).toBeUndefined();
+  });
+
+  it('lo puntuado al abandonar no se toca', () => {
+    const abandoned = entry('2026-03-10T11:00:00.000Z', { abandoned: true });
+    expect(undoableCompletion({ history: [abandoned] }, now)).toBeUndefined();
+  });
+
+  it('sin historial no hay nada que sacar', () => {
+    expect(undoableCompletion({}, now)).toBeUndefined();
+    expect(undoableCompletion({ history: [] }, now)).toBeUndefined();
   });
 });
 

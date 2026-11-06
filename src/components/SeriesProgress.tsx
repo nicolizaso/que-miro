@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import { Check, Star } from 'lucide-react';
-import { MediaStatus, SavedMedia, SeasonInfo, SeriesProgress as Progress } from '@/types';
+import { SavedMedia, SeasonInfo, SeriesProgress as Progress } from '@/types';
 import { useMediaActions } from '@/hooks/useMediaActions';
 import { useToast } from '@/contexts/ToastContext';
 import { useSeasonDetail } from '@/hooks/useSeasonDetail';
@@ -21,6 +21,7 @@ import {
   nextEpisode,
   progressPercent,
   rateEpisode,
+  statusAfterProgress,
   toggleSeason,
   totalEpisodes,
   watchedAiredEpisodes,
@@ -166,29 +167,29 @@ export function SeriesProgress({
 
   if (total === 0) return null;
 
-  /** Estado que le corresponde al título después de un cambio de progreso. */
-  const statusFor = (watchedCount: number): MediaStatus | undefined => {
-    if (watchedCount === 0) return media.status === 'viendo' ? 'por_ver' : undefined;
-    // Marcar un episodio más de una serie en pausa es retomarla. Una abandonada
-    // no se retoma sola: completar hasta dónde llegaste es corregir el dato,
-    // no volver a mirarla.
-    if (media.status === 'en_pausa' && watchedCount > watchedEpisodes(mediaWithSeasons)) {
-      return 'viendo';
-    }
-    // Terminar la serie no la marca como completada por su cuenta: eso lo
-    // decide la reseña, igual que en las películas.
-    return media.status === 'por_ver' ? 'viendo' : undefined;
-  };
-
-  const applyProgress = (progress: Progress) => {
+  /**
+   * Guarda el progreso y mueve la serie de lista si corresponde.
+   *
+   * Devuelve si ya hubo un aviso con "Deshacer", para que quien llamó no
+   * ofrezca otro encima.
+   */
+  const applyProgress = async (progress: Progress): Promise<boolean> => {
     const updated: SavedMedia = { ...mediaWithSeasons, progress };
-    const status = statusFor(watchedEpisodes(updated));
-    setProgress(media.tmdbId, progress, status);
+    const status = statusAfterProgress(
+      media.status,
+      watchedEpisodes(mediaWithSeasons),
+      watchedEpisodes(updated),
+    );
+    // Si salió de Completadas con el puntaje recién puesto, el aviso con
+    // "Deshacer" lo da `setProgress`, que es quien lo borró.
+    const notified = await setProgress(media.tmdbId, progress, status);
+    if (notified) return true;
     // El cambio de lista lo hace la app, no la persona: sin el aviso, la serie
     // desaparece de *Por Ver* sin que nadie entienda adónde fue.
     if (status && status !== media.status) {
       showToast(`"${media.title}" pasó a ${STATUS_LABELS[status]}.`);
     }
+    return false;
   };
 
   const countableSeasons = seasons.filter(
@@ -217,7 +218,7 @@ export function SeriesProgress({
    * toque, sin confirmación: el aviso ofrece deshacerlo, que es más rápido que
    * preguntar antes algo que casi siempre se quiere.
    */
-  const handleToggleSeason = (season: SeasonInfo) => {
+  const handleToggleSeason = async (season: SeasonInfo) => {
     const before = media.progress;
     const aired = airedInSeason(mediaWithSeasons, season);
     const progress = toggleSeason(before, season, aired);
@@ -225,8 +226,8 @@ export function SeriesProgress({
       (progress.watched[season.seasonNumber]?.length ?? 0) <
       (before?.watched[season.seasonNumber]?.length ?? 0);
 
-    applyProgress(progress);
-    if (isUnmarking && before) {
+    const notified = await applyProgress(progress);
+    if (isUnmarking && before && !notified) {
       showToast(`Desmarcaste la ${season.name}.`, 'success', {
         action: {
           label: 'Deshacer',
@@ -358,12 +359,12 @@ export function SeriesProgress({
         }
         nextSeason={followingSeason}
         onSelectSeason={setChosenSeason}
-        onProgress={applyProgress}
+        onProgress={(progress) => void applyProgress(progress)}
         onRateEpisode={(seasonNumber, episode, rating) => {
           const progress = rateEpisode(media.progress, seasonNumber, episode, rating);
           if (progress) void setProgress(media.tmdbId, progress);
         }}
-        onToggleSeason={handleToggleSeason}
+        onToggleSeason={(season) => void handleToggleSeason(season)}
         onRuntimeKnown={handleRuntimeKnown}
       />
 

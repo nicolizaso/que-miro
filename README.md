@@ -80,7 +80,10 @@ dispositivos.
   enteras, y desmarcar una se puede deshacer. Lo que todavía no salió aparece
   con su fecha, y la sinopsis de lo que no viste queda escondida hasta que la
   pedís. Marcar el primer episodio de una serie en *Por Ver* la pasa a
-  *Viendo*, y te avisa.
+  *Viendo*, y te avisa. Marcarla como completada marca todos sus episodios, y
+  desmarcar alguno la devuelve a *Viendo* (o a *Por Ver* si no queda ninguno).
+  Si la habías puntuado en las últimas 24 horas, ese puntaje se borra al
+  sacarla de *Completadas*, con un aviso para deshacerlo.
 - **Puntaje por episodio** — cada episodio visto se puede puntuar desde su
   tarjeta mientras mirás la serie; la ficha muestra tu mejor episodio, tu peor
   y el promedio de cada temporada.
